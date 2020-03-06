@@ -16,6 +16,8 @@ async function init() {
   await Promise.all(plugins.map((plugin) => plugin.init(pgpool)));
 }
 
+// TODO: Support cron rules from exported plugins, for a "run" frequency.
+
 async function run() {
   debug('Running plugins...');
   await Promise.all(plugins.map((plugin) => plugin.run(pgpool)));

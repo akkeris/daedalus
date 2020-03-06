@@ -3,6 +3,9 @@ const k8s = require('@kubernetes/client-node');
 const fs = require('fs');
 const debug = require('debug')('daedalus:kubernetes');
 
+// TODO: Add watch functionality and increase
+// rate at which it pulls the world. 
+
 async function checkPermissions(kc) {
   const accessPods = { spec: { resourceAttributes: { verb: 'watch', resource: 'pods' } } };
   const accessServices = { spec: { resourceAttributes: { verb: 'watch', resource: 'services' } } };
@@ -52,25 +55,49 @@ async function checkPermissions(kc) {
 }
 
 // TODO: remove this into its own plugin?, add configmaps to processing.
-async function writePostgresqlFromPodsAndConfigMaps(pgpool, pods /* configMaps */) {
+
+async function writePostgresqlFromPodsAndConfigMaps(pgpool, pods, configMaps) {
   debug(`Examining ${pods.length} pods for envs that have a postgres string.`);
   await Promise.all(pods.map(async (pod) => {
     if (pod.spec.containers) {
-      await Promise.all(pod.spec.containers.reduce((envs, container) => 
-          envs.concat((container.env || []).filter((env) => env.value && env.value.startsWith('postgres://')))
+      await Promise.all(pod.spec.containers.reduce((envs, container) => envs.concat((container.env || []).filter((env) => env.value && env.value.startsWith('postgres://')))
         .map(async (env) => {
           const dbUrl = new URL(env.value);
-          const db = await pgpool.query(`insert into postgresql.databases_log (database, name, host, port)
-              values (uuid_generate_v4(), $1, $2, $3)
-              on conflict (name, host, port) do update set name = $1 returning database`,
-          [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port]);
+          const db = await pgpool.query(`insert into postgresql.databases_log (database, name, host, port, deleted)
+              values (uuid_generate_v4(), $1, $2, $3, $4)
+              on conflict (name, host, port, deleted) do update set name = $1 returning database`,
+          [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
           assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
           assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
-          await pgpool.query(`insert into postgresql.roles_log (role, database, username, password, options)
-              values (uuid_generate_v4(), $1, $2, $3, $4)
-              on conflict (database, username, password) do nothing`,
-          [db.rows[0].database, dbUrl.username, dbUrl.password, dbUrl.search.replace(/\?/, '')]);
+          await pgpool.query(`insert into postgresql.roles_log (role, database, username, password, options, deleted)
+              values (uuid_generate_v4(), $1, $2, $3, $4, $5)
+              on conflict (database, username, password, deleted) 
+              do nothing`,
+          [db.rows[0].database, dbUrl.username, dbUrl.password, dbUrl.search.replace(/\?/, ''), false]);
         }), []));
+      // TODO: Detect deletions of databases from pods.
+    }
+  }));
+  debug(`Examining ${configMaps.length} configMaps for envs that have a postgres string.`);
+  await Promise.all(configMaps.map(async (configMap) => {
+    if (configMap.data) {
+      await Promise.all(Object.keys(configMap.data).map(async (env) => {
+        if (configMap.data[env].startsWith('postgres://')) {
+          const dbUrl = new URL(configMap.data[env]);
+          const db = await pgpool.query(`insert into postgresql.databases_log (database, name, host, port, deleted)
+            values (uuid_generate_v4(), $1, $2, $3, $4)
+            on conflict (name, host, port, deleted) do update set name = $1 returning database`,
+          [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
+          assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
+          assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
+          await pgpool.query(`insert into postgresql.roles_log (role, database, username, password, options, deleted)
+            values (uuid_generate_v4(), $1, $2, $3, $4, $5)
+            on conflict (database, username, password, deleted) 
+            do nothing`,
+          [db.rows[0].database, dbUrl.username, dbUrl.password, dbUrl.search.replace(/\?/, ''), false]);
+        }
+      }), []);
+      // TODO: Detect deletions of databases from configmaps.
     }
   }));
 }
@@ -97,11 +124,11 @@ async function writeObjs(pgpool, type, func, args) {
     'The items field on the returned kube response was not an array');
   debug(`Received ${body.items.length} items for ${type}`);
   await Promise.all(body.items.map((item) => pgpool.query(`
-      insert into kubernetes.${type}s_log (${type}, name, context, definition)
-      values (uuid_generate_v4(), $1, $2, $3)
-      on conflict (name, context, ((definition -> 'metadata') ->> 'resourceVersion')) 
+      insert into kubernetes.${type}s_log (${type}, name, context, definition, deleted)
+      values (uuid_generate_v4(), $1, $2, $3, $4)
+      on conflict (name, context, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
       do nothing
-    `, [item.metadata.name, process.env.KUBERNETES_CONTEXT, JSON.stringify(item, null, 2)])));
+    `, [item.metadata.name, process.env.KUBERNETES_CONTEXT, JSON.stringify(item, null, 2), false])));
   debug(`Wrote ${body.items.length} items for ${type}`);
   if (body.metadata.continue) {
     return body.items.concat(writeObjs(pgpool, type, func, { continue: body.metadata.continue, ...args })); // eslint-disable-line max-len
@@ -114,12 +141,12 @@ async function writeDeletedNamespacedObjs(pgpool, type, items) {
     .rows
     .filter((entry) => !items.some((item) => entry.namespace === item.metadata.namespace
           && entry.name === item.metadata.name
-          && entry.context === process.env.KUBERNETES_CONTEXT ))
+          && entry.context === process.env.KUBERNETES_CONTEXT))
     .map((item) => pgpool.query(`
       insert into kubernetes.${type}s_log (${type}, name, namespace, context, definition, deleted)
       values (uuid_generate_v4(), $1, $2, $3, $4, $5)
-      on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion')) 
-      do update set deleted = true
+      on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
+      do nothing
     `, [item.definition.metadata.name, item.definition.metadata.namespace, process.env.KUBERNETES_CONTEXT, JSON.stringify(item.definition, null, 2), true]));
   return items;
 }
@@ -128,12 +155,12 @@ async function writeDeletedObjs(pgpool, type, items) {
   (await pgpool.query(`select ${type}, name, context, definition from kubernetes.${type}s`, []))
     .rows
     .filter((entry) => !items.some((item) => entry.name === item.metadata.name
-      && entry.context === process.env.KUBERNETES_CONTEXT ))
+      && entry.context === process.env.KUBERNETES_CONTEXT))
     .map((item) => pgpool.query(`
       insert into kubernetes.${type}s_log (${type}, name, context, definition, deleted)
       values (uuid_generate_v4(), $1, $2, $3, $4)
-      on conflict (name, context, ((definition -> 'metadata') ->> 'resourceVersion')) 
-      do update set deleted = true
+      on conflict (name, context, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
+      do nothing
     `, [item.definition.metadata.name, process.env.KUBERNETES_CONTEXT, JSON.stringify(item.definition, null, 2), true]));
   return items;
 }
@@ -144,11 +171,11 @@ async function writeNamespacedObjs(pgpool, type, func, args) {
   assert.ok(Array.isArray(body.items), 'The items field on the returned kube response was not an array');
   debug(`Received ${body.items.length} items for ${type}`);
   await Promise.all(body.items.map((item) => pgpool.query(`
-      insert into kubernetes.${type}s_log (${type}, name, namespace, context, definition)
-      values (uuid_generate_v4(), $1, $2, $3, $4)
-      on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion')) 
+      insert into kubernetes.${type}s_log (${type}, name, namespace, context, definition, deleted)
+      values (uuid_generate_v4(), $1, $2, $3, $4, $5)
+      on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
       do nothing
-    `, [item.metadata.name, item.metadata.namespace, process.env.KUBERNETES_CONTEXT, JSON.stringify(item, null, 2)])));
+    `, [item.metadata.name, item.metadata.namespace, process.env.KUBERNETES_CONTEXT, JSON.stringify(item, null, 2), false])));
   debug(`Wrote ${body.items.length} items for ${type}`);
   if (body.metadata.continue) {
     return body.items.concat(writeNamespacedObjs(pgpool, type, func, { continue: body.metadata.continue, ...args })); // eslint-disable-line max-len

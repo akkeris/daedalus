@@ -160,7 +160,7 @@ async function run(pgpool) {
       postgresql.databases 
       join postgresql.roles on roles.database = databases.database`, []))
     .rows
-    .forEach((database) => writeTablesViewsAndColumns(pgpool, database)));
+    .map((database) => writeTablesViewsAndColumns(pgpool, database)));
 }
 
 module.exports = {

@@ -117,6 +117,24 @@ async function init(pgpool) {
   await pgpool.query(fs.readFileSync('./plugins/kubernetes/create.sql').toString());
 }
 
+async function writeNamespacedObjs(pgpool, type, func, args) {
+  const { body } = await func(args);
+  assert.ok(body.items, 'The items field on the returned kube response was not there.');
+  assert.ok(Array.isArray(body.items), 'The items field on the returned kube response was not an array');
+  debug(`Received ${body.items.length} items for ${type}`);
+  await Promise.all(body.items.map((item) => pgpool.query(`
+      insert into kubernetes.${type}s_log (${type}, name, namespace, context, definition, deleted)
+      values (uuid_generate_v4(), $1, $2, $3, $4, $5)
+      on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
+      do nothing
+    `, [item.metadata.name, item.metadata.namespace, process.env.KUBERNETES_CONTEXT, JSON.stringify(item, null, 2), false])));
+  debug(`Wrote ${body.items.length} items for ${type}`);
+  if (body.metadata.continue) {
+    return body.items.concat(writeNamespacedObjs(pgpool, type, func, { continue: body.metadata.continue, ...args })); // eslint-disable-line max-len
+  }
+  return body.items;
+}
+
 async function writeObjs(pgpool, type, func, args) {
   const { body } = await func(args);
   assert.ok(body.items, 'The items field on the returned kube response was not there.');
@@ -163,24 +181,6 @@ async function writeDeletedObjs(pgpool, type, items) {
       do nothing
     `, [item.definition.metadata.name, process.env.KUBERNETES_CONTEXT, JSON.stringify(item.definition, null, 2), true]));
   return items;
-}
-
-async function writeNamespacedObjs(pgpool, type, func, args) {
-  const { body } = await func(args);
-  assert.ok(body.items, 'The items field on the returned kube response was not there.');
-  assert.ok(Array.isArray(body.items), 'The items field on the returned kube response was not an array');
-  debug(`Received ${body.items.length} items for ${type}`);
-  await Promise.all(body.items.map((item) => pgpool.query(`
-      insert into kubernetes.${type}s_log (${type}, name, namespace, context, definition, deleted)
-      values (uuid_generate_v4(), $1, $2, $3, $4, $5)
-      on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
-      do nothing
-    `, [item.metadata.name, item.metadata.namespace, process.env.KUBERNETES_CONTEXT, JSON.stringify(item, null, 2), false])));
-  debug(`Wrote ${body.items.length} items for ${type}`);
-  if (body.metadata.continue) {
-    return body.items.concat(writeNamespacedObjs(pgpool, type, func, { continue: body.metadata.continue, ...args })); // eslint-disable-line max-len
-  }
-  return body.items;
 }
 
 async function run(pgpool) {

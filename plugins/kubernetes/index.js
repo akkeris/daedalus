@@ -55,6 +55,7 @@ async function checkPermissions(kc) {
 }
 
 // TODO: remove this into its own plugin?, add configmaps to processing.
+// TODO: Security, we should proactively strip values in the config map when storing, store a hash instead.
 
 async function writePostgresqlFromPodsAndConfigMaps(pgpool, pods, configMaps) {
   debug(`Examining ${pods.length} pods for envs that have a postgres string.`);

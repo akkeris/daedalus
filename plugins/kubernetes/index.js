@@ -205,6 +205,9 @@ async function writeDeletedObjs(pgpool, type, items) {
 }
 
 async function run(pgpool) {
+  if(!process.env.KUBERNETES_CONTEXT) {
+    return;
+  }
   const kc = new k8s.KubeConfig();
   try {
     kc.loadFromCluster();

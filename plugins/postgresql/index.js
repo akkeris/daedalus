@@ -49,7 +49,11 @@ function findTableOrViewId(tables, views, database, catalog, schema, name) {
       && view.name === name))[0];
 }
 
-// TODO: Listen for changes via triggers and channels
+// TODO: Fix the issue if there's a state flip back to the original state the diff breaks. 
+// e.g. drop a column and re-add it (exactly how it was). The system can't handle that. 
+// e.g. change the port of a database to 1 from 5432 then back 5432, breaks.
+
+// TODO: Listen for changes via triggers and channels?
 // https://www.postgresql.org/docs/9.1/sql-notify.html
 
 async function writeTablesViewsAndColumns(pgpool, database) {
@@ -84,7 +88,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         information_schema.tables
       where 
         tables.table_schema <> 'information_schema' and 
-        tables.table_schema <> 'pg_catalog' and 
+        tables.table_schema not like 'pg_%' and 
         tables.table_type = 'BASE TABLE'
     `, [])).rows.map((table) => pgpool.query(`
       insert into postgresql.tables_log 
@@ -102,7 +106,8 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         table_catalog, table_schema, table_name, view_definition
       from information_schema.views
       where 
-        views.table_schema <> 'information_schema' and views.table_schema <> 'pg_catalog'
+        views.table_schema <> 'information_schema' and 
+        views.table_schema not like 'pg_%'
     `, [])).rows.map((view) => pgpool.query(`
       insert into postgresql.tables_log 
         ("table", database, catalog, schema, name, is_view, definition, deleted)
@@ -152,10 +157,12 @@ async function writeTablesViewsAndColumns(pgpool, database) {
 
     const constraints = (await client.query(`
        with constraints as (
-        select constraint_catalog, constraint_schema, constraint_name, unique_constraint_catalog, unique_constraint_schema, unique_constraint_name, '' as "check_clause"
+        select 
+          constraint_catalog, constraint_schema, constraint_name, unique_constraint_catalog, unique_constraint_schema, unique_constraint_name, '' as "check_clause"
         from information_schema.referential_constraints
         union all
-        select constraint_catalog, constraint_schema, constraint_name, constraint_catalog as "unique_constraint_catalog", constraint_schema as "unique_constraint_schema", constraint_name as "unique_constraint_name", check_clause
+        select 
+          constraint_catalog, constraint_schema, constraint_name, constraint_catalog as "unique_constraint_catalog", constraint_schema as "unique_constraint_schema", constraint_name as "unique_constraint_name", check_clause
         from information_schema.check_constraints
       )
       select
@@ -187,7 +194,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         left join information_schema.table_constraints as to_table on to_table.constraint_catalog = constraints.unique_constraint_catalog and to_table.constraint_schema = constraints.unique_constraint_schema and to_table.constraint_name = constraints.unique_constraint_name
         left join information_schema.constraint_column_usage as to_column on to_column.constraint_catalog = constraints.unique_constraint_catalog and to_column.constraint_schema = constraints.unique_constraint_schema and to_column.constraint_name = constraints.unique_constraint_name
       where
-        from_table.constraint_schema <> 'pg_catalog' and from_table.constraint_schema <> 'information_schema'
+        from_table.constraint_schema not like 'pg_%' and from_table.constraint_schema <> 'information_schema'
     `, [])).rows;
 
     const primaryKeyConstraints = (await Promise.all(constraints.filter((x) => x.constraint_type === 'PRIMARY KEY').map((constraint) => {
@@ -246,18 +253,63 @@ async function writeTablesViewsAndColumns(pgpool, database) {
       `, [database.database, constraint.constraint_name, constraint.constraint_type, constraint.from_catalog, constraint.from_schema, tableUUID, columnUUID, constraint.check_clause, false]);
     }))).map((x) => x.rows).flat();
 
+    // Table Estimates 
+    (await Promise.all((await client.query(`
+      select
+        pg_class.reltuples::bigint as rows,
+        pg_indexes_size(pg_class.oid) AS index_size,
+        pg_table_size(pg_class.oid) AS table_size,
+        pg_class.relname as table_name,
+        pg_stat_user_tables.seq_scan,
+        CASE pg_stat_user_tables.idx_scan WHEN 0 THEN 0::float ELSE (pg_stat_user_tables.idx_scan::float / (pg_stat_user_tables.seq_scan + pg_stat_user_tables.idx_scan)::float)::float END percent_of_times_index_used,
+        pg_cache_hits.index_hit_rate,
+        pg_cache_hits.table_hit_rate,
+        pg_namespace.nspname as schema
+      from pg_class
+        join pg_stat_user_tables on pg_class.oid = pg_stat_user_tables.relid
+        join (
+          select
+            pg_statio_user_indexes.relid,
+            sum(pg_statio_user_indexes.idx_blks_hit) / nullif(sum(pg_statio_user_indexes.idx_blks_hit + pg_statio_user_indexes.idx_blks_read),0) AS index_hit_rate,
+            sum(pg_statio_user_tables.heap_blks_hit) / nullif(sum(pg_statio_user_tables.heap_blks_hit) + sum(pg_statio_user_tables.heap_blks_read),0) AS table_hit_rate
+            from pg_statio_user_indexes join pg_statio_user_tables on pg_statio_user_tables.relid = pg_statio_user_indexes.relid
+            group by pg_statio_user_indexes.relid
+        ) as pg_cache_hits on pg_class.oid = pg_cache_hits.relid
+        join pg_namespace on
+          pg_class.relnamespace = pg_namespace.oid and
+          pg_class.reltype <> 0 and
+          pg_class.relkind = 'r' and
+          pg_namespace.nspname not like 'pg_%' and
+          pg_namespace.nspname <> 'information_schema'
+    `, [])).rows.map((estimate) => pgpool.query(`
+      insert into postgresql.table_statistics_log 
+        ("table_statistic", database, catalog, schema, "table", row_amount_estimate, index_size, table_size, sequential_scans, percent_of_times_index_used, index_hit_rate, table_hit_rate, deleted)
+      values
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      on conflict do nothing
+    `, [database.database, database.name, estimate.schema, findTableOrViewId(tables, views, database.database, database.name, estimate.schema, estimate.table_name).table, estimate.rows, estimate.index_size, estimate.table_size, estimate.seq_scan, estimate.percent_of_times_index_used, estimate.index_hit_rate || 0, estimate.table_hit_rate || 0, false]))));
 
-    // == definition ==
-    // TODO: User defined data types
-    // TODO: Foreign data wrappers, foreign tables, foreign servers
-    // == statistics ==
-    // TOOD: Table rows count
-    // TODO: Long running queries
-    // TODO: Amount of connections
-    // TODO: Amount of space taken (by table? by index? by db?)
-    // TODO: Index hit and misses, index usage rate (+99% for effectiveness)
-    // TODO: Locks
-    // TODO: Vacuum statistics
+    // Database Connection Statistics
+    (await Promise.all((await client.query(`
+      select 
+        max_connections, 
+        used_connections, 
+        reserved_connections, 
+        max_connections - used_connections - reserved_connections as available_connections 
+      from 
+        (select count(*) used_connections from pg_stat_activity) a, 
+        (select setting::int reserved_connections from pg_settings where name=$$superuser_reserved_connections$$) b, 
+        (select setting::int max_connections from pg_settings where name=$$max_connections$$) c
+    `, [])).rows.map((estimate) => pgpool.query(`
+      insert into postgresql.database_statistics_log
+        ("database_statistic", database, max_connections, used_connections, reserved_connections, available_connections, deleted)
+      values
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6)
+      on conflict do nothing
+    `, [database.database, estimate.max_connections, estimate.used_connections, estimate.reserved_connections, estimate.available_connections, false]))));
+
+    // TODO: User defined data types, Foreign data wrappers, foreign tables, foreign servers
+    // TODO: Long running queries, Locks, Vacuum statistics, pg_settings?
 
     // Check for table deletion
     await Promise.all((await pgpool.query('select "table", database, catalog, schema, name, is_view, definition from postgresql.tables where database = $1', [database.database]))

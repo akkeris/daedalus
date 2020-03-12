@@ -114,6 +114,7 @@ async function run(pgpool) {
   `, 
   [item.id, lookupAddonById(addons_log, item.addon.id), lookupAppById(apps_log, item.app.id), lookupAddonServiceByPlanId(addon_services_log, item.addon.plan.id), item.name, item])));
 
+  // TODO: detect deletions?
   // TODO: releases? builds? slugs? log-drains?
 }
 

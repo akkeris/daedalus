@@ -59,7 +59,7 @@ function findTableOrViewId(tables, views, database, catalog, schema, name) {
 async function writeTablesViewsAndColumns(pgpool, database) {
   assert.ok(database, 'A database parameter was not provided!');
   if (!database.database || !database.port || !database.name) {
-    console.error(`   Error: Unable to process posgres://${database.username}@${database.host}:${database.port}/${database.name} as a required field was not provided.`); // eslint-disable-line no-console
+    console.error(`  Error: Unable to process posgres://${database.username}@${database.host}:${database.port}/${database.name} as a required field was not provided.`); // eslint-disable-line no-console
     return;
   }
   debug(`Writing tables, views and columns for posgres://${database.username}@${database.host}:${database.port}/${database.name} database...`); // eslint-disable-line max-len

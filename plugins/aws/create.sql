@@ -27,7 +27,7 @@ begin
       deleted,
       row_number() over (partition by db_instance_arn order by observed_on desc) as rn
     from aws.rds_db_instances_log)
-    select db_instance_arn, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select db_instance_arn, engine, status, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
 
   create table if not exists aws.rds_db_clusters_log (
@@ -54,10 +54,10 @@ begin
       deleted,
       row_number() over (partition by db_cluster_arn order by observed_on desc) as rn
     from aws.rds_db_clusters_log)
-    select db_cluster_arn, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select db_cluster_arn, engine, status, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
 
-  create table if not exists aws.rds_db_events_log (
+  create table if not exists aws.rds_events_log (
     rds_events_log uuid not null primary key default uuid_generate_v4(),
     source_identifier varchar(128) not null,
     source_type varchar(128) not null,
@@ -68,7 +68,7 @@ begin
     deleted boolean not null default false
   );
 
-  create or replace view aws.rds_db_events as
+  create or replace view aws.rds_events as
     with ordered_list as ( select
       source_identifier,
       source_type,
@@ -78,7 +78,7 @@ begin
       observed_on,
       deleted,
       row_number() over (partition by source_identifier order by observed_on desc) as rn
-    from aws.rds_db_events_log)
+    from aws.rds_events_log)
     select source_identifier, source_type, source_arn, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
 
@@ -160,7 +160,6 @@ begin
     select certificate_identifier, certificate_type, certificate_arn, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
 
-
   create table if not exists aws.rds_db_subnet_groups_log (
     rds_db_subnet_group_log uuid not null primary key default uuid_generate_v4(),
     name varchar(128) not null,
@@ -182,7 +181,6 @@ begin
       row_number() over (partition by db_subnet_group_arn order by observed_on desc) as rn
     from aws.rds_db_subnet_groups_log)
     select name, db_subnet_group_arn, definition, observed_on from ordered_list where rn=1 and deleted = false;
-
 
 
   create table if not exists aws.rds_db_security_groups_log (

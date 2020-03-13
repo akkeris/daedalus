@@ -4,7 +4,7 @@
   "description": "Cunningly Wrought",
   "main": "index.js",
   "scripts": {
-    "start": "DEBUG=* node index.js",
+    "start": "DEBUG=daedalus:* node index.js",
     "test": "nyc test/*.js"
   },
   "repository": {
@@ -23,6 +23,8 @@
   "homepage": "https://github.com/akkeris/daedalus#readme",
   "dependencies": {
     "@kubernetes/client-node": "^0.11.1",
+    "aws-sdk": "^2.638.0",
+    "axios": "^0.19.2",
     "debug": "^4.1.1",
     "pg": "^7.18.2"
   },

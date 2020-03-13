@@ -9,7 +9,9 @@ This is currently in discovery and may change considerably.
 ## Environment
 
 * `DATABASE_URL` - Required - This is the database used for daedalus.
-* `KUBERNETES_CONTEXT` - Required - This is used to indicate the instance of kubernetes context being used. 
+* `KUBERNETES_CONTEXT` - Optional - This is used to indicate the instance of kubernetes context being used.
+* `AKKERIS_URL` and `AKKERIS_TOKEN` - Optional - this is used to sync akkeris.
+* `AWS_RDS_SECRET_KEY`, `AWS_RDS_ACCESS_KEY`, and `AWS_RDS_REGIONS` - Optional - this is used to sync aws RDS.
 
 ## Debug
 
@@ -17,7 +19,9 @@ To debug, set the environment variable `DEBUG=daedalus:*`, to debug specific sec
 
 * `daedalus:index` - main functionality
 * `daedalus:postgresql` - postgresql importing and checks.
-* `daedalus:kubernetes` - kubernetes debugging, importing adn checks.
+* `daedalus:kubernetes` - kubernetes debugging, importing and checks.
+* `daedalus:akkeris` - akkeris debugging, importing and checks.
+* `daedalus:aws` - aws debugging, importing and checks.
 
 ## Contributing
 

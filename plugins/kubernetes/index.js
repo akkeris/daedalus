@@ -125,8 +125,6 @@ async function loadFromKubeConfig(kc) {
 
 async function init(pgpool) {
   debug('Initializing kubernetes plugin...');
-  assert.ok(process.env.KUBERNETES_CONTEXT,
-    'No kubernetes context was specified in the env KUBERNETES_CONTEXT');
   await pgpool.query(fs.readFileSync('./plugins/kubernetes/create.sql').toString());
 }
 
@@ -205,6 +203,9 @@ async function writeDeletedObjs(pgpool, type, items) {
 }
 
 async function run(pgpool) {
+  if(!process.env.KUBERNETES_CONTEXT) {
+    return;
+  }
   const kc = new k8s.KubeConfig();
   try {
     kc.loadFromCluster();

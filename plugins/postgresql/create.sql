@@ -108,30 +108,34 @@ begin
   create unique index if not exists columns_unique on postgresql.columns_log (database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted);
   create index if not exists columns_observed_on on postgresql.columns_log (database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, observed_on desc);
   create or replace view postgresql.columns as
-    with ordered_list as ( select
-      columns_log.column,
-      columns_log.database,
-      columns_log.catalog,
-      columns_log.schema,
-      columns_log.table,
-      columns_log.name,
-      columns_log.position,
-      columns_log.default,
-      columns_log.is_nullable,
-      columns_log.data_type,
-      columns_log.character_maximum_length,
-      columns_log.character_octet_length,
-      columns_log.numeric_precision,
-      columns_log.numeric_precision_radix,
-      columns_log.numeric_scale,
-      columns_log.datetime_precision,
-      columns_log.is_updatable,
-      columns_log.observed_on,
-      columns_log.deleted as columns_deleted,
-      tables_log.deleted as tables_deleted,
-      databases_log.deleted as databases_deleted,
-      row_number() over (partition by columns_log.database, columns_log.catalog, columns_log.schema, columns_log.table, columns_log.name order by columns_log.observed_on desc) as rn
-    from postgresql.columns_log join postgresql.tables_log on columns_log.table = tables_log.table join postgresql.databases_log on columns_log.database = databases_log.database)
+    with ordered_list as ( 
+      select
+        columns_log.column,
+        columns_log.database,
+        columns_log.catalog,
+        columns_log.schema,
+        columns_log.table,
+        columns_log.name,
+        columns_log.position,
+        columns_log.default,
+        columns_log.is_nullable,
+        columns_log.data_type,
+        columns_log.character_maximum_length,
+        columns_log.character_octet_length,
+        columns_log.numeric_precision,
+        columns_log.numeric_precision_radix,
+        columns_log.numeric_scale,
+        columns_log.datetime_precision,
+        columns_log.is_updatable,
+        columns_log.observed_on,
+        columns_log.deleted as columns_deleted,
+        tables_log.deleted as tables_deleted,
+        databases_log.deleted as databases_deleted,
+        row_number() over (partition by columns_log.database, columns_log.catalog, columns_log.schema, columns_log.table, columns_log.name order by columns_log.observed_on desc) as rn
+      from postgresql.columns_log 
+        join postgresql.tables_log on columns_log.table = tables_log.table 
+        join postgresql.databases_log on columns_log.database = databases_log.database
+    )
     select "column", database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, observed_on from ordered_list where rn=1 and databases_deleted = false and tables_deleted = false and columns_deleted = false;
 
 
@@ -149,21 +153,27 @@ begin
   create unique index if not exists indexes_unique on postgresql.indexes_log (database, catalog, schema, "table", name, definition, deleted);
   create index if not exists indexes_observed_on on postgresql.indexes_log (database, catalog, schema, "table", name, definition, observed_on desc);
   create or replace view postgresql.indexes as
-    with ordered_list as ( select
-      indexes_log.index,
-      indexes_log.database,
-      indexes_log.catalog,
-      indexes_log.schema,
-      indexes_log.table,
-      indexes_log.name,
-      indexes_log.definition,
-      indexes_log.observed_on,
-      indexes_log.deleted as indexes_deleted,
-      tables_log.deleted as tables_deleted,
-      databases_log.deleted as databases_deleted,
-      row_number() over (partition by indexes_log.database, indexes_log.catalog, indexes_log.schema, indexes_log.table, indexes_log.name, indexes_log.definition order by indexes_log.observed_on desc) as rn
-    from postgresql.indexes_log join postgresql.tables_log on indexes_log.table = tables_log.table join postgresql.databases_log on indexes_log.database = databases_log.database)
-    select "index", database, catalog, schema, "table", name, definition, observed_on from ordered_list where rn=1 and indexes_deleted = false and tables_deleted = false and databases_deleted = false;
+    with ordered_list as ( 
+      select
+        indexes_log.index,
+        indexes_log.database,
+        indexes_log.catalog,
+        indexes_log.schema,
+        indexes_log.table,
+        indexes_log.name,
+        indexes_log.definition,
+        indexes_log.observed_on,
+        indexes_log.deleted as indexes_deleted,
+        tables_log.deleted as tables_deleted,
+        databases_log.deleted as databases_deleted,
+        row_number() over (partition by indexes_log.database, indexes_log.catalog, indexes_log.schema, indexes_log.table, indexes_log.name, indexes_log.definition order by indexes_log.observed_on desc) as rn
+      from postgresql.indexes_log 
+        join postgresql.tables_log on indexes_log.table = tables_log.table 
+        join postgresql.databases_log on indexes_log.database = databases_log.database
+    )
+    select "index", database, catalog, schema, "table", name, definition, observed_on 
+    from ordered_list 
+    where rn=1 and indexes_deleted = false and tables_deleted = false and databases_deleted = false;
 
 
   create table if not exists postgresql.constraints_log (
@@ -190,34 +200,36 @@ begin
   create unique index if not exists constraints_unique on postgresql.constraints_log (database, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted);
   create index if not exists constraints_observed_on on postgresql.constraints_log (database, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, observed_on desc);
   create or replace view postgresql.constraints as
-    with ordered_list as ( select
-      constraints_log.constraint,
-      constraints_log.database,
-      constraints_log.name,
-      constraints_log.type,
-      constraints_log.from_catalog,
-      constraints_log.from_schema,
-      constraints_log.from_table,
-      constraints_log.from_column,
-      constraints_log.to_catalog,
-      constraints_log.to_schema,
-      constraints_log.to_table,
-      constraints_log.to_column,
-      constraints_log.check_clause,
-      constraints_log.observed_on,
-      constraints_log.deleted as constraints_deleted,
-      to_tables_log.deleted as to_tables_deleted,
-      from_tables_log.deleted as from_tables_deleted,
-      to_columns_log.deleted as to_columns_deleted,
-      from_columns_log.deleted as from_columns_deleted,
-      databases_log.deleted as databases_deleted,
-      row_number() over (partition by constraints_log.database, constraints_log.name, constraints_log.type, constraints_log.from_catalog, constraints_log.from_schema, constraints_log.from_table, constraints_log.from_column, constraints_log.to_catalog, constraints_log.to_schema, constraints_log.to_table, constraints_log.to_column, constraints_log.check_clause order by constraints_log.observed_on desc) as rn
-    from postgresql.constraints_log
-      left join postgresql.tables_log from_tables_log on constraints_log.from_table = from_tables_log.table
-      left join postgresql.tables_log to_tables_log on constraints_log.to_table = to_tables_log.table
-      left join postgresql.columns_log from_columns_log on constraints_log.from_column = from_columns_log.column
-      left join postgresql.columns_log to_columns_log on constraints_log.to_column = to_columns_log.column
-      left join postgresql.databases_log on constraints_log.database = databases_log.database)
+    with ordered_list as ( 
+      select
+        constraints_log.constraint,
+        constraints_log.database,
+        constraints_log.name,
+        constraints_log.type,
+        constraints_log.from_catalog,
+        constraints_log.from_schema,
+        constraints_log.from_table,
+        constraints_log.from_column,
+        constraints_log.to_catalog,
+        constraints_log.to_schema,
+        constraints_log.to_table,
+        constraints_log.to_column,
+        constraints_log.check_clause,
+        constraints_log.observed_on,
+        constraints_log.deleted as constraints_deleted,
+        to_tables_log.deleted as to_tables_deleted,
+        from_tables_log.deleted as from_tables_deleted,
+        to_columns_log.deleted as to_columns_deleted,
+        from_columns_log.deleted as from_columns_deleted,
+        databases_log.deleted as databases_deleted,
+        row_number() over (partition by constraints_log.database, constraints_log.name, constraints_log.type, constraints_log.from_catalog, constraints_log.from_schema, constraints_log.from_table, constraints_log.from_column, constraints_log.to_catalog, constraints_log.to_schema, constraints_log.to_table, constraints_log.to_column, constraints_log.check_clause order by constraints_log.observed_on desc) as rn
+      from postgresql.constraints_log
+        left join postgresql.tables_log from_tables_log on constraints_log.from_table = from_tables_log.table
+        left join postgresql.tables_log to_tables_log on constraints_log.to_table = to_tables_log.table
+        left join postgresql.columns_log from_columns_log on constraints_log.from_column = from_columns_log.column
+        left join postgresql.columns_log to_columns_log on constraints_log.to_column = to_columns_log.column
+        left join postgresql.databases_log on constraints_log.database = databases_log.database
+    )
     select "constraint", database, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, check_clause, observed_on
     from ordered_list
     where rn=1 and
@@ -227,5 +239,77 @@ begin
       (to_columns_deleted = false or to_columns_deleted is null) and
       (from_columns_deleted = false or from_columns_deleted is null) and
       databases_deleted = false;
+
+  create table if not exists postgresql.table_statistics_log (
+    "table_statistic" uuid not null primary key, 
+    database uuid references postgresql.databases_log("database") not null,
+    catalog varchar(1024) not null, 
+    schema varchar(1024) not null, 
+    "table" uuid references postgresql.tables_log("table") not null, 
+    row_amount_estimate int not null, 
+    index_size int not null, 
+    table_size int not null,
+    sequential_scans int not null,
+    percent_of_times_index_used float not null,
+    index_hit_rate float not null,
+    table_hit_rate float not null,
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+  create unique index if not exists table_statistics_pkey_unique on postgresql.table_statistics_log (database, catalog, schema, "table", row_amount_estimate, sequential_scans, percent_of_times_index_used, index_hit_rate, table_hit_rate, deleted);
+  create or replace view postgresql.table_statistics as
+    with ordered_list as ( 
+      select
+        table_statistics_log.table_statistic,
+        table_statistics_log.database,
+        table_statistics_log.catalog,
+        table_statistics_log.schema,
+        table_statistics_log.table,
+        table_statistics_log.row_amount_estimate,
+        table_statistics_log.sequential_scans,
+        table_statistics_log.percent_of_times_index_used,
+        table_statistics_log.index_hit_rate,
+        table_statistics_log.table_hit_rate,
+        table_statistics_log.observed_on,
+        table_statistics_log.deleted as rows_deleted,
+        tables_log.deleted as tables_deleted,
+        row_number() over (partition by table_statistics_log.database, table_statistics_log.catalog, table_statistics_log.schema, table_statistics_log.table  order by table_statistics_log.observed_on desc) as rn
+      from postgresql.table_statistics_log
+        join postgresql.tables_log on table_statistics_log.table = tables_log.table) 
+    select "table_statistic", database, catalog, schema, "table", row_amount_estimate, sequential_scans, percent_of_times_index_used, index_hit_rate, table_hit_rate, observed_on 
+    from ordered_list 
+    where rn=1 and rows_deleted = false and tables_deleted = false;
+
+
+  create table if not exists postgresql.database_statistics_log (
+    "database_statistic" uuid not null primary key, 
+    database uuid references postgresql.databases_log("database") not null,
+    max_connections int not null, 
+    used_connections int not null, 
+    reserved_connections int not null, 
+    available_connections int not null, 
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+  create unique index if not exists database_statistics_pkey_unique on postgresql.database_statistics_log (database, max_connections, used_connections, reserved_connections, available_connections, deleted);
+  create or replace view postgresql.database_statistics as
+    with ordered_list as ( 
+      select
+        database_statistics_log.database_statistic,
+        database_statistics_log.database,
+        database_statistics_log.max_connections,
+        database_statistics_log.used_connections,
+        database_statistics_log.reserved_connections,
+        database_statistics_log.available_connections,
+        (database_statistics_log.used_connections::float / database_statistics_log.available_connections::float) as percent_of_max_connections,
+        database_statistics_log.observed_on,
+        database_statistics_log.deleted as database_statistic_deleted,
+        row_number() over (partition by database_statistics_log.database order by database_statistics_log.observed_on desc) as rn
+      from postgresql.database_statistics_log) 
+    select "database_statistic", database, max_connections, used_connections, reserved_connections, available_connections, percent_of_max_connections, observed_on 
+    from ordered_list 
+    where rn=1 and database_statistic_deleted = false;
+
+  
 end
 $$;

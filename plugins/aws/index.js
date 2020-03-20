@@ -4,10 +4,20 @@ const debug = require('debug')('daedalus:aws');
 
 async function run(pgpool) {
   let rdsClients = [];
-  if (process.env.AWS_RDS_SECRET_KEY && process.env.AWS_RDS_ACCESS_KEY && process.env.AWS_RDS_REGIONS) {
-    rdsClients = rdsClients.concat(process.env.AWS_RDS_REGIONS.split(',').map((x) => x.toLowerCase()).map((region) => new AWS.RDS({ accessKeyId: process.env.AWS_RDS_ACCESS_KEY, secretAccesskey: process.env.AWS_RDS_SECRET_KEY, region })));
+  if (process.env.AWS_RDS_SECRET_KEY
+      && process.env.AWS_RDS_ACCESS_KEY
+      && process.env.AWS_RDS_REGIONS) {
+    rdsClients = rdsClients.concat(process.env.AWS_RDS_REGIONS.split(',')
+      .map((x) => x.toLowerCase())
+      .map((region) => new AWS.RDS({
+        accessKeyId: process.env.AWS_RDS_ACCESS_KEY,
+        secretAccesskey: process.env.AWS_RDS_SECRET_KEY,
+        region,
+      })));
   } else if (process.env.AWS_RDS_REGIONS) {
-    rdsClients = rdsClients.concat(process.env.AWS_RDS_REGIONS.split(',').map((x) => x.toLowerCase()).map((region) => new AWS.RDS({ region })));
+    rdsClients = rdsClients.concat(process.env.AWS_RDS_REGIONS.split(',')
+      .map((x) => x.toLowerCase())
+      .map((region) => new AWS.RDS({ region })));
   } else {
     return;
   }
@@ -15,23 +25,21 @@ async function run(pgpool) {
   const existingDbClusters = (await pgpool.query('select * from aws.rds_db_clusters')).rows;
   const existingDbInstances = (await pgpool.query('select * from aws.rds_db_instances')).rows;
   const existingDbParameterGroups = (await pgpool.query('select * from aws.rds_db_parameter_groups')).rows;
-  const existingEvents = (await pgpool.query('select * from aws.rds_events')).rows;
   const existingDbSnapshots = (await pgpool.query('select * from aws.rds_db_snapshots')).rows;
   const existingCertificates = (await pgpool.query('select * from aws.rds_certificates')).rows;
   const existingDbSubnetGroups = (await pgpool.query('select * from aws.rds_db_subnet_groups')).rows;
   const existingDbSecurityGroups = (await pgpool.query('select * from aws.rds_db_security_groups')).rows;
 
   await Promise.all(rdsClients.map(async (rds) => {
-    let marker = void (0);
+    let marker = void (0); // eslint-disable-line no-void
 
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeDBClusters-property
     debug(`Pulling DB Clusters from AWS RDS ${rds.config.region}...`);
-    marker = void (0);
     let dbClusters = [];
     do {
-      const resp = await rds.describeDBClusters({ Marker: marker }).promise();
-      await new Promise((res) => setTimeout(res, 2000));
-      dbClusters = dbClusters.concat((await Promise.all(resp.DBClusters.map(async (db) => {
+      const resp = await rds.describeDBClusters({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
+      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      dbClusters = dbClusters.concat((await Promise.all(resp.DBClusters.map(async (db) => { // eslint-disable-line no-await-in-loop,max-len
         await pgpool.query(`
           insert into aws.rds_db_clusters_log (db_cluster_arn, engine, status, name, definition)
           select $1::varchar(128), $2, $3, $4, $5::jsonb
@@ -57,12 +65,12 @@ async function run(pgpool) {
 
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeDBInstances-property
     debug(`Pulling DB Instances from AWS RDS ${rds.config.region}...`);
-    marker = void (0);
+    marker = void (0); // eslint-disable-line no-void
     let dbInstances = [];
     do {
-      const resp = await rds.describeDBInstances({ Marker: marker }).promise();
-      await new Promise((res) => setTimeout(res, 2000));
-      dbInstances = dbInstances.concat((await Promise.all(resp.DBInstances.map(async (db) => {
+      const resp = await rds.describeDBInstances({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
+      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      dbInstances = dbInstances.concat((await Promise.all(resp.DBInstances.map(async (db) => { // eslint-disable-line no-await-in-loop,max-len
         await pgpool.query(`
           insert into aws.rds_db_instances_log (db_instance_arn, engine, status, name, definition)
           select $1::varchar(128), $2, $3, $4, $5::jsonb
@@ -87,12 +95,12 @@ async function run(pgpool) {
 
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeDBParameterGroups-property
     debug(`Pulling DB Parameter Groups from AWS RDS ${rds.config.region}...`);
-    marker = void (0);
+    marker = void (0); // eslint-disable-line no-void
     let dbParameterGroups = [];
     do {
-      const resp = await rds.describeDBParameterGroups({ Marker: marker }).promise();
-      await new Promise((res) => setTimeout(res, 2000));
-      dbParameterGroups = dbParameterGroups.concat((await Promise.all(resp.DBParameterGroups.map(async (db) => {
+      const resp = await rds.describeDBParameterGroups({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
+      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      dbParameterGroups = dbParameterGroups.concat((await Promise.all(resp.DBParameterGroups.map(async (db) => { // eslint-disable-line no-await-in-loop,max-len
         await pgpool.query(`
           insert into aws.rds_db_parameter_groups_log (db_parameter_group_arn, family, description, name, definition)
           select $1::varchar(128), $2, $3, $4, $5::jsonb
@@ -117,13 +125,14 @@ async function run(pgpool) {
 
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeEvents-property
     debug(`Pulling Events from AWS RDS ${rds.config.region}...`);
-    marker = void (0);
+    marker = void (0); // eslint-disable-line no-void
     const startTime = new Date();
     startTime.setUTCDate(startTime.getUTCDate() - 1);
     do {
-      const resp = await rds.describeEvents({ Marker: marker, StartTime: startTime }).promise();
-      await new Promise((res) => setTimeout(res, 2000));
-      (await Promise.all(resp.Events.map(async (event) => await pgpool.query(`
+      const resp = await rds.describeEvents({ Marker: marker, StartTime: startTime }).promise(); // eslint-disable-line no-await-in-loop,max-len
+      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      (await Promise.all(resp.Events.map(async (event) => pgpool.query( // eslint-disable-line no-await-in-loop,max-len
+        `
         insert into aws.rds_events_log (source_identifier, source_type, source_arn, definition)
         select $1::varchar(128), $2::varchar(128), $3::varchar(128), $4::jsonb
         where not exists (
@@ -139,20 +148,20 @@ async function run(pgpool) {
           b.hash=encode(digest($4::text,'sha1'),'hex') and 
           b.source_identifier=$1::varchar(128)
         )
-      `, [event.SourceIdentifier, event.SourceType, event.SourceArn, event])))
-      );
+      `, [event.SourceIdentifier, event.SourceType, event.SourceArn, event],
+      ))));
       marker = resp.Marker;
     } while (marker);
 
 
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeDBSnapshots-property
     debug(`Pulling DB Snapshots from AWS RDS ${rds.config.region}...`);
-    marker = void (0);
+    marker = void (0); // eslint-disable-line no-void
     let dbSnapshots = [];
     do {
-      const resp = await rds.describeDBSnapshots({ Marker: marker }).promise();
-      await new Promise((res) => setTimeout(res, 2000));
-      dbSnapshots = dbSnapshots.concat((await Promise.all(resp.DBSnapshots.map(async (event) => {
+      const resp = await rds.describeDBSnapshots({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
+      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      dbSnapshots = dbSnapshots.concat((await Promise.all(resp.DBSnapshots.map(async (event) => { // eslint-disable-line no-await-in-loop,max-len
         await pgpool.query(`
           insert into aws.rds_db_snapshots_log (db_snapshot_identifier, db_instance_identifier, definition)
           select $1::varchar(128), $2::varchar(128), $3::jsonb
@@ -178,12 +187,12 @@ async function run(pgpool) {
 
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeCertificates-property
     debug(`Pulling Certificates from AWS RDS ${rds.config.region}...`);
-    marker = void (0);
+    marker = void (0); // eslint-disable-line no-void
     let certificates = [];
     do {
-      const resp = await rds.describeCertificates({ Marker: marker }).promise();
-      await new Promise((res) => setTimeout(res, 2000));
-      certificates = certificates.concat((await Promise.all(resp.Certificates.map(async (event) => {
+      const resp = await rds.describeCertificates({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
+      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      certificates = certificates.concat((await Promise.all(resp.Certificates.map(async (event) => { // eslint-disable-line no-await-in-loop,max-len
         await pgpool.query(`
           insert into aws.rds_certificates_log (certificate_identifier, certificate_type, certificate_arn, definition)
           select $1::varchar(128), $2::varchar(128), $3::varchar(128), $4::jsonb
@@ -213,12 +222,12 @@ async function run(pgpool) {
 
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeDBSubnetGroups-property
     debug(`Pulling DB Subnet Groups from AWS RDS ${rds.config.region}...`);
-    marker = void (0);
+    marker = void (0); // eslint-disable-line
     let dbSubnetGroups = [];
     do {
-      const resp = await rds.describeDBSubnetGroups({ Marker: marker }).promise();
-      await new Promise((res) => setTimeout(res, 2000));
-      dbSubnetGroups = dbSubnetGroups.concat((await Promise.all(resp.DBSubnetGroups.map(async (event) => {
+      const resp = await rds.describeDBSubnetGroups({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
+      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      dbSubnetGroups = dbSubnetGroups.concat((await Promise.all(resp.DBSubnetGroups.map(async (event) => { // eslint-disable-line no-await-in-loop,max-len
         await pgpool.query(`
           insert into aws.rds_db_subnet_groups_log (name, db_subnet_group_arn, definition)
           select $1::varchar(128), $2::varchar(128), $3::jsonb
@@ -246,12 +255,12 @@ async function run(pgpool) {
 
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeDBSecurityGroups-property
     debug(`Pulling DB Security Groups from AWS RDS ${rds.config.region}...`);
-    marker = void (0);
+    marker = void (0); // eslint-disable-line no-void
     let dbSecurityGroups = [];
     do {
-      const resp = await rds.describeDBSecurityGroups({ Marker: marker }).promise();
-      await new Promise((res) => setTimeout(res, 2000));
-      dbSecurityGroups = dbSecurityGroups.concat((await Promise.all(resp.DBSecurityGroups.map(async (event) => {
+      const resp = await rds.describeDBSecurityGroups({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
+      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      dbSecurityGroups = dbSecurityGroups.concat((await Promise.all(resp.DBSecurityGroups.map(async (event) => { // eslint-disable-line no-await-in-loop,max-len
         await pgpool.query(`
           insert into aws.rds_db_security_groups_log (name, db_security_group_arn, definition)
           select $1::varchar(128), $2::varchar(128), $3::jsonb
@@ -312,7 +321,9 @@ async function run(pgpool) {
     // TODO (maybe): https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeDBProxies-property
   }));
 
-  if (process.env.AWS_EC2_SECRET_KEY && process.env.AWS_EC2_ACCESS_KEY && process.env.AWS_EC2_REGIONS) {
+  if (process.env.AWS_EC2_SECRET_KEY
+      && process.env.AWS_EC2_ACCESS_KEY
+      && process.env.AWS_EC2_REGIONS) {
     // TODO: Add EC2 Information
   }
 }

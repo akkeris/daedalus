@@ -2,7 +2,7 @@ const assert = require('assert');
 const k8s = require('@kubernetes/client-node');
 const fs = require('fs');
 const debug = require('debug')('daedalus:kubernetes');
-
+const cryp = require('../../common/cryp.js');
 // TODO: Add watch functionality and increase
 // rate at which it pulls the world.
 
@@ -79,9 +79,9 @@ async function writePostgresqlFromPodsAndConfigMaps(pgpool, pods, configMaps) {
                 (role, database, username, password, options, deleted)
               values 
                 (uuid_generate_v4(), $1, $2, $3, $4, $5)
-              on conflict (database, username, password, deleted) 
+              on conflict (database, username, (password->>'hash'), deleted) 
               do nothing`,
-          [db.rows[0].database, dbUrl.username, dbUrl.password, dbUrl.search.replace(/\?/, ''), false]);
+          [db.rows[0].database, dbUrl.username, cryp.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
         }), []));
       // TODO: Detect deletions of databases from pods.
     }
@@ -106,9 +106,9 @@ async function writePostgresqlFromPodsAndConfigMaps(pgpool, pods, configMaps) {
               (role, database, username, password, options, deleted)
             values 
               (uuid_generate_v4(), $1, $2, $3, $4, $5)
-            on conflict (database, username, password, deleted) 
+            on conflict (database, username, (password->>'hash'), deleted) 
             do nothing`,
-          [db.rows[0].database, dbUrl.username, dbUrl.password, dbUrl.search.replace(/\?/, ''), false]);
+          [db.rows[0].database, dbUrl.username, cryp.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
         }
       }), []);
       // TODO: Detect deletions of databases from configmaps.

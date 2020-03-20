@@ -2,6 +2,7 @@ const assert = require('assert');
 const pg = require('pg');
 const fs = require('fs');
 const debug = require('debug')('daedalus:postgresql');
+const cryp = require('../../common/cryp.js');
 
 async function init(pgpool) {
   debug('Initializing postgresql plugin...');
@@ -432,6 +433,7 @@ async function run(pgpool) {
       postgresql.databases 
       join postgresql.roles on roles.database = databases.database`, []))
     .rows
+    .map((database) => { return {...database, password:cryp.decryptValue(process.env.SECRET, database.password)}; })
     .map((database) => writeTablesViewsAndColumns(pgpool, database)));
 }
 

@@ -5,6 +5,9 @@ const pg = require('pg');
 const debug = require('debug')('daedalus:index');
 
 assert.ok(process.env.DATABASE_URL, 'A postgres database connection string must be provided as the environment DATABASE_URL');
+assert.ok(process.env.SECRET && process.env.SECRET.length === 192 / 8, 
+  'No secret or an invalid secret was passed in. Set env SECRET to be a 24 long character.');
+
 const pgpool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const plugins = fs.readdirSync('./plugins')
   .sort((a, b) => (a < b ? -1 : 1))

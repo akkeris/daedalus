@@ -55,7 +55,8 @@ async function checkPermissions(kc) {
 }
 
 // TODO: remove this into its own plugin?, add configmaps to processing.
-// TODO: Security, we should proactively strip values in the config map when storing, store a hash instead.
+// TODO: Security, we should proactively strip values in the config map
+//       when storing, store a hash instead.
 
 async function writePostgresqlFromPodsAndConfigMaps(pgpool, pods, configMaps) {
   debug(`Examining ${pods.length} pods for envs that have a postgres string.`);
@@ -203,7 +204,7 @@ async function writeDeletedObjs(pgpool, type, items) {
 }
 
 async function run(pgpool) {
-  if(!process.env.KUBERNETES_CONTEXT) {
+  if (!process.env.KUBERNETES_CONTEXT) {
     return;
   }
   const kc = new k8s.KubeConfig();
@@ -262,6 +263,10 @@ async function run(pgpool) {
     await writeNamespacedObjs(pgpool, 'deployment',
       k8sAppsApi.listDeploymentForAllNamespaces.bind(k8sAppsApi),
       { limit: Math.floor(maxMemory / 4096) }));
+
+  // TODO: istio?
+  // TODO: ingress objects?
+  // TODO: cert-manager objects?
 
   debug('Analyzing if any postgres databases exist in config maps or pods');
   await writePostgresqlFromPodsAndConfigMaps(pgpool, pods, configMaps);

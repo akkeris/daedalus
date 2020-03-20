@@ -49,8 +49,8 @@ function findTableOrViewId(tables, views, database, catalog, schema, name) {
       && view.name === name))[0];
 }
 
-// TODO: Fix the issue if there's a state flip back to the original state the diff breaks. 
-// e.g. drop a column and re-add it (exactly how it was). The system can't handle that. 
+// TODO: Fix the issue if there's a state flip back to the original state the diff breaks.
+// e.g. drop a column and re-add it (exactly how it was). The system can't handle that.
 // e.g. change the port of a database to 1 from 5432 then back 5432, breaks.
 
 // TODO: Listen for changes via triggers and channels?
@@ -253,7 +253,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
       `, [database.database, constraint.constraint_name, constraint.constraint_type, constraint.from_catalog, constraint.from_schema, tableUUID, columnUUID, constraint.check_clause, false]);
     }))).map((x) => x.rows).flat();
 
-    // Table Estimates 
+    // Table Estimates
     (await Promise.all((await client.query(`
       select
         pg_class.reltuples::bigint as rows,

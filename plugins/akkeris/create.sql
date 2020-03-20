@@ -132,7 +132,7 @@ begin
       join akkeris.apps_log on apps_log.app_log = addon_attachments_log.app_log 
       join akkeris.spaces_log on spaces_log.space_log = apps_log.space_log
     ) 
-    select addon, name, app, addon_service, definition, observed_on 
+    select addon_attachment, addon, name, app, addon_service, definition, observed_on 
     from ordered_list where rn=1 and addon_deleted = false and app_deleted = false and addon_service_deleted = false and space_deleted = false;
 
 

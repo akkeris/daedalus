@@ -23,6 +23,22 @@ To debug, set the environment variable `DEBUG=daedalus:*`, to debug specific sec
 * `daedalus:akkeris` - akkeris debugging, importing and checks.
 * `daedalus:aws` - aws debugging, importing and checks.
 
+## Running
+
+Define whichever environment settings above.
+
+```
+$ npm start
+```
+
+This starts the worker process, more than one can run with different plugins enabled.  
+
+```
+$ postgraphile --owner-connection $DATABASE_URL -w --schema "public,akkeris,aws,postgresql,kubernetes" --enhance-graphiql --dynamic-json
+```
+
+Will start the graphql API end point.
+
 ## Contributing
 
 Please follow the conventions and principals below when contributing.

@@ -50,6 +50,10 @@ begin
     from kubernetes.nodes_log) 
     select node, name, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
+  -- used by postgraphile to specify the name of the graphql kubernetes node.
+  -- node is a reserved keyword in GraphQL
+  COMMENT ON VIEW "kubernetes"."nodes" IS E'@name kubeNodes';
+  
   create table if not exists kubernetes.pods_log (
     pod uuid not null primary key,
     name varchar(128) not null,

@@ -2,7 +2,7 @@ const assert = require('assert');
 const pg = require('pg');
 const fs = require('fs');
 const debug = require('debug')('daedalus:postgresql');
-const cryp = require('../../common/cryp.js');
+const security = require('../../common/security.js');
 
 async function init(pgpool) {
   debug('Initializing postgresql plugin...');
@@ -425,7 +425,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
 
 async function run(pgpool) {
   debug('Running postgresql plugin...');
-  await Promise.all((await pgpool.query(`
+  (await Promise.all((await pgpool.query(`
     select 
       databases.database, databases.name, databases.host, databases.port,
       roles.username, roles.password, roles.options
@@ -433,8 +433,8 @@ async function run(pgpool) {
       postgresql.databases 
       join postgresql.roles on roles.database = databases.database`, []))
     .rows
-    .map((database) => { return {...database, password:cryp.decryptValue(process.env.SECRET, database.password)}; })
-    .map((database) => writeTablesViewsAndColumns(pgpool, database)));
+    .map((database) => { return {...database, password:security.decryptValue(process.env.SECRET, database.password).toString('utf8')}; })
+    .map((database) => writeTablesViewsAndColumns(pgpool, database))))
 }
 
 module.exports = {

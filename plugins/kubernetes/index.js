@@ -2,7 +2,8 @@ const assert = require('assert');
 const k8s = require('@kubernetes/client-node');
 const fs = require('fs');
 const debug = require('debug')('daedalus:kubernetes');
-const cryp = require('../../common/cryp.js');
+const security = require('../../common/security.js');
+
 // TODO: Add watch functionality and increase
 // rate at which it pulls the world.
 
@@ -81,7 +82,7 @@ async function writePostgresqlFromPodsAndConfigMaps(pgpool, pods, configMaps) {
                 (uuid_generate_v4(), $1, $2, $3, $4, $5)
               on conflict (database, username, (password->>'hash'), deleted) 
               do nothing`,
-          [db.rows[0].database, dbUrl.username, cryp.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
+          [db.rows[0].database, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
         }), []));
       // TODO: Detect deletions of databases from pods.
     }
@@ -108,7 +109,7 @@ async function writePostgresqlFromPodsAndConfigMaps(pgpool, pods, configMaps) {
               (uuid_generate_v4(), $1, $2, $3, $4, $5)
             on conflict (database, username, (password->>'hash'), deleted) 
             do nothing`,
-          [db.rows[0].database, dbUrl.username, cryp.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
+          [db.rows[0].database, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
         }
       }), []);
       // TODO: Detect deletions of databases from configmaps.
@@ -129,12 +130,133 @@ async function init(pgpool) {
   await pgpool.query(fs.readFileSync('./plugins/kubernetes/create.sql').toString());
 }
 
+function fromEnvArrayToObj(envs) {
+  assert.ok(Array.isArray(envs), 'The env passed in was not an array.');
+  let obj = {};
+  envs.filter((x) => x.value).forEach((x) => obj[x.name] = x.value);
+  return obj;
+}
+
+function fromObjToEnvArray(obj) {
+  return Object.keys(obj).map((key) => {
+    return {"name":key, "value":obj[key]};
+  })
+}
+
+function redactConfigMaps(data) {
+  data.items = data.items.map((x) => {
+    if(x.data) {
+      x.data = security.redact(x.data);
+      if(x.metadata && x.metadata.annotations && x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]) {
+        let lastAppliedConfig = JSON.parse(x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]);
+        if(lastAppliedConfig.data) {
+          x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"] = JSON.stringify(security.redact(lastAppliedConfig.data));
+        }
+      }
+    }
+    return x;
+  });
+  return data;
+}
+
+function redactPods(data) {
+  data.items = data.items.map((x) => {
+    if(x.spec && x.spec.containers) {
+      x.spec.containers = x.spec.containers.map((y) => {
+        if(y.env) {
+          let redactedValues = security.redact(fromEnvArrayToObj(y.env));
+          y.env = y.env.map((x) => {
+            if(x.value) {
+              return {...x, "value":redactedValues[x.name]};
+            }
+            return x;
+          });
+        }
+        return y;
+      });
+    }
+    if(x.metadata && x.metadata.annotations && x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]) {
+      let lastAppliedConfig = JSON.parse(x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]);
+      if(lastAppliedConfig.spec && lastAppliedConfig.spec.containers) {
+        lastAppliedConfig.spec.containers.map((y) => {
+          if(y.env) {
+            let redactedValues = security.redact(fromEnvArrayToObj(y.env));
+             y.env = y.env.map((x) => {
+              if(x.value) {
+                return {...x, "value":redactedValues[x.name]};
+              }
+              return x;
+            });
+          }
+          return y;
+        });
+        x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"] = JSON.stringify(lastAppliedConfig);
+      }
+    }
+    return x;
+  });
+  return data;
+}
+
+function redactDeployments(data) {
+  data.items = data.items.map((x) => {
+    if(x.spec && x.spec.template && x.spec.template.spec && x.spec.template.containers) {
+      x.spec.template.containers = x.spec.template.containers.map((y) => {
+        if(y.env) {
+          let redactedValues = security.redact(fromEnvArrayToObj(y.env));
+          y.env = y.env.map((x) => {
+            if(x.value) {
+              return {...x, "value":redactedValues[x.name]};
+            }
+            return x;
+          });
+        }
+        return y;
+      });
+    }
+    if(x.metadata && x.metadata.annotations && x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]) {
+      let lastAppliedConfig = JSON.parse(x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]);
+      if(lastAppliedConfig.spec && 
+          lastAppliedConfig.spec.template && 
+          lastAppliedConfig.spec.template.spec && 
+          lastAppliedConfig.spec.template.spec.containers) 
+      {
+        lastAppliedConfig.spec.template.spec.containers.map((y) => {
+          if(y.env) {
+            let redactedValues = security.redact(fromEnvArrayToObj(y.env));
+             y.env = y.env.map((x) => {
+              if(x.value) {
+                return {...x, "value":redactedValues[x.name]};
+              }
+              return x;
+            });
+          }
+          return y;
+        });
+        x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"] = JSON.stringify(lastAppliedConfig);
+      }
+    }
+    return x;
+  });
+  return data;
+}
+
 async function writeNamespacedObjs(pgpool, type, func, args) {
   const { body } = await func(args);
   assert.ok(body.items, 'The items field on the returned kube response was not there.');
   assert.ok(Array.isArray(body.items), 'The items field on the returned kube response was not an array');
   debug(`Received ${body.items.length} items for ${type}`);
-  await Promise.all(body.items.map((item) => pgpool.query(`
+  let data = JSON.parse(JSON.stringify(body));
+  if(type === "config_map") {
+    data = redactConfigMaps(data);
+  }
+  if(type === "pod") {
+    data = redactPods(data);
+  }
+  if(type === "deployment") {
+    data = redactDeployments(data);
+  }
+  await Promise.all(data.items.map((item) => pgpool.query(`
       insert into kubernetes.${type}s_log 
         (${type}, name, namespace, context, definition, deleted)
       values 
@@ -142,7 +264,7 @@ async function writeNamespacedObjs(pgpool, type, func, args) {
       on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
       do nothing
     `, [item.metadata.name, item.metadata.namespace, process.env.KUBERNETES_CONTEXT, JSON.stringify(item, null, 2), false])));
-  debug(`Wrote ${body.items.length} items for ${type}`);
+  debug(`Wrote ${data.items.length} items for ${type}`);
   if (body.metadata.continue) {
     return body.items.concat(writeNamespacedObjs(pgpool, type, func, { continue: body.metadata.continue, ...args })); // eslint-disable-line max-len
   }

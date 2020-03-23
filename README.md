@@ -1,5 +1,7 @@
 # Daedalus 
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/87e2a89dff4743aa908bf6b0310593b3)](https://app.codacy.com/gh/akkeris/daedalus?utm_source=github.com&utm_medium=referral&utm_content=akkeris/daedalus&utm_campaign=Badge_Grade_Settings)
+
 **Cunningly Wrought**
 
 Daedalus is a knowledge system intended for collecting an examining resources on systems.

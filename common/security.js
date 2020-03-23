@@ -86,10 +86,6 @@ function encodeToken(encToken) {
 
 function encryptValue(key, rawFrom) {
   const raw = Buffer.from(rawFrom);
-  assert.ok(CIPHER_ALGORITHM.indexOf(',') === -1, 'The cipher algorithm was invalid.');
-  assert.ok(HMAC_ALGORITHM.indexOf(',') === -1, 'The hmac algorithm was invalid.');
-  assert.ok(CIPHER_ALGORITHM.indexOf(':') === -1, 'The cipher algorithm was invalid.');
-  assert.ok(HMAC_ALGORITHM.indexOf(':') === -1, 'The hmac algorithm was invalid.');
   assert.ok(typeof HASH_KEY_LENGTH === 'number' && HASH_KEY_LENGTH > 0, 'The hash key length was invalid.');
   assert.ok(key.length === KEY_LENGTH, `Key must be ${KEY_LENGTH} characters (${KEY_LENGTH * 8} bits)`);
   const iv = crypto.randomBytes(IV_LENGTH);

@@ -33,13 +33,13 @@ begin
     role uuid not null primary key,
     database uuid references postgresql.databases_log("database") not null,
     username varchar(1024) not null,
-    password varchar(1024) not null,
+    password jsonb not null,
     options varchar(2048) not null,
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
-  create unique index if not exists roles_unique on postgresql.roles_log (database, username, password, deleted);
-  create index if not exists roles_observed_on on postgresql.roles_log (database, username, password, observed_on desc);
+  create unique index if not exists roles_unique on postgresql.roles_log (database, username, (password->>'hash'), deleted);
+  create index if not exists roles_observed_on on postgresql.roles_log (database, username, (password->>'hash'), observed_on desc);
   create or replace view postgresql.roles as
     with ordered_list as ( select
       roles_log.database,
@@ -49,7 +49,7 @@ begin
       roles_log.observed_on,
       roles_log.deleted as roles_deleted,
       databases_log.deleted as databases_deleted,
-      row_number() over (partition by roles_log.database, roles_log.username, roles_log.password order by roles_log.observed_on desc) as rn
+      row_number() over (partition by roles_log.database, roles_log.username, (roles_log.password->>'hash') order by roles_log.observed_on desc) as rn
     from postgresql.roles_log join postgresql.databases_log on roles_log.database = databases_log.database)
     select database, username, password, options, observed_on from ordered_list where rn=1 and roles_deleted = false and databases_deleted = false;
 

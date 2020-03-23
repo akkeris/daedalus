@@ -2,26 +2,28 @@
 
 **Cunningly Wrought**
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/8955d795526c43c5baa797e11bb2dfe3)](https://www.codacy.com/gh/akkeris/daedalus?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=akkeris/daedalus&amp;utm_campaign=Badge_Grade)
+
 Daedalus is a knowledge system intended for collecting an examining resources on systems.
 
 This is currently in discovery and may change considerably.
 
 ## Environment
 
-* `DATABASE_URL` - Required - This is the database used for daedalus.
-* `KUBERNETES_CONTEXT` - Optional - This is used to indicate the instance of kubernetes context being used.
-* `AKKERIS_URL` and `AKKERIS_TOKEN` - Optional - this is used to sync akkeris.
-* `AWS_RDS_SECRET_KEY`, `AWS_RDS_ACCESS_KEY`, and `AWS_RDS_REGIONS` - Optional - this is used to sync aws RDS.
+*  `DATABASE_URL` - Required - This is the database used for daedalus.
+*  `KUBERNETES_CONTEXT` - Optional - This is used to indicate the instance of kubernetes context being used.
+*  `AKKERIS_URL` and `AKKERIS_TOKEN` - Optional - this is used to sync akkeris.
+*  `AWS_RDS_SECRET_KEY`, `AWS_RDS_ACCESS_KEY`, and `AWS_RDS_REGIONS` - Optional - this is used to sync aws RDS.
 
 ## Debug
 
 To debug, set the environment variable `DEBUG=daedalus:*`, to debug specific sections use the values:
 
-* `daedalus:index` - main functionality
-* `daedalus:postgresql` - postgresql importing and checks.
-* `daedalus:kubernetes` - kubernetes debugging, importing and checks.
-* `daedalus:akkeris` - akkeris debugging, importing and checks.
-* `daedalus:aws` - aws debugging, importing and checks.
+*  `daedalus:index` - main functionality
+*  `daedalus:postgresql` - postgresql importing and checks.
+*  `daedalus:kubernetes` - kubernetes debugging, importing and checks.
+*  `daedalus:akkeris` - akkeris debugging, importing and checks.
+*  `daedalus:aws` - aws debugging, importing and checks.
 
 ## Running
 
@@ -33,7 +35,7 @@ $ npm start
 
 This starts the worker process, more than one can run with different plugins enabled.  
 
-```
+```shell
 $ postgraphile --owner-connection $DATABASE_URL -w --schema "public,akkeris,aws,postgresql,kubernetes" --enhance-graphiql --dynamic-json
 ```
 
@@ -56,6 +58,8 @@ This also means any data integrity should be enforced at the database level. NOT
 ### Follow the linter
 
 For code standards please just follow eslint (run `eslint . --fix` after commiting to check code style). Install eslint with `npm -g install eslint`)
+
+After you've installed eslint globally you can add eslint to your git-hooks by running `cat ./support/git-hooks/pre-commit >> ./.git/hooks/pre-commit`
 
 ### Manage creation and migrations 
 

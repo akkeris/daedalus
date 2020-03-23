@@ -132,113 +132,123 @@ async function init(pgpool) {
 
 function fromEnvArrayToObj(envs) {
   assert.ok(Array.isArray(envs), 'The env passed in was not an array.');
-  let obj = {};
-  envs.filter((x) => x.value).forEach((x) => obj[x.name] = x.value);
+  const obj = {};
+  envs.filter((x) => x.value)
+    .forEach((x) => obj[x.name] = x.value); // eslint-disable-line no-return-assign
   return obj;
 }
 
-function fromObjToEnvArray(obj) {
-  return Object.keys(obj).map((key) => {
-    return {"name":key, "value":obj[key]};
-  })
-}
-
 function redactConfigMaps(data) {
-  data.items = data.items.map((x) => {
-    if(x.data) {
-      x.data = security.redact(x.data);
-      if(x.metadata && x.metadata.annotations && x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]) {
-        let lastAppliedConfig = JSON.parse(x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]);
-        if(lastAppliedConfig.data) {
-          x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"] = JSON.stringify(security.redact(lastAppliedConfig.data));
+  return {
+    ...data,
+    items: data.items.map((xn) => {
+      const x = JSON.parse(JSON.stringify(xn)); // make a copy
+      if (x.data) {
+        x.data = security.redact(x.data);
+        if (x.metadata && x.metadata.annotations && x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']) {
+          const lastAppliedConfig = JSON.parse(x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']);
+          if (lastAppliedConfig.data) {
+            x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(security.redact(lastAppliedConfig.data));
+          }
         }
       }
-    }
-    return x;
-  });
-  return data;
+      return x;
+    }),
+  };
 }
 
 function redactPods(data) {
-  data.items = data.items.map((x) => {
-    if(x.spec && x.spec.containers) {
-      x.spec.containers = x.spec.containers.map((y) => {
-        if(y.env) {
-          let redactedValues = security.redact(fromEnvArrayToObj(y.env));
-          y.env = y.env.map((x) => {
-            if(x.value) {
-              return {...x, "value":redactedValues[x.name]};
-            }
-            return x;
-          });
-        }
-        return y;
-      });
-    }
-    if(x.metadata && x.metadata.annotations && x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]) {
-      let lastAppliedConfig = JSON.parse(x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]);
-      if(lastAppliedConfig.spec && lastAppliedConfig.spec.containers) {
-        lastAppliedConfig.spec.containers.map((y) => {
-          if(y.env) {
-            let redactedValues = security.redact(fromEnvArrayToObj(y.env));
-             y.env = y.env.map((x) => {
-              if(x.value) {
-                return {...x, "value":redactedValues[x.name]};
-              }
-              return x;
-            });
+  return {
+    ...data,
+    items: data.items.map((xn) => {
+      const x = JSON.parse(JSON.stringify(xn)); // make a copy
+      if (x.spec && x.spec.containers) {
+        x.spec.containers = x.spec.containers.map((y) => {
+          if (y.env) {
+            const redactedValues = security.redact(fromEnvArrayToObj(y.env));
+            return {
+              ...y,
+              env: y.env.map((q) => (q.value ? { ...q, value: redactedValues[q.name] } : q)),
+            };
           }
           return y;
         });
-        x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"] = JSON.stringify(lastAppliedConfig);
       }
-    }
-    return x;
-  });
-  return data;
+      if (x.metadata && x.metadata.annotations && x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']) {
+        const lastAppliedConfig = JSON.parse(x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']);
+        if (lastAppliedConfig.spec && lastAppliedConfig.spec.containers) {
+          lastAppliedConfig.spec.containers.map((y) => {
+            if (y.env) {
+              const redactedValues = security.redact(fromEnvArrayToObj(y.env));
+              return {
+                ...y,
+                env: y.env.map((q) => {
+                  if (q.value) {
+                    return { ...q, value: redactedValues[q.name] };
+                  }
+                  return q;
+                }),
+              };
+            }
+            return y;
+          });
+          x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(lastAppliedConfig);
+        }
+      }
+      return x;
+    }),
+  };
 }
 
 function redactDeployments(data) {
-  data.items = data.items.map((x) => {
-    if(x.spec && x.spec.template && x.spec.template.spec && x.spec.template.containers) {
-      x.spec.template.containers = x.spec.template.containers.map((y) => {
-        if(y.env) {
-          let redactedValues = security.redact(fromEnvArrayToObj(y.env));
-          y.env = y.env.map((x) => {
-            if(x.value) {
-              return {...x, "value":redactedValues[x.name]};
-            }
-            return x;
-          });
-        }
-        return y;
-      });
-    }
-    if(x.metadata && x.metadata.annotations && x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]) {
-      let lastAppliedConfig = JSON.parse(x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]);
-      if(lastAppliedConfig.spec && 
-          lastAppliedConfig.spec.template && 
-          lastAppliedConfig.spec.template.spec && 
-          lastAppliedConfig.spec.template.spec.containers) 
-      {
-        lastAppliedConfig.spec.template.spec.containers.map((y) => {
-          if(y.env) {
-            let redactedValues = security.redact(fromEnvArrayToObj(y.env));
-             y.env = y.env.map((x) => {
-              if(x.value) {
-                return {...x, "value":redactedValues[x.name]};
-              }
-              return x;
-            });
+  return {
+    ...data,
+    items: data.items.map((xn) => {
+      const x = JSON.parse(JSON.stringify(xn)); // make a copy
+      if (x.spec && x.spec.template && x.spec.template.spec && x.spec.template.containers) {
+        x.spec.template.containers = x.spec.template.containers.map((y) => {
+          if (y.env) {
+            const redactedValues = security.redact(fromEnvArrayToObj(y.env));
+            return {
+              ...y,
+              env: y.env.map((q) => {
+                if (q.value) {
+                  return { ...q, value: redactedValues[q.name] };
+                }
+                return q;
+              }),
+            };
           }
           return y;
         });
-        x.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"] = JSON.stringify(lastAppliedConfig);
       }
-    }
-    return x;
-  });
-  return data;
+      if (x.metadata && x.metadata.annotations && x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']) {
+        const lastAppliedConfig = JSON.parse(x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']);
+        if (lastAppliedConfig.spec
+            && lastAppliedConfig.spec.template
+            && lastAppliedConfig.spec.template.spec
+            && lastAppliedConfig.spec.template.spec.containers) {
+          lastAppliedConfig.spec.template.spec.containers.map((y) => {
+            if (y.env) {
+              const redactedValues = security.redact(fromEnvArrayToObj(y.env));
+              return {
+                ...y,
+                env: y.env.map((q) => {
+                  if (q.value) {
+                    return { ...q, value: redactedValues[q.name] };
+                  }
+                  return q;
+                }),
+              };
+            }
+            return y;
+          });
+          x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(lastAppliedConfig);
+        }
+      }
+      return x;
+    }),
+  };
 }
 
 async function writeNamespacedObjs(pgpool, type, func, args) {
@@ -247,13 +257,13 @@ async function writeNamespacedObjs(pgpool, type, func, args) {
   assert.ok(Array.isArray(body.items), 'The items field on the returned kube response was not an array');
   debug(`Received ${body.items.length} items for ${type}`);
   let data = JSON.parse(JSON.stringify(body));
-  if(type === "config_map") {
+  if (type === 'config_map') {
     data = redactConfigMaps(data);
   }
-  if(type === "pod") {
+  if (type === 'pod') {
     data = redactPods(data);
   }
-  if(type === "deployment") {
+  if (type === 'deployment') {
     data = redactDeployments(data);
   }
   await Promise.all(data.items.map((item) => pgpool.query(`

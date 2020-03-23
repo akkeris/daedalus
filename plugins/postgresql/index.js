@@ -433,8 +433,8 @@ async function run(pgpool) {
       postgresql.databases 
       join postgresql.roles on roles.database = databases.database`, []))
     .rows
-    .map((database) => { return {...database, password:security.decryptValue(process.env.SECRET, database.password).toString('utf8')}; })
-    .map((database) => writeTablesViewsAndColumns(pgpool, database))))
+    .map((database) => ({ ...database, password: security.decryptValue(process.env.SECRET, database.password).toString('utf8') }))
+    .map((database) => writeTablesViewsAndColumns(pgpool, database))));
 }
 
 module.exports = {

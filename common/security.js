@@ -125,7 +125,7 @@ function decodeToken(encToken) {
 }
 
 function decryptValue(key, encTokenFrom) {
-  let encToken = encTokenFrom.toString('utf8');
+  let encToken = Buffer.isBuffer(encTokenFrom) ? encTokenFrom.toString('utf8') : encTokenFrom;
   if (typeof encToken === 'string') {
     encToken = JSON.parse(encToken);
   }

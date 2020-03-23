@@ -57,6 +57,8 @@ This also means any data integrity should be enforced at the database level. NOT
 
 For code standards please just follow eslint (run `eslint . --fix` after commiting to check code style). Install eslint with `npm -g install eslint`)
 
+After you've installed eslint globally you can add eslint to your git-hooks by running `cat ./support/git-hooks/pre-commit >> ./.git/hooks/pre-commit`
+
 ### Manage creation and migrations 
 
 Creating and migrating schemas should be a first class citizen of each component in daedalus, on init a create.sql script should always be ran that checks to current schema or tables available and if they do not exist, create or modify them. This helps ease maintenance burden and create safer code.

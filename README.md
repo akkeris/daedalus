@@ -41,7 +41,7 @@ $ postgraphile --owner-connection $DATABASE_URL -w \
         --enhance-graphiql --dynamic-json
 ```
 
-Will start the graphql API end point.
+Will start the graphql API end point. To install postgraphile see: https://github.com/graphile/postgraphile
 
 ## Contributing
 

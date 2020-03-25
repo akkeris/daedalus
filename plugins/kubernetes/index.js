@@ -243,6 +243,7 @@ async function writeDeletedObjs(pgpool, type, items) {
 
 async function run(pgpool, bus) {
   await pgpool.query(fs.readFileSync('./plugins/kubernetes/create.sql').toString());
+  // TODO: Add a way to set the token and API server (no certs sadly) in the environment.
   if (!process.env.KUBERNETES_CONTEXT) {
     return;
   }

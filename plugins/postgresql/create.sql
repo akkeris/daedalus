@@ -42,6 +42,7 @@ begin
   create index if not exists roles_observed_on on postgresql.roles_log (database, username, (password->>'hash'), observed_on desc);
   create or replace view postgresql.roles as
     with ordered_list as ( select
+      roles_log.role,
       roles_log.database,
       roles_log.username,
       roles_log.password,
@@ -51,7 +52,7 @@ begin
       databases_log.deleted as databases_deleted,
       row_number() over (partition by roles_log.database, roles_log.username, (roles_log.password->>'hash') order by roles_log.observed_on desc) as rn
     from postgresql.roles_log join postgresql.databases_log on roles_log.database = databases_log.database)
-    select database, username, password, options, observed_on from ordered_list where rn=1 and roles_deleted = false and databases_deleted = false;
+    select role, database, username, password, options, observed_on from ordered_list where rn=1 and roles_deleted = false and databases_deleted = false;
 
 
   create table if not exists postgresql.tables_log (

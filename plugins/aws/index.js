@@ -3,6 +3,7 @@ const fs = require('fs');
 const debug = require('debug')('daedalus:aws');
 
 async function run(pgpool) {
+  await pgpool.query(fs.readFileSync('./plugins/aws/create.sql').toString());
   let rdsClients = [];
   if (process.env.AWS_RDS_SECRET_KEY
       && process.env.AWS_RDS_ACCESS_KEY
@@ -38,7 +39,7 @@ async function run(pgpool) {
     let dbClusters = [];
     do {
       const resp = await rds.describeDBClusters({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
-      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
       dbClusters = dbClusters.concat((await Promise.all(resp.DBClusters.map(async (db) => { // eslint-disable-line no-await-in-loop,max-len
         await pgpool.query(`
           insert into aws.rds_db_clusters_log (db_cluster_arn, engine, status, name, definition)
@@ -69,7 +70,7 @@ async function run(pgpool) {
     let dbInstances = [];
     do {
       const resp = await rds.describeDBInstances({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
-      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
       dbInstances = dbInstances.concat((await Promise.all(resp.DBInstances.map(async (db) => { // eslint-disable-line no-await-in-loop,max-len
         await pgpool.query(`
           insert into aws.rds_db_instances_log (db_instance_arn, engine, status, name, definition)
@@ -99,7 +100,7 @@ async function run(pgpool) {
     let dbParameterGroups = [];
     do {
       const resp = await rds.describeDBParameterGroups({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
-      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
       dbParameterGroups = dbParameterGroups.concat((await Promise.all(resp.DBParameterGroups.map(async (db) => { // eslint-disable-line no-await-in-loop,max-len
         await pgpool.query(`
           insert into aws.rds_db_parameter_groups_log (db_parameter_group_arn, family, description, name, definition)
@@ -130,7 +131,7 @@ async function run(pgpool) {
     startTime.setUTCDate(startTime.getUTCDate() - 1);
     do {
       const resp = await rds.describeEvents({ Marker: marker, StartTime: startTime }).promise(); // eslint-disable-line no-await-in-loop,max-len
-      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
       (await Promise.all(resp.Events.map(async (event) => pgpool.query( // eslint-disable-line no-await-in-loop,max-len
         `
         insert into aws.rds_events_log (source_identifier, source_type, source_arn, definition)
@@ -160,7 +161,7 @@ async function run(pgpool) {
     let dbSnapshots = [];
     do {
       const resp = await rds.describeDBSnapshots({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
-      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
       dbSnapshots = dbSnapshots.concat((await Promise.all(resp.DBSnapshots.map(async (event) => { // eslint-disable-line no-await-in-loop,max-len
         await pgpool.query(`
           insert into aws.rds_db_snapshots_log (db_snapshot_identifier, db_instance_identifier, definition)
@@ -191,7 +192,7 @@ async function run(pgpool) {
     let certificates = [];
     do {
       const resp = await rds.describeCertificates({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
-      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
       certificates = certificates.concat((await Promise.all(resp.Certificates.map(async (event) => { // eslint-disable-line no-await-in-loop,max-len
         await pgpool.query(`
           insert into aws.rds_certificates_log (certificate_identifier, certificate_type, certificate_arn, definition)
@@ -226,7 +227,7 @@ async function run(pgpool) {
     let dbSubnetGroups = [];
     do {
       const resp = await rds.describeDBSubnetGroups({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
-      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
       dbSubnetGroups = dbSubnetGroups.concat((await Promise.all(resp.DBSubnetGroups.map(async (event) => { // eslint-disable-line no-await-in-loop,max-len
         await pgpool.query(`
           insert into aws.rds_db_subnet_groups_log (name, db_subnet_group_arn, definition)
@@ -259,7 +260,7 @@ async function run(pgpool) {
     let dbSecurityGroups = [];
     do {
       const resp = await rds.describeDBSecurityGroups({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
-      await new Promise((res) => setTimeout(res, 2000)); // eslint-disable-line no-await-in-loop
+      await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
       dbSecurityGroups = dbSecurityGroups.concat((await Promise.all(resp.DBSecurityGroups.map(async (event) => { // eslint-disable-line no-await-in-loop,max-len
         await pgpool.query(`
           insert into aws.rds_db_security_groups_log (name, db_security_group_arn, definition)

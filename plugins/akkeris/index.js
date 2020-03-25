@@ -37,11 +37,13 @@ function lookupAddonById(addons, id) {
 }
 
 async function run(pgpool) {
+  await pgpool.query(fs.readFileSync('./plugins/akkeris/create.sql').toString());
   if (!process.env.AKKERIS_URL || !process.env.AKKERIS_TOKEN) {
     return;
   }
   const get = axios.create({
     baseURL: process.env.AKKERIS_URL,
+    timeout: 15 * 1000,
     headers: { authorization: `Bearer ${process.env.AKKERIS_TOKEN}` },
   });
 

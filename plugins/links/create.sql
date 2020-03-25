@@ -15,6 +15,7 @@ begin
     (table_schema = 'kubernetes' and table_name = 'config_maps') or
     (table_schema = 'kubernetes' and table_name = 'deployments') 
   ) = 4 then
+
     create table if not exists links.from_kubernetes_pods_to_postgresql_roles_log (
       link uuid not null primary key,
       pod uuid references kubernetes.pods_log("pod") not null,

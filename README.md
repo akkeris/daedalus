@@ -36,7 +36,9 @@ $ npm start
 This starts the worker process, more than one can run with different plugins enabled.  
 
 ```shell
-$ postgraphile --owner-connection $DATABASE_URL -w --schema "public,akkeris,aws,postgresql,kubernetes" --enhance-graphiql --dynamic-json
+$ postgraphile --owner-connection $DATABASE_URL -w \
+        --schema `psql $DATABASE_URL -c "select string_agg(schema_name,',') from information_schema.schemata where schema_name not like 'pg_%' and schema_name <> 'information_schema' and schema_name not like 'postgraphile_%'" -A -t` \
+        --enhance-graphiql --dynamic-json
 ```
 
 Will start the graphql API end point.

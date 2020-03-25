@@ -76,8 +76,8 @@ async function writeTablesViewsAndColumns(pgpool, database) {
     host: database.host,
     database: database.name,
     port: database.port,
-    statement_timeout: 3000,
-    query_timeout: 3000,
+    statement_timeout: 15000,
+    query_timeout: 15000,
   });
   try {
     await client.connect();
@@ -411,6 +411,8 @@ async function writeTablesViewsAndColumns(pgpool, database) {
     if (e.message.includes('password authentication failed')) {
       console.error(`  Error: ${e.message}`); // eslint-disable-line no-console
     } else {
+      // This could get here because of a timeout
+      //
       // TODO: Check for db deletion?
       // How do we do this, if the host is unavailalbe we shouldn't assume the db is unavailable,
       // if the password is changed, what should we do? if the database no longer exists should
@@ -424,6 +426,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
 }
 
 async function run(pgpool) {
+  await pgpool.query(fs.readFileSync('./plugins/postgresql/create.sql').toString());
   debug('Running postgresql plugin...');
   (await Promise.all((await pgpool.query(`
     select 

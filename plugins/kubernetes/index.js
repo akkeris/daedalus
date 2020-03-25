@@ -55,68 +55,6 @@ async function checkPermissions(kc) {
     && canWatchEvents && canGetEvents;
 }
 
-// TODO: remove this into its own plugin?, add configmaps to processing.
-// TODO: Security, we should proactively strip values in the config map
-//       when storing, store a hash instead.
-
-async function writePostgresqlFromPodsAndConfigMaps(pgpool, pods, configMaps) {
-  debug(`Examining ${pods.length} pods for envs that have a postgres string.`);
-  await Promise.all(pods.map(async (pod) => {
-    if (pod.spec.containers) {
-      await Promise.all(pod.spec.containers.reduce((envs, container) => envs.concat((container.env || []).filter((env) => env.value && env.value.startsWith('postgres://')))
-        .map(async (env) => {
-          const dbUrl = new URL(env.value);
-          const db = await pgpool.query(`
-              insert into postgresql.databases_log 
-                (database, name, host, port, deleted)
-              values 
-                (uuid_generate_v4(), $1, $2, $3, $4)
-              on conflict (name, host, port, deleted) do update set name = $1 returning database`,
-          [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
-          assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
-          assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
-          await pgpool.query(`
-              insert into postgresql.roles_log 
-                (role, database, username, password, options, deleted)
-              values 
-                (uuid_generate_v4(), $1, $2, $3, $4, $5)
-              on conflict (database, username, (password->>'hash'), deleted) 
-              do nothing`,
-          [db.rows[0].database, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
-        }), []));
-      // TODO: Detect deletions of databases from pods.
-    }
-  }));
-  debug(`Examining ${configMaps.length} configMaps for envs that have a postgres string.`);
-  await Promise.all(configMaps.map(async (configMap) => {
-    if (configMap.data) {
-      await Promise.all(Object.keys(configMap.data).map(async (env) => {
-        if (configMap.data[env].startsWith('postgres://')) {
-          const dbUrl = new URL(configMap.data[env]);
-          const db = await pgpool.query(`
-            insert into postgresql.databases_log 
-              (database, name, host, port, deleted)
-            values 
-              (uuid_generate_v4(), $1, $2, $3, $4)
-            on conflict (name, host, port, deleted) do update set name = $1 returning database`,
-          [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
-          assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
-          assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
-          await pgpool.query(`
-            insert into postgresql.roles_log 
-              (role, database, username, password, options, deleted)
-            values 
-              (uuid_generate_v4(), $1, $2, $3, $4, $5)
-            on conflict (database, username, (password->>'hash'), deleted) 
-            do nothing`,
-          [db.rows[0].database, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
-        }
-      }), []);
-      // TODO: Detect deletions of databases from configmaps.
-    }
-  }));
-}
-
 async function loadFromKubeConfig(kc) {
   assert.ok(process.env.HOME, 'The HOME environment variable was not found.');
   assert.ok(fs.existsSync(`${process.env.HOME}/.kube/config`),
@@ -132,172 +70,144 @@ async function init(pgpool) {
 
 function fromEnvArrayToObj(envs) {
   assert.ok(Array.isArray(envs), 'The env passed in was not an array.');
-  const obj = {};
-  envs.filter((x) => x.value)
-    .forEach((x) => obj[x.name] = x.value); // eslint-disable-line no-return-assign
-  return obj;
+  return envs.filter((x) => x.value)
+    .reduce((agg, x) => ({ ...agg, [x.name]: x.value }), {});
 }
 
 function redactConfigMaps(data) {
-  return {
-    ...data,
-    items: data.items.map((xn) => {
-      const x = JSON.parse(JSON.stringify(xn)); // make a copy
-      if (x.data) {
-        x.data = security.redact(x.data);
-        if (x.metadata && x.metadata.annotations && x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']) {
-          const lastAppliedConfig = JSON.parse(x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']);
-          if (lastAppliedConfig.data) {
-            x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(security.redact(lastAppliedConfig.data));
-          }
-        }
+  const x = JSON.parse(JSON.stringify(data)); // make a copy
+  if (x.data) {
+    x.data = security.redact(x.data);
+    if (x.metadata && x.metadata.annotations && x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']) {
+      const lastAppliedConfig = JSON.parse(x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']);
+      if (lastAppliedConfig.data) {
+        x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(security.redact(lastAppliedConfig.data));
       }
-      return x;
-    }),
-  };
+    }
+  }
+  return x;
 }
 
 function redactPods(data) {
-  return {
-    ...data,
-    items: data.items.map((xn) => {
-      const x = JSON.parse(JSON.stringify(xn)); // make a copy
-      if (x.spec && x.spec.containers) {
-        x.spec.containers = x.spec.containers.map((y) => {
-          if (y.env) {
-            const redactedValues = security.redact(fromEnvArrayToObj(y.env));
-            return {
-              ...y,
-              env: y.env.map((q) => (q.value ? { ...q, value: redactedValues[q.name] } : q)),
-            };
-          }
-          return y;
-        });
+  const x = JSON.parse(JSON.stringify(data)); // make a copy
+  if (x.spec && x.spec.containers) {
+    x.spec.containers = x.spec.containers.map((y) => {
+      if (y.env) {
+        const redactedValues = security.redact(fromEnvArrayToObj(y.env));
+        return {
+          ...y,
+          env: y.env.map((q) => (q.value ? { ...q, value: redactedValues[q.name] } : q)),
+        };
       }
-      if (x.metadata && x.metadata.annotations && x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']) {
-        const lastAppliedConfig = JSON.parse(x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']);
-        if (lastAppliedConfig.spec && lastAppliedConfig.spec.containers) {
-          lastAppliedConfig.spec.containers.map((y) => {
-            if (y.env) {
-              const redactedValues = security.redact(fromEnvArrayToObj(y.env));
-              return {
-                ...y,
-                env: y.env.map((q) => {
-                  if (q.value) {
-                    return { ...q, value: redactedValues[q.name] };
-                  }
-                  return q;
-                }),
-              };
-            }
-            return y;
-          });
-          x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(lastAppliedConfig);
+      return y;
+    });
+  }
+  if (x.metadata && x.metadata.annotations && x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']) {
+    const lastAppliedConfig = JSON.parse(x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']);
+    if (lastAppliedConfig.spec && lastAppliedConfig.spec.containers) {
+      lastAppliedConfig.spec.containers = lastAppliedConfig.spec.containers.map((y) => {
+        if (y.env) {
+          const redactedValues = security.redact(fromEnvArrayToObj(y.env));
+          return {
+            ...y,
+            env: y.env.map((q) => (q.value ? { ...q, value: redactedValues[q.name] } : q)),
+          };
         }
-      }
-      return x;
-    }),
-  };
+        return y;
+      });
+      x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(lastAppliedConfig);
+    }
+  }
+  return x;
 }
 
 function redactDeployments(data) {
-  return {
-    ...data,
-    items: data.items.map((xn) => {
-      const x = JSON.parse(JSON.stringify(xn)); // make a copy
-      if (x.spec && x.spec.template && x.spec.template.spec && x.spec.template.containers) {
-        x.spec.template.containers = x.spec.template.containers.map((y) => {
-          if (y.env) {
-            const redactedValues = security.redact(fromEnvArrayToObj(y.env));
-            return {
-              ...y,
-              env: y.env.map((q) => {
-                if (q.value) {
-                  return { ...q, value: redactedValues[q.name] };
-                }
-                return q;
-              }),
-            };
-          }
-          return y;
-        });
+  const x = JSON.parse(JSON.stringify(data)); // make a copy
+  if (x.spec && x.spec.template && x.spec.template.spec && x.spec.template.containers) {
+    x.spec.template.containers = x.spec.template.containers.map((y) => {
+      if (y.env) {
+        const redactedValues = security.redact(fromEnvArrayToObj(y.env));
+        return {
+          ...y,
+          env: y.env.map((q) => (q.value ? { ...q, value: redactedValues[q.name] } : q)),
+        };
       }
-      if (x.metadata && x.metadata.annotations && x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']) {
-        const lastAppliedConfig = JSON.parse(x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']);
-        if (lastAppliedConfig.spec
-            && lastAppliedConfig.spec.template
-            && lastAppliedConfig.spec.template.spec
-            && lastAppliedConfig.spec.template.spec.containers) {
-          lastAppliedConfig.spec.template.spec.containers.map((y) => {
-            if (y.env) {
-              const redactedValues = security.redact(fromEnvArrayToObj(y.env));
-              return {
-                ...y,
-                env: y.env.map((q) => {
-                  if (q.value) {
-                    return { ...q, value: redactedValues[q.name] };
-                  }
-                  return q;
-                }),
-              };
-            }
-            return y;
-          });
-          x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(lastAppliedConfig);
+      return y;
+    });
+  }
+  if (x.metadata && x.metadata.annotations && x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']) {
+    const lastAppliedConfig = JSON.parse(x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']);
+    if (lastAppliedConfig.spec
+        && lastAppliedConfig.spec.template
+        && lastAppliedConfig.spec.template.spec
+        && lastAppliedConfig.spec.template.spec.containers) {
+      lastAppliedConfig.spec.template.spec.containers = lastAppliedConfig.spec.template.spec.containers.map((y) => { // eslint-disable-line max-len
+        if (y.env) {
+          const redactedValues = security.redact(fromEnvArrayToObj(y.env));
+          return {
+            ...y,
+            env: y.env.map((q) => (q.value ? { ...q, value: redactedValues[q.name] } : q)),
+          };
         }
-      }
-      return x;
-    }),
-  };
+        return y;
+      });
+      x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(lastAppliedConfig);
+    }
+  }
+  return x;
 }
 
-async function writeNamespacedObjs(pgpool, type, func, args) {
+async function writeNamespacedObjs(pgpool, bus, type, func, args) {
   const { body } = await func(args);
   assert.ok(body.items, 'The items field on the returned kube response was not there.');
   assert.ok(Array.isArray(body.items), 'The items field on the returned kube response was not an array');
   debug(`Received ${body.items.length} items for ${type}`);
-  let data = JSON.parse(JSON.stringify(body));
-  if (type === 'config_map') {
-    data = redactConfigMaps(data);
-  }
-  if (type === 'pod') {
-    data = redactPods(data);
-  }
-  if (type === 'deployment') {
-    data = redactDeployments(data);
-  }
-  await Promise.all(data.items.map((item) => pgpool.query(`
-      insert into kubernetes.${type}s_log 
-        (${type}, name, namespace, context, definition, deleted)
-      values 
-        (uuid_generate_v4(), $1, $2, $3, $4, $5)
+  const dbObjs = await Promise.all(body.items.map(async (definition) => {
+    let redacted = JSON.parse(JSON.stringify(definition));
+    if (type === 'config_map') {
+      redacted = redactConfigMaps(redacted);
+    }
+    if (type === 'pod') {
+      redacted = redactPods(redacted);
+    }
+    if (type === 'deployment') {
+      redacted = redactDeployments(redacted);
+    }
+    const dbObj = await pgpool.query(`
+      insert into kubernetes.${type}s_log (${type}, name, namespace, context, definition, deleted)
+      values (uuid_generate_v4(), $1, $2, $3, $4, $5)
       on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
-      do nothing
-    `, [item.metadata.name, item.metadata.namespace, process.env.KUBERNETES_CONTEXT, JSON.stringify(item, null, 2), false])));
-  debug(`Wrote ${data.items.length} items for ${type}`);
+      do update set name = $1
+      returning ${type}, name, context, definition, deleted
+    `, [definition.metadata.name, definition.metadata.namespace, process.env.KUBERNETES_CONTEXT, JSON.stringify(redacted, null, 2), false]);
+    dbObj.rows[0].definition = definition;
+    return dbObj;
+  }));
+  debug(`Wrote ${body.items.length} items for ${type}`);
+  bus.emit(`kubernetes.${type}`, 'sync', dbObjs.map((x) => x.rows).flat(), body.items);
   if (body.metadata.continue) {
-    return body.items.concat(writeNamespacedObjs(pgpool, type, func, { continue: body.metadata.continue, ...args })); // eslint-disable-line max-len
+    return body.items.concat(writeNamespacedObjs(pgpool, bus, type, func, { continue: body.metadata.continue, ...args })); // eslint-disable-line max-len
   }
   return body.items;
 }
 
-async function writeObjs(pgpool, type, func, args) {
+async function writeObjs(pgpool, bus, type, func, args) {
   const { body } = await func(args);
   assert.ok(body.items, 'The items field on the returned kube response was not there.');
   assert.ok(Array.isArray(body.items),
     'The items field on the returned kube response was not an array');
   debug(`Received ${body.items.length} items for ${type}`);
-  await Promise.all(body.items.map((item) => pgpool.query(`
-      insert into kubernetes.${type}s_log 
-        (${type}, name, context, definition, deleted)
-      values 
-        (uuid_generate_v4(), $1, $2, $3, $4)
-      on conflict (name, context, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
-      do nothing
-    `, [item.metadata.name, process.env.KUBERNETES_CONTEXT, JSON.stringify(item, null, 2), false])));
+  const dbObjs = await Promise.all(body.items.map((item) => pgpool.query(`
+    insert into kubernetes.${type}s_log (${type}, name, context, definition, deleted)
+    values (uuid_generate_v4(), $1, $2, $3, $4)
+    on conflict (name, context, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
+    do update set name = $1
+    returning ${type}, name, context, definition, deleted
+  `, [item.metadata.name, process.env.KUBERNETES_CONTEXT, JSON.stringify(item, null, 2), false])));
   debug(`Wrote ${body.items.length} items for ${type}`);
+  bus.emit(`kubernetes.${type}`, 'sync', dbObjs.map((x) => x.rows).flat(), body.items);
   if (body.metadata.continue) {
-    return body.items.concat(writeObjs(pgpool, type, func, { continue: body.metadata.continue, ...args })); // eslint-disable-line max-len
+    return body.items.concat(writeObjs(pgpool, bus, type, func, { continue: body.metadata.continue, ...args })); // eslint-disable-line max-len
   }
   return body.items;
 }
@@ -309,10 +219,8 @@ async function writeDeletedNamespacedObjs(pgpool, type, items) {
           && entry.name === item.metadata.name
           && entry.context === process.env.KUBERNETES_CONTEXT))
     .map((item) => pgpool.query(`
-      insert into kubernetes.${type}s_log 
-        (${type}, name, namespace, context, definition, deleted)
-      values 
-        (uuid_generate_v4(), $1, $2, $3, $4, $5)
+      insert into kubernetes.${type}s_log (${type}, name, namespace, context, definition, deleted)
+      values (uuid_generate_v4(), $1, $2, $3, $4, $5)
       on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
       do nothing
     `, [item.definition.metadata.name, item.definition.metadata.namespace, process.env.KUBERNETES_CONTEXT, JSON.stringify(item.definition, null, 2), true]));
@@ -325,17 +233,17 @@ async function writeDeletedObjs(pgpool, type, items) {
     .filter((entry) => !items.some((item) => entry.name === item.metadata.name
       && entry.context === process.env.KUBERNETES_CONTEXT))
     .map((item) => pgpool.query(`
-      insert into kubernetes.${type}s_log 
-        (${type}, name, context, definition, deleted)
-      values 
-        (uuid_generate_v4(), $1, $2, $3, $4)
+      insert into kubernetes.${type}s_log (${type}, name, context, definition, deleted)
+      values (uuid_generate_v4(), $1, $2, $3, $4)
       on conflict (name, context, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
       do nothing
     `, [item.definition.metadata.name, process.env.KUBERNETES_CONTEXT, JSON.stringify(item.definition, null, 2), true]));
   return items;
 }
 
-async function run(pgpool) {
+async function run(pgpool, bus) {
+  await pgpool.query(fs.readFileSync('./plugins/kubernetes/create.sql').toString());
+  // TODO: Add a way to set the token and API server (no certs sadly) in the environment.
   if (!process.env.KUBERNETES_CONTEXT) {
     return;
   }
@@ -356,52 +264,49 @@ async function run(pgpool) {
   const k8sAppsApi = kc.makeApiClient(k8s.AppsV1Api);
   const maxMemory = 1 * 1024 * 1024;
   debug(`Refreshing pods from ${process.env.KUBERNETES_CONTEXT}`);
-  const pods = await writeDeletedNamespacedObjs(pgpool, 'pod',
-    await writeNamespacedObjs(pgpool, 'pod',
+  await writeDeletedNamespacedObjs(pgpool, 'pod',
+    await writeNamespacedObjs(pgpool, bus, 'pod',
       k8sCoreApi.listPodForAllNamespaces.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 4096) }));
   debug(`Refreshing services from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'service',
-    await writeNamespacedObjs(pgpool, 'service',
+    await writeNamespacedObjs(pgpool, bus, 'service',
       k8sCoreApi.listServiceForAllNamespaces.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 4096) }));
   debug(`Refreshing nodes from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedObjs(pgpool, 'node',
-    await writeObjs(pgpool, 'node',
+    await writeObjs(pgpool, bus, 'node',
       k8sCoreApi.listNode.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 4096) }));
   debug(`Refreshing config maps from ${process.env.KUBERNETES_CONTEXT}`);
-  const configMaps = await writeDeletedNamespacedObjs(pgpool, 'config_map',
-    await writeNamespacedObjs(pgpool, 'config_map',
+  await writeDeletedNamespacedObjs(pgpool, 'config_map',
+    await writeNamespacedObjs(pgpool, bus, 'config_map',
       k8sCoreApi.listConfigMapForAllNamespaces.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 4096) }));
   debug(`Refreshing persistent volumes from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedObjs(pgpool, 'persistent_volume',
-    await writeObjs(pgpool, 'persistent_volume',
+    await writeObjs(pgpool, bus, 'persistent_volume',
       k8sCoreApi.listPersistentVolume.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 2048) }));
   debug(`Refreshing persistent volume claims from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'persistent_volume_claim',
-    await writeNamespacedObjs(pgpool, 'persistent_volume_claim',
+    await writeNamespacedObjs(pgpool, bus, 'persistent_volume_claim',
       k8sCoreApi.listPersistentVolumeClaimForAllNamespaces.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 2048) }));
   debug(`Refreshing events from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'event',
-    await writeNamespacedObjs(pgpool, 'event',
+    await writeNamespacedObjs(pgpool, bus, 'event',
       k8sCoreApi.listEventForAllNamespaces.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 2048) }));
   debug(`Refreshing deployments from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'deployment',
-    await writeNamespacedObjs(pgpool, 'deployment',
+    await writeNamespacedObjs(pgpool, bus, 'deployment',
       k8sAppsApi.listDeploymentForAllNamespaces.bind(k8sAppsApi),
       { limit: Math.floor(maxMemory / 4096) }));
 
   // TODO: istio?
   // TODO: ingress objects?
   // TODO: cert-manager objects?
-
-  debug('Analyzing if any postgres databases exist in config maps or pods');
-  await writePostgresqlFromPodsAndConfigMaps(pgpool, pods, configMaps);
 }
 
 module.exports = {

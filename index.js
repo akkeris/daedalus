@@ -1,8 +1,11 @@
+const EventEmitter = require('events');
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const pg = require('pg');
 const debug = require('debug')('daedalus:index');
+
+const bus = new EventEmitter();
 
 assert.ok(process.env.DATABASE_URL, 'A postgres database connection string must be provided as the environment DATABASE_URL');
 assert.ok(process.env.SECRET && process.env.SECRET.length === 192 / 8,
@@ -16,14 +19,14 @@ const plugins = fs.readdirSync('./plugins')
 
 async function init() {
   debug('Initializing plugins...');
-  await Promise.all(plugins.map((plugin) => plugin.init(pgpool)));
+  await Promise.all(plugins.map((plugin) => plugin.init(pgpool, bus)));
 }
 
 // TODO: Support cron rules from exported plugins, for a "run" frequency.
 
 async function run() {
   debug('Running plugins...');
-  await Promise.all(plugins.map((plugin) => plugin.run(pgpool)));
+  await Promise.all(plugins.map((plugin) => plugin.run(pgpool, bus)));
   setTimeout(run, 1000 * 60 * 5);
 }
 

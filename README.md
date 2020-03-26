@@ -12,29 +12,29 @@ Daedalus is a knowledge system intended for collecting an examining resources on
 
 Daedalus requires a postgresql database (with superuser permissions) to store data. The docker image `akkeris/daedalus:latest` or `akkeris/daedalus:[release]` can be deployed with the following environment variables set.
 
-*  `DATABASE_URL` - This is the database used for daedalus.
-*  `SECRET` - This is the secret key used to encrypt data with an aes192 encryption. It must be 24 bytes long.
-*  `HASH_SECRET` - This is the secret key used in the hmac process to create a hash, it should be different from `SECRET`.
-*  `ENVS_BLACKLIST` - Optional - This is a comman sepearted list of substrings that if found as the key or value will be redacted when stored. Defaults to `PASS,KEY,SECRET,PRIVATE,TOKEN,SALT,AUTH,HASH`.
+ *  `DATABASE_URL` - This is the database used for daedalus.
+ *  `SECRET` - This is the secret key used to encrypt data with an aes192 encryption. It must be 24 bytes long.
+ *  `HASH_SECRET` - This is the secret key used in the hmac process to create a hash, it should be different from `SECRET`.
+ *  `ENVS_BLACKLIST` - Optional - This is a comman sepearted list of substrings that if found as the key or value will be redacted when stored. Defaults to `PASS,KEY,SECRET,PRIVATE,TOKEN,SALT,AUTH,HASH`.
 
 ### Setting up GraphQL
 
 GraphQL API can be configured and turned on independently (infact you can start up daedalus with only the web GraphQL end point exposed and have workers running to collect information on other systems).  To enable the GraphQL API add the environment variables:
 
-*  `GRAPHQL_API` - Set this value to `true` to enable the http web process.
-*  `PORT` - Set this to the value of the port to listen to for the web process, if this is not set it defaults to port `9000`.
+ *  `GRAPHQL_API` - Set this value to `true` to enable the http web process.
+ *  `PORT` - Set this to the value of the port to listen to for the web process, if this is not set it defaults to port `9000`.
 
 ### Setting up Kubernetes
 
 To listen to one or more kubernetes clusters, deploy daedalus to multiple clusters. Configuring kubernetes can be done multiple ways:
 
-1. Through a service account in the deployment and when `KUBERNETES_CONTEXT` is set. 
-2. Through the `$HOME/.kube` kubectl config file and when `KUBERNETES_CONTEXT` is set.
-3. Through explicit environment varialbes below.
+ 1. Through a service account in the deployment and when `KUBERNETES_CONTEXT` is set. 
+ 2. Through the `$HOME/.kube` kubectl config file and when `KUBERNETES_CONTEXT` is set.
+ 3. Through explicit environment varialbes below.
 
-*  `KUBERNETES_CONTEXT` - This indicates the kubernetes cluster and user being used. This must be set if you want to crawl a kubernetes cluster.
-*  `KUBERNETES_TOKEN` - This should only be set if you want to override looking for a service account or using the local kubectl configuration.
-*  `KUBERNETES_API_URL` - This should only be set if you want to override looking for a service account or using the local kubectl configuration.
+ *  `KUBERNETES_CONTEXT` - This indicates the kubernetes cluster and user being used. This must be set if you want to crawl a kubernetes cluster.
+ *  `KUBERNETES_TOKEN` - This should only be set if you want to override looking for a service account or using the local kubectl configuration.
+ *  `KUBERNETES_API_URL` - This should only be set if you want to override looking for a service account or using the local kubectl configuration.
 
 The service account or RBAC access levels for Daedalus must permit read and watch access to pods, servies, nodes, configmaps, persistent volumes, persistent volume claims, events, deployments and ingresses. If istio is installed it should also permit read and watch access to virtual services, gateways and policies.  If cert-manager is installed also permit orders, certificates, challenges and certificaterequests. 
 
@@ -46,24 +46,24 @@ Note that using https with self-signed (insecure) certificates or authenticating
 
 Daedalus can optionally crawl Akkeris for sites, apps, etc. To setup akkeris the following environment variables must be set. This will crawl all regions in akkeris.
 
-* `AKKERIS_URL` - The apps URL for akkeris. (e.g., `https://apps.example.com`)
-* `AKKERIS_TOKEN` - A JWT token from akkeris.
+ *  `AKKERIS_URL` - The apps URL for akkeris. (e.g., `https://apps.example.com`)
+ *  `AKKERIS_TOKEN` - A JWT token from akkeris.
 
 ### Setting up AWS RDS
 
-*  `AWS_RDS_SECRET_KEY` - The IAM secret key that must have access to list and describe RDS instances.
-*  `AWS_RDS_ACCESS_KEY` - The IAM access key id that must have access to list adn describe RDS instances.
-*  `AWS_RDS_REGIONS` - A comma delimited list of regions to crawl for RDS instances.
+ *  `AWS_RDS_SECRET_KEY` - The IAM secret key that must have access to list and describe RDS instances.
+ *  `AWS_RDS_ACCESS_KEY` - The IAM access key id that must have access to list adn describe RDS instances.
+ *  `AWS_RDS_REGIONS` - A comma delimited list of regions to crawl for RDS instances.
 
 ## Debugging
 
 To debug, set the environment variable `DEBUG=daedalus:*`, to debug specific sections use the values:
 
-*  `daedalus:index` - main functionality
-*  `daedalus:postgresql` - postgresql importing and checks.
-*  `daedalus:kubernetes` - kubernetes debugging, importing and checks.
-*  `daedalus:akkeris` - akkeris debugging, importing and checks.
-*  `daedalus:aws` - aws debugging, importing and checks.
+ *  `daedalus:index` - main functionality
+ *  `daedalus:postgresql` - postgresql importing and checks.
+ *  `daedalus:kubernetes` - kubernetes debugging, importing and checks.
+ *  `daedalus:akkeris` - akkeris debugging, importing and checks.
+ *  `daedalus:aws` - aws debugging, importing and checks.
 
 ## Running Locally
 

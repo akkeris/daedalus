@@ -55,12 +55,50 @@ async function checkPermissions(kc) {
     && canWatchEvents && canGetEvents;
 }
 
+async function loadFromKubeEnvironment(kc) {
+  debug('Trying to load from env KUBERNETES_API_URL and KUBERNETES_TOKEN...');
+  assert.ok(process.env.KUBERNETES_CONTEXT, 'The kubernetes context (KUBERNETES_CONTEXT) was not specified.');
+  assert.ok(process.env.KUBERNETES_API_URL && process.env.KUBERNETES_API_URL.startsWith('http'),
+    'The kubernetes API url (KUBERNETES_API_URL) was not specified or was not a https/http URI format.');
+  assert.ok(process.env.KUBERNETES_TOKEN, 'The kubernetes token (KUBERNETES_TOKEN) was not specified.');
+  kc.loadFromString(`
+apiVersion: v1
+current-context: ${process.env.KUBERNETES_CONTEXT}
+kind: Config
+preferences: {}
+clusters:
+- name: ${process.env.KUBERNETES_CONTEXT}
+  cluster:
+    server: ${process.env.KUBERNETES_API_URL}
+users:
+- name: ${process.env.KUBERNETES_CONTEXT}
+  user:
+    token: ${process.env.KUBERNETES_TOKEN}
+contexts:
+- name: ${process.env.KUBERNETES_CONTEXT}
+  context:
+    user: ${process.env.KUBERNETES_CONTEXT}
+    cluster: ${process.env.KUBERNETES_CONTEXT}
+`);
+  await checkPermissions(kc);
+  debug('Loaded kubernetes from env KUBERNETES_API_URL and KUBERNETES_TOKEN...');
+}
+
 async function loadFromKubeConfig(kc) {
+  debug(`Trying to load kubernetes from ${process.env.HOME}/.kube/config...`);
   assert.ok(process.env.HOME, 'The HOME environment variable was not found.');
   assert.ok(fs.existsSync(`${process.env.HOME}/.kube/config`),
     `The kubeconfig file was not found at ${process.env.HOME}/.kube/config`);
   kc.loadFromFile(`${process.env.HOME}/.kube/config`);
   await checkPermissions(kc);
+  debug(`Loaded kubernetes from ${process.env.HOME}/.kube/config...`);
+}
+
+async function loadFromServiceAccount(kc) {
+  debug('Trying to load from service account...');
+  kc.loadFromCluster();
+  await checkPermissions(kc);
+  debug('Loaded from service account...');
 }
 
 async function init(pgpool) {
@@ -243,23 +281,25 @@ async function writeDeletedObjs(pgpool, type, items) {
 
 async function run(pgpool, bus) {
   await pgpool.query(fs.readFileSync('./plugins/kubernetes/create.sql').toString());
-  // TODO: Add a way to set the token and API server (no certs sadly) in the environment.
   if (!process.env.KUBERNETES_CONTEXT) {
     return;
   }
   const kc = new k8s.KubeConfig();
-  try {
-    kc.loadFromCluster();
-    await checkPermissions(kc);
-  } catch (e) {
-    /* Intentionally swallow errors, and backup to checking for a kube config file */
-    await loadFromKubeConfig(kc);
-    /* This may not seem necessary as we could accept the context we receive, however
-     * we want to explicitly require a context as an env when loading from a file,
-     * this helps prevent accidently running it in the wrong environment. */
-    kc.setCurrentContext(process.env.KUBERNETES_CONTEXT);
+  if (process.env.KUBERNETES_TOKEN && process.env.KUBERNETES_API_URL) {
+    await loadFromKubeEnvironment(kc);
+  } else {
+    try {
+      await loadFromServiceAccount(kc);
+    } catch (e) {
+      /* Intentionally swallow errors, and backup to checking for a kube config file */
+      await loadFromKubeConfig(kc);
+    }
   }
-  debug(`Loaded context ${process.env.KUBERNETES_CONTEXT}`);
+  /* This may not seem necessary as we could accept the context we receive, however
+   * we want to explicitly require a context as an env when loading from a file,
+   * this helps prevent accidently running it in the wrong environment. */
+  kc.setCurrentContext(process.env.KUBERNETES_CONTEXT);
+  debug(`Loaded kubernetes context ${process.env.KUBERNETES_CONTEXT}`);
   const k8sCoreApi = kc.makeApiClient(k8s.CoreV1Api);
   const k8sAppsApi = kc.makeApiClient(k8s.AppsV1Api);
   const maxMemory = 1 * 1024 * 1024;

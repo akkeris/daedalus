@@ -15,7 +15,7 @@ Daedalus requires a postgresql database (with superuser permissions) to store da
  *  `DATABASE_URL` - This is the database used for daedalus.
  *  `SECRET` - This is the secret key used to encrypt data with an aes192 encryption. It must be 24 bytes long.
  *  `HASH_SECRET` - This is the secret key used in the hmac process to create a hash, it should be different from `SECRET`.
- *  `ENVS_BLACKLIST` - Optional - This is a comman sepearted list of substrings that if found as the key or value will be redacted when stored. Defaults to `PASS,KEY,SECRET,PRIVATE,TOKEN,SALT,AUTH,HASH`.
+ *  `ENVS_BLACKLIST` - Optional - This is a comma sepearted list of substrings that if found as the key or value will be redacted when stored. Defaults to `PASS,KEY,SECRET,PRIVATE,TOKEN,SALT,AUTH,HASH`.
 
 ### Setting up GraphQL
 
@@ -52,7 +52,7 @@ Daedalus can optionally crawl Akkeris for sites, apps, etc. To setup akkeris the
 ### Setting up AWS RDS
 
  *  `AWS_RDS_SECRET_KEY` - The IAM secret key that must have access to list and describe RDS instances.
- *  `AWS_RDS_ACCESS_KEY` - The IAM access key id that must have access to list adn describe RDS instances.
+ *  `AWS_RDS_ACCESS_KEY` - The IAM access key id that must have access to list and describe RDS instances.
  *  `AWS_RDS_REGIONS` - A comma delimited list of regions to crawl for RDS instances.
 
 ## Debugging

@@ -10,6 +10,7 @@ const bus = new EventEmitter();
 assert.ok(process.env.DATABASE_URL, 'A postgres database connection string must be provided as the environment DATABASE_URL');
 assert.ok(process.env.SECRET && process.env.SECRET.length === 192 / 8,
   'No secret or an invalid secret was passed in. Set env SECRET to be a 24 long character.');
+assert.ok(process.env.HASH_SECRET, 'The environment variable HASH_SECRET was not provided.');
 
 const pgpool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const plugins = fs.readdirSync('./plugins')

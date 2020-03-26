@@ -24,6 +24,7 @@ begin
       deleted boolean not null default false
     );
     create unique index if not exists from_kubernetes_pods_to_postgresql_roles_log_unique on links.from_kubernetes_pods_to_postgresql_roles_log (pod, role, deleted);
+    create index if not exists from_kubernetes_pods_to_postgresql_roles_log_role on links.from_kubernetes_pods_to_postgresql_roles_log (role);
     create or replace view links.from_kubernetes_pods_to_postgresql_roles as
       with ordered_list as (
         select
@@ -48,6 +49,7 @@ begin
       deleted boolean not null default false
     );
     create unique index if not exists from_kubernetes_deployments_to_postgresql_roles_log_unique on links.from_kubernetes_deployments_to_postgresql_roles_log (deployment, role, deleted);
+    create index if not exists from_kubernetes_deployments_to_postgresql_roles_log_role on links.from_kubernetes_deployments_to_postgresql_roles_log (role);
     create or replace view links.from_kubernetes_deployments_to_postgresql_roles as
       with ordered_list as (
         select
@@ -72,6 +74,7 @@ begin
       deleted boolean not null default false
     );
     create unique index if not exists from_kubernetes_config_maps_to_postgresql_roles_log_unqiue on links.from_kubernetes_config_maps_to_postgresql_roles_log (config_map, role, deleted);
+    create index if not exists from_kubernetes_config_maps_to_postgresql_roles_log_role on links.from_kubernetes_config_maps_to_postgresql_roles_log (role);
     create or replace view links.from_kubernetes_config_maps_to_postgresql_roles as
       with ordered_list as ( 
         select

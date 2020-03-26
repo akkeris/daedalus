@@ -34,6 +34,7 @@ begin
     deleted boolean not null default false
   );
   create unique index if not exists apps_unique on akkeris.apps_log (app, name, space_log, (definition->>'updated_at'), deleted);
+  create index if not exists apps_log_space_log on akkeris.apps_log (space_log);
   create or replace view akkeris.apps as
     with ordered_list as ( select
       apps_log.app,
@@ -79,6 +80,9 @@ begin
     deleted boolean not null default false
   );
   create unique index if not exists addons_unique on akkeris.addons_log (addon, app_log, addon_service_log, name, (definition->>'updated_at'), deleted);
+  create index if not exists akkeris_addons_log_addon_service_log on akkeris.addons_log (addon_service_log);
+  create index if not exists akkeris_addons_log_app_log on akkeris.addons_log (app_log);
+
   create or replace view akkeris.addons as
     with ordered_list as ( select
       addons_log.addon,
@@ -112,6 +116,9 @@ begin
     deleted boolean not null default false
   );
   create unique index if not exists addon_attachments_unique on akkeris.addon_attachments_log (addon_attachment, addon_log, app_log, addon_service_log, name, (definition->>'updated_at'), deleted);
+  create index if not exists addon_attachments_log_addon_log on akkeris.addon_attachments_log (addon_log);
+  create index if not exists addon_attachments_log_app_log on akkeris.addon_attachments_log (app_log);
+  create index if not exists addon_attachments_log_addon_service_log on akkeris.addon_attachments_log (addon_service_log);
   create or replace view akkeris.addon_attachments as
     with ordered_list as ( select
       addon_attachments_log.addon_attachment,
@@ -166,6 +173,7 @@ begin
     deleted boolean not null default false
   );
   create unique index if not exists routes_unique on akkeris.routes_log (route, site_log, (definition->>'updated_at'), deleted);
+  create index if not exists routes_log_site_log on akkeris.routes_log (site_log);
   create or replace view akkeris.routes as
     with ordered_list as ( 
       select

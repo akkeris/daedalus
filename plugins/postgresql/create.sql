@@ -108,6 +108,7 @@ begin
   );
   create unique index if not exists columns_unique on postgresql.columns_log (database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted);
   create index if not exists columns_observed_on on postgresql.columns_log (database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, observed_on desc);
+  create index if not exists columns_log_table on postgresql.columns_log ("table");
   create or replace view postgresql.columns as
     with ordered_list as ( 
       select
@@ -153,6 +154,7 @@ begin
   );
   create unique index if not exists indexes_unique on postgresql.indexes_log (database, catalog, schema, "table", name, definition, deleted);
   create index if not exists indexes_observed_on on postgresql.indexes_log (database, catalog, schema, "table", name, definition, observed_on desc);
+  create index if not exists indexes_log_table on postgresql.indexes_log ("table");
   create or replace view postgresql.indexes as
     with ordered_list as ( 
       select
@@ -199,6 +201,10 @@ begin
   create unique index if not exists constraints_fkey_unique on postgresql.constraints_log (database, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted) where "type" = 'FOREIGN KEY';
   create unique index if not exists constraints_check_unique on postgresql.constraints_log (database, name, "type", from_catalog, from_schema, from_table, check_clause, deleted) where "type" = 'CHECK';
   create unique index if not exists constraints_unique on postgresql.constraints_log (database, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted);
+  create index if not exists constraints_log_from_column on postgresql.constraints_log (from_column);
+  create index if not exists constraints_log_to_column on postgresql.constraints_log (to_column);
+  create index if not exists constraints_log_from_table on postgresql.constraints_log (from_table);
+  create index if not exists constraints_log_to_table on postgresql.constraints_log (to_table);
   create index if not exists constraints_observed_on on postgresql.constraints_log (database, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, observed_on desc);
   create or replace view postgresql.constraints as
     with ordered_list as ( 
@@ -258,6 +264,7 @@ begin
     deleted boolean not null default false
   );
   create unique index if not exists table_statistics_pkey_unique on postgresql.table_statistics_log (database, catalog, schema, "table", row_amount_estimate, sequential_scans, percent_of_times_index_used, index_hit_rate, table_hit_rate, deleted);
+  create index if not exists table_statistics_log_table on postgresql.table_statistics_log ("table");
   create or replace view postgresql.table_statistics as
     with ordered_list as ( 
       select

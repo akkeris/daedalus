@@ -9,8 +9,8 @@ const HMAC_ALGORITHM = 'sha256';
 const ENVS_BLACKLIST = process.env.ENVS_BLACKLIST || 'PASS,KEY,SECRET,PRIVATE,TOKEN,SALT,AUTH,HASH';
 
 function hashRegex(match, p1 = '', p2 = '') {
-  assert.ok(process.env.SECRET, 'The environment variable SECRET was not set.');
-  const hmac = crypto.createHmac('sha256', `${process.env.SECRET}hashRegex`);
+  assert.ok(process.env.HASH_SECRET, 'The environment variable HASH_SECRET was not set.');
+  const hmac = crypto.createHmac('sha256', `${process.env.HASH_SECRET}hashRegex`);
   return `${p1}redacted${hmac.update(match).digest('hex')}${p2}`;
 }
 
@@ -99,7 +99,7 @@ function encryptValue(key, rawFrom) {
       cipher.update(raw),
       cipher.final(),
     ]),
-    hash: crypto.createHmac(HMAC_ALGORITHM, key)
+    hash: crypto.createHmac(HMAC_ALGORITHM, process.env.HASH_SECRET)
       .update(raw)
       .digest(),
   });
@@ -130,7 +130,7 @@ function decryptValue(key, encTokenFrom) {
   const decipher = crypto.createDecipheriv(token.cipher, key, token.iv);
   let decrypted = decipher.update(token.encrypted);
   decrypted = Buffer.concat([decrypted, decipher.final()]);
-  const hash = crypto.createHmac(token.hmac, key)
+  const hash = crypto.createHmac(token.hmac, process.env.HASH_SECRET)
     .update(decrypted)
     .digest();
   assert.ok(hash.equals(token.hash), `The hashes did not match while decrypting value ${JSON.stringify(encToken)}`);

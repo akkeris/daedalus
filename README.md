@@ -67,13 +67,11 @@ To debug, set the environment variable `DEBUG=daedalus:*`, to debug specific sec
 
 ## Running Locally
 
-Define whichever environment settings above.
+Define whichever environment settings above, then...
 
 ```
 $ npm start
 ```
-
-Will start the graphql API end point. To install postgraphile see: https://github.com/graphile/postgraphile
 
 ## Contributing
 

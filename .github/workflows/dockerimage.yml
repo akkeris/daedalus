@@ -1,0 +1,23 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build daedalus image
+      run: docker build . --file Dockerfile --tag akkeris/daedalus:release-$GITHUB_RUN_NUMBER
+    - name: Login to dockerhub
+      env:
+        DOCKER_LOGIN: ${{secrets.DOCKER_LOGIN}}
+        DOCKER_PASSWORD: ${{secrets.DOCKER_PASSWORD}}
+      run: docker login --username $DOCKER_LOGIN --password $DOCKER_PASSWORD
+    - name: Push daedalus image
+      run: docker push akkeris/daedalus:release-$GITHUB_RUN_NUMBER

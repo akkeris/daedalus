@@ -5,6 +5,7 @@ const axios = require('axios');
 async function init(pgpool) {
   debug('Initializing akkeris plugin...');
   await pgpool.query(fs.readFileSync('./plugins/akkeris/create.sql').toString());
+  debug('Initializing akkeris plugin... done');
 }
 
 function lookupSpaceById(spaces, id) {
@@ -37,6 +38,8 @@ function lookupAddonById(addons, id) {
 }
 
 async function run(pgpool) {
+  debug('Running akkeris plugin...');
+
   await pgpool.query(fs.readFileSync('./plugins/akkeris/create.sql').toString());
   if (!process.env.AKKERIS_URL || !process.env.AKKERIS_TOKEN) {
     return;
@@ -47,7 +50,6 @@ async function run(pgpool) {
     headers: { authorization: `Bearer ${process.env.AKKERIS_TOKEN}` },
   });
 
-  debug('Running akkeris plugin...');
 
   debug('Getting sites');
   const { data: sites } = await get('/sites');

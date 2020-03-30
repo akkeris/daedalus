@@ -104,6 +104,7 @@ async function loadFromServiceAccount(kc) {
 async function init(pgpool) {
   debug('Initializing kubernetes plugin...');
   await pgpool.query(fs.readFileSync('./plugins/kubernetes/create.sql').toString());
+  debug('Initializing kubernetes plugin... done');
 }
 
 function fromEnvArrayToObj(envs) {
@@ -280,6 +281,7 @@ async function writeDeletedObjs(pgpool, type, items) {
 }
 
 async function run(pgpool, bus) {
+  debug('Running kubernetes plugin');
   await pgpool.query(fs.readFileSync('./plugins/kubernetes/create.sql').toString());
   if (!process.env.KUBERNETES_CONTEXT) {
     return;

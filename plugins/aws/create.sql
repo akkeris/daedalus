@@ -3,6 +3,13 @@ begin
 
   create schema if not exists "aws";
 
+  create or replace function aws.calc_hash() returns trigger as $calc_hash$
+    begin
+      new.hash := encode(digest(new.definition::text, 'sha1'), 'hex');
+      return new;
+    end;
+  $calc_hash$ language plpgsql;
+
   create table if not exists aws.rds_db_instances_log (
     rds_db_instance_log uuid not null primary key default uuid_generate_v4(),
     db_instance_arn varchar(128) not null,
@@ -10,10 +17,15 @@ begin
     status varchar(128) not null,
     name varchar(128) not null,
     definition jsonb not null,
-    hash varchar(128) generated always as (encode(digest(definition::text, 'sha1'), 'hex')) stored,
+    hash varchar(128),
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
+
+  drop trigger if exists aws_rds_db_instances_log_hash on aws.rds_db_instances_log;
+  create trigger aws_rds_db_instances_log_hash
+    before insert or update on aws.rds_db_instances_log
+    for each row execute function aws.calc_hash();
 
   create or replace view aws.rds_db_instances as
     with ordered_list as ( select
@@ -37,10 +49,15 @@ begin
     status varchar(128) not null,
     name varchar(128) not null,
     definition jsonb not null,
-    hash varchar(128) generated always as (encode(digest(definition::text, 'sha1'), 'hex')) stored,
+    hash varchar(128),
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
+
+  drop trigger if exists aws_rds_db_clusters_log_hash on aws.rds_db_clusters_log;
+  create trigger aws_rds_db_clusters_log_hash
+    before insert or update on aws.rds_db_clusters_log
+    for each row execute function aws.calc_hash();
 
   create or replace view aws.rds_db_clusters as
     with ordered_list as ( select
@@ -63,10 +80,15 @@ begin
     source_type varchar(128) not null,
     source_arn varchar(128) not null,
     definition jsonb not null,
-    hash varchar(128) generated always as (encode(digest(definition::text, 'sha1'), 'hex')) stored,
+    hash varchar(128),
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
+
+  drop trigger if exists aws_rds_events_log_hash on aws.rds_events_log;
+  create trigger aws_rds_events_log_hash
+    before insert or update on aws.rds_events_log
+    for each row execute function aws.calc_hash();
 
   create or replace view aws.rds_events as
     with ordered_list as ( select
@@ -90,10 +112,15 @@ begin
     description text not null default '',
     name varchar(128) not null,
     definition jsonb not null,
-    hash varchar(128) generated always as (encode(digest(definition::text, 'sha1'), 'hex')) stored,
+    hash varchar(128),
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
+
+  drop trigger if exists aws_rds_db_parameter_groups_log_hash on aws.rds_db_parameter_groups_log;
+  create trigger aws_rds_db_parameter_groups_log_hash
+    before insert or update on aws.rds_db_parameter_groups_log
+    for each row execute function aws.calc_hash();
 
   create or replace view aws.rds_db_parameter_groups as
     with ordered_list as ( select
@@ -116,10 +143,14 @@ begin
     db_snapshot_identifier varchar(128) not null,
     db_instance_identifier varchar(128) not null,
     definition jsonb not null,
-    hash varchar(128) generated always as (encode(digest(definition::text, 'sha1'), 'hex')) stored,
+    hash varchar(128),
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
+  drop trigger if exists aws_rds_db_snapshots_log_hash on aws.rds_db_snapshots_log;
+  create trigger aws_rds_db_snapshots_log_hash
+    before insert or update on aws.rds_db_snapshots_log
+    for each row execute function aws.calc_hash();
 
   create or replace view aws.rds_db_snapshots as
     with ordered_list as ( select
@@ -141,10 +172,14 @@ begin
     certificate_type varchar(128) not null,
     certificate_arn varchar(128) not null,
     definition jsonb not null,
-    hash varchar(128) generated always as (encode(digest(definition::text, 'sha1'), 'hex')) stored,
+    hash varchar(128),
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
+  drop trigger if exists aws_rds_certificates_log_hash on aws.rds_certificates_log;
+  create trigger aws_rds_certificates_log_hash
+    before insert or update on aws.rds_certificates_log
+    for each row execute function aws.calc_hash();
 
   create or replace view aws.rds_certificates as
     with ordered_list as ( select
@@ -165,10 +200,14 @@ begin
     name varchar(128) not null,
     db_subnet_group_arn varchar(128) not null,
     definition jsonb not null,
-    hash varchar(128) generated always as (encode(digest(definition::text, 'sha1'), 'hex')) stored,
+    hash varchar(128),
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
+  drop trigger if exists aws_rds_db_subnet_groups_log_hash on aws.rds_db_subnet_groups_log;
+  create trigger aws_rds_db_subnet_groups_log_hash
+    before insert or update on aws.rds_db_subnet_groups_log
+    for each row execute function aws.calc_hash();
 
   create or replace view aws.rds_db_subnet_groups as
     with ordered_list as ( select
@@ -188,10 +227,14 @@ begin
     name varchar(128) not null,
     db_security_group_arn varchar(128) not null,
     definition jsonb not null,
-    hash varchar(128) generated always as (encode(digest(definition::text, 'sha1'), 'hex')) stored,
+    hash varchar(128),
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
+  drop trigger if exists aws_rds_db_security_groups_log_hash on aws.rds_db_security_groups_log;
+  create trigger aws_rds_db_security_groups_log_hash
+    before insert or update on aws.rds_db_security_groups_log
+    for each row execute function aws.calc_hash();
 
   create or replace view aws.rds_db_security_groups as
     with ordered_list as ( select

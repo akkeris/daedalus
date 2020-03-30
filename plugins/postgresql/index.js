@@ -7,6 +7,7 @@ const security = require('../../common/security.js');
 async function init(pgpool) {
   debug('Initializing postgresql plugin...');
   await pgpool.query(fs.readFileSync('./plugins/postgresql/create.sql').toString());
+  debug('Initializing postgresql plugin... done');
 }
 
 function findConstraintId(constraints, database, name, type, fromCatalog, fromSchema, fromTable, fromColumn, toCatalog, toSchema, toTable, toColumn) { // eslint-disable-line max-len
@@ -426,8 +427,8 @@ async function writeTablesViewsAndColumns(pgpool, database) {
 }
 
 async function run(pgpool) {
-  await pgpool.query(fs.readFileSync('./plugins/postgresql/create.sql').toString());
   debug('Running postgresql plugin...');
+  await pgpool.query(fs.readFileSync('./plugins/postgresql/create.sql').toString());
   (await Promise.all((await pgpool.query(`
     select 
       databases.database, databases.name, databases.host, databases.port,

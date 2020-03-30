@@ -3,6 +3,7 @@ const fs = require('fs');
 const debug = require('debug')('daedalus:aws');
 
 async function run(pgpool) {
+  debug('Running aws plugin...');
   await pgpool.query(fs.readFileSync('./plugins/aws/create.sql').toString());
   let rdsClients = [];
   if (process.env.AWS_RDS_SECRET_KEY
@@ -332,6 +333,7 @@ async function run(pgpool) {
 async function init(pgpool) {
   debug('Initializing aws plugin...');
   await pgpool.query(fs.readFileSync('./plugins/aws/create.sql').toString());
+  debug('Initializing aws plugin... done');
 }
 
 module.exports = {

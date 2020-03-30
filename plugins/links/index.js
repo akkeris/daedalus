@@ -3,6 +3,7 @@ const fs = require('fs');
 const kp = require('./kubernetes-postgresql.js');
 
 async function run(pgpool, bus) {
+  debug('Running links plugin...');
   await pgpool.query(fs.readFileSync('./plugins/links/create.sql').toString());
   await kp.run(pgpool, bus);
 }
@@ -21,6 +22,7 @@ async function init(pgpool, bus) {
   debug('Initializing links plugin...');
   await pgpool.query(fs.readFileSync('./plugins/links/create.sql').toString());
   await kp.init(pgpool, bus);
+  debug('Initializing links plugin... done');
 }
 
 module.exports = {

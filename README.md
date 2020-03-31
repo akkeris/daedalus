@@ -8,6 +8,7 @@ Daedalus is a knowledge system intended for collecting an examining resources on
 
 > This is currently in discovery and may change considerably.
 
+
 ## Installation
 
 Daedalus requires a postgresql database (with superuser permissions) to store data. The docker image `akkeris/daedalus:latest` or `akkeris/daedalus:[release]` can be deployed with the following environment variables set.

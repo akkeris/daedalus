@@ -61,7 +61,6 @@ begin
       "column" uuid not null references postgresql.columns_log("column")
     );
     create index if not exists labels_on_postgresql_columns_label on metadata.labels_on_postgresql_columns("label");
-    create index if not exists metadata_annotations_on_postgresql_columns on metadata.annotations_on_postgresql_columns("column");
 
     create table if not exists metadata.annotations_on_postgresql_columns (
       annotation uuid not null references metadata.annotations("annotation"),

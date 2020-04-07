@@ -2,9 +2,7 @@ const AWS = require('aws-sdk');
 const fs = require('fs');
 const debug = require('debug')('daedalus:aws');
 
-async function run(pgpool) {
-  debug('Running aws plugin...');
-  await pgpool.query(fs.readFileSync('./plugins/aws/create.sql').toString());
+async function runRds(pgpool) {
   let rdsClients = [];
   if (process.env.AWS_RDS_SECRET_KEY
       && process.env.AWS_RDS_ACCESS_KEY
@@ -32,12 +30,19 @@ async function run(pgpool) {
   const existingDbSubnetGroups = (await pgpool.query('select * from aws.rds_db_subnet_groups')).rows;
   const existingDbSecurityGroups = (await pgpool.query('select * from aws.rds_db_security_groups')).rows;
 
+  let dbClusters = [];
+  let dbInstances = [];
+  let dbParameterGroups = [];
+  let dbSecurityGroups = [];
+  let dbSnapshots = [];
+  let certificates = [];
+  let dbSubnetGroups = [];
+
   await Promise.all(rdsClients.map(async (rds) => {
     let marker = void (0); // eslint-disable-line no-void
 
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeDBClusters-property
     debug(`Pulling DB Clusters from AWS RDS ${rds.config.region}...`);
-    let dbClusters = [];
     do {
       const resp = await rds.describeDBClusters({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
       await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
@@ -68,7 +73,6 @@ async function run(pgpool) {
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeDBInstances-property
     debug(`Pulling DB Instances from AWS RDS ${rds.config.region}...`);
     marker = void (0); // eslint-disable-line no-void
-    let dbInstances = [];
     do {
       const resp = await rds.describeDBInstances({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
       await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
@@ -98,7 +102,6 @@ async function run(pgpool) {
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeDBParameterGroups-property
     debug(`Pulling DB Parameter Groups from AWS RDS ${rds.config.region}...`);
     marker = void (0); // eslint-disable-line no-void
-    let dbParameterGroups = [];
     do {
       const resp = await rds.describeDBParameterGroups({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
       await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
@@ -155,11 +158,9 @@ async function run(pgpool) {
       marker = resp.Marker;
     } while (marker);
 
-
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeDBSnapshots-property
     debug(`Pulling DB Snapshots from AWS RDS ${rds.config.region}...`);
     marker = void (0); // eslint-disable-line no-void
-    let dbSnapshots = [];
     do {
       const resp = await rds.describeDBSnapshots({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
       await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
@@ -186,11 +187,9 @@ async function run(pgpool) {
       marker = resp.Marker;
     } while (marker);
 
-
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeCertificates-property
     debug(`Pulling Certificates from AWS RDS ${rds.config.region}...`);
     marker = void (0); // eslint-disable-line no-void
-    let certificates = [];
     do {
       const resp = await rds.describeCertificates({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
       await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
@@ -221,11 +220,9 @@ async function run(pgpool) {
       marker = resp.Marker;
     } while (marker);
 
-
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeDBSubnetGroups-property
     debug(`Pulling DB Subnet Groups from AWS RDS ${rds.config.region}...`);
     marker = void (0); // eslint-disable-line
-    let dbSubnetGroups = [];
     do {
       const resp = await rds.describeDBSubnetGroups({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
       await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
@@ -254,11 +251,9 @@ async function run(pgpool) {
       marker = resp.Marker;
     } while (marker);
 
-
     // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeDBSecurityGroups-property
     debug(`Pulling DB Security Groups from AWS RDS ${rds.config.region}...`);
     marker = void (0); // eslint-disable-line no-void
-    let dbSecurityGroups = [];
     do {
       const resp = await rds.describeDBSecurityGroups({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
       await new Promise((res) => setTimeout(res, 5000)); // eslint-disable-line no-await-in-loop
@@ -287,47 +282,104 @@ async function run(pgpool) {
       marker = resp.Marker;
     } while (marker);
 
-    // Check for deletions
-    debug(`Checking for deletions on AWS RDS ${rds.config.region}...`);
-    await Promise.all(existingDbClusters.filter(((x) => !dbClusters.some((y) => x.db_cluster_arn === y.db_cluster_arn))).map((db) => pgpool.query(`
-      insert into aws.rds_db_clusters_log (db_cluster_arn, engine, status, name, definition, deleted)
-      values ($1::varchar(128), $2, $3, $4, $5::jsonb, $6)`,
-    [db.db_cluster_arn, db.engine, db.status, db.name, db.definition, true])));
-    await Promise.all(existingDbInstances.filter(((x) => !dbInstances.some((y) => x.db_instance_arn === y.db_instance_arn))).map((db) => pgpool.query(`
-      insert into aws.rds_db_instances_log (db_instance_arn, engine, status, name, definition, deleted)
-      values ($1::varchar(128), $2, $3, $4, $5::jsonb, $6)`,
-    [db.db_instance_arn, db.engine, db.status, db.name, db.definition, true])));
-    await Promise.all(existingDbParameterGroups.filter(((x) => !dbParameterGroups.some((y) => x.db_parameter_group_arn === y.db_parameter_group_arn))).map((db) => pgpool.query(`
-      insert into aws.rds_db_parameter_groups_log (db_parameter_group_arn, family, description, name, definition, deleted)
-      values ($1::varchar(128), $2, $3, $4, $5::jsonb, $6)`,
-    [db.db_parameter_group_arn, db.family, db.description, db.name, db.definition, true])));
-    await Promise.all(existingDbSnapshots.filter(((x) => !dbSnapshots.some((y) => x.db_snapshot_identifier === y.db_snapshot_identifier))).map((db) => pgpool.query(`
-      insert into aws.rds_db_snapshots_log (db_snapshot_identifier, db_instance_identifier, definition, deleted)
-      values ($1::varchar(128), $2, $3::jsonb, $4)`,
-    [db.db_snapshot_identifier, db.db_instance_identifier, db.definition, true])));
-    await Promise.all(existingCertificates.filter(((x) => !certificates.some((y) => x.certificate_arn === y.certificate_arn))).map((db) => pgpool.query(`
-      insert into aws.rds_certificates_log (certificate_identifier, certificate_type, certificate_arn, definition, deleted)
-      values ($1::varchar(128), $2, $3, $4::jsonb, $5)`,
-    [db.certificate_identifier, db.certificate_type, db.certificate_arn, db.definition, true])));
-    await Promise.all(existingDbSubnetGroups.filter(((x) => !dbSubnetGroups.some((y) => x.db_subnet_group_arn === y.db_subnet_group_arn))).map((db) => pgpool.query(`
-      insert into aws.rds_db_subnet_groups_log (name, db_subnet_group_arn, definition, deleted)
-      values ($1::varchar(128), $2, $3::jsonb, $4)`,
-    [db.name, db.db_subnet_group_arn, db.definition, true])));
-    await Promise.all(existingDbSecurityGroups.filter(((x) => !dbSecurityGroups.some((y) => x.db_security_group_arn === y.db_security_group_arn))).map((db) => pgpool.query(`
-      insert into aws.rds_db_security_groups_log (name, db_security_group_arn, definition, deleted)
-      values ($1::varchar(128), $2, $3::jsonb, $4)`,
-    [db.name, db.db_security_group_arn, db.definition, true])));
-
     // TODO (maybe): https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describePendingMaintenanceActions-property
     // TODO (maybe): https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeReservedDBInstances-property
     // TODO (maybe): https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/RDS.html#describeDBProxies-property
   }));
 
-  if (process.env.AWS_EC2_SECRET_KEY
-      && process.env.AWS_EC2_ACCESS_KEY
-      && process.env.AWS_EC2_REGIONS) {
-    // TODO: Add EC2 Information
+
+  // Check for deletions
+  debug('Checking for deletions on AWS RDS...');
+  await Promise.all(existingDbClusters.filter(((x) => !dbClusters.some((y) => x.db_cluster_arn === y.db_cluster_arn))).map((db) => pgpool.query(`
+    insert into aws.rds_db_clusters_log (db_cluster_arn, engine, status, name, definition, deleted)
+    values ($1::varchar(128), $2, $3, $4, $5::jsonb, $6)`,
+  [db.db_cluster_arn, db.engine, db.status, db.name, db.definition, true])));
+  await Promise.all(existingDbInstances.filter(((x) => !dbInstances.some((y) => x.db_instance_arn === y.db_instance_arn))).map((db) => pgpool.query(`
+    insert into aws.rds_db_instances_log (db_instance_arn, engine, status, name, definition, deleted)
+    values ($1::varchar(128), $2, $3, $4, $5::jsonb, $6)`,
+  [db.db_instance_arn, db.engine, db.status, db.name, db.definition, true])));
+  await Promise.all(existingDbParameterGroups.filter(((x) => !dbParameterGroups.some((y) => x.db_parameter_group_arn === y.db_parameter_group_arn))).map((db) => pgpool.query(`
+    insert into aws.rds_db_parameter_groups_log (db_parameter_group_arn, family, description, name, definition, deleted)
+    values ($1::varchar(128), $2, $3, $4, $5::jsonb, $6)`,
+  [db.db_parameter_group_arn, db.family, db.description, db.name, db.definition, true])));
+  await Promise.all(existingDbSnapshots.filter(((x) => !dbSnapshots.some((y) => x.db_snapshot_identifier === y.db_snapshot_identifier))).map((db) => pgpool.query(`
+    insert into aws.rds_db_snapshots_log (db_snapshot_identifier, db_instance_identifier, definition, deleted)
+    values ($1::varchar(128), $2, $3::jsonb, $4)`,
+  [db.db_snapshot_identifier, db.db_instance_identifier, db.definition, true])));
+  await Promise.all(existingCertificates.filter(((x) => !certificates.some((y) => x.certificate_arn === y.certificate_arn))).map((db) => pgpool.query(`
+    insert into aws.rds_certificates_log (certificate_identifier, certificate_type, certificate_arn, definition, deleted)
+    values ($1::varchar(128), $2, $3, $4::jsonb, $5)`,
+  [db.certificate_identifier, db.certificate_type, db.certificate_arn, db.definition, true])));
+  await Promise.all(existingDbSubnetGroups.filter(((x) => !dbSubnetGroups.some((y) => x.db_subnet_group_arn === y.db_subnet_group_arn))).map((db) => pgpool.query(`
+    insert into aws.rds_db_subnet_groups_log (name, db_subnet_group_arn, definition, deleted)
+    values ($1::varchar(128), $2, $3::jsonb, $4)`,
+  [db.name, db.db_subnet_group_arn, db.definition, true])));
+  await Promise.all(existingDbSecurityGroups.filter(((x) => !dbSecurityGroups.some((y) => x.db_security_group_arn === y.db_security_group_arn))).map((db) => pgpool.query(`
+    insert into aws.rds_db_security_groups_log (name, db_security_group_arn, definition, deleted)
+    values ($1::varchar(128), $2, $3::jsonb, $4)`,
+  [db.name, db.db_security_group_arn, db.definition, true])));
+}
+
+async function runElastiCache(pgpool) {
+  // const existingClusters = (await pgpool.query('select * from aws.es_clusters')).rows;
+
+  let elastiCacheClients = [];
+  if (process.env.AWS_ELASTICACHE_SECRET_KEY
+      && process.env.AWS_ELASTICACHE_ACCESS_KEY
+      && process.env.AWS_ELASTICACHE_REGIONS) {
+    elastiCacheClients = elastiCacheClients.concat(process.env.AWS_ELASTICACHE_REGIONS.split(',')
+      .map((x) => x.toLowerCase())
+      .map((region) => new AWS.ElastiCache({
+        accessKeyId: process.env.AWS_RDS_ACCESS_KEY,
+        secretAccesskey: process.env.AWS_RDS_SECRET_KEY,
+        region,
+      })));
+  } else if (process.env.AWS_ELASTICACHE_REGIONS) {
+    elastiCacheClients = elastiCacheClients.concat(process.env.AWS_ELASTICACHE_REGIONS.split(',')
+      .map((x) => x.toLowerCase())
+      .map((region) => new AWS.ElastiCache({ region })));
+  } else {
+    return;
   }
+  let clusters = [];
+  await Promise.all(elastiCacheClients.map(async (es) => {
+    // https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/ElastiCache.html#describeCacheClusters-property
+    debug(`Pulling ElastiCache Clusters from AWS RDS ${es.config.region}...`);
+    let marker = void (0); // eslint-disable-line no-void
+    do {
+      await new Promise((res) => setTimeout(res, 3000)); // eslint-disable-line no-await-in-loop
+      const resp = await es.describeCacheClusters({ Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
+      clusters = clusters.concat(resp.CacheClusters);
+      marker = resp.Marker;
+    } while (marker);
+  }));
+  await Promise.all(clusters.map(async (es) => { // eslint-disable-line no-await-in-loop,max-len
+    await pgpool.query(`
+        insert into aws.es_clusters_log (name, engine, status, definition)
+        select $1::varchar(128), $2, $3, $4::jsonb
+        where not exists (
+          select hash from (
+            select
+              es_clusters_log.name,
+              es_clusters_log.hash,
+              row_number() over (partition by es_clusters_log.name order by es_clusters_log.observed_on desc) as rn
+            from 
+              aws.es_clusters_log
+          ) b 
+          where b.rn=1 and 
+          b.hash=encode(digest($4::text,'sha1'),'hex') and 
+          b.name=$1::varchar(128)
+        )
+        returning *
+      `, [es.CacheClusterId, es.Engine, es.CacheClusterStatus, es]);
+    return { name: es.CacheClusterId };
+  }));
+}
+async function run(pgpool) {
+  debug('Running aws plugin...');
+  await pgpool.query(fs.readFileSync('./plugins/aws/create.sql').toString());
+  await runRds(pgpool);
+  await runElastiCache(pgpool);
 }
 
 async function init(pgpool) {

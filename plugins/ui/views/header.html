@@ -1,0 +1,37 @@
+module.exports = (title = "daedalus") => `
+<!DOCTYPE html>
+<html>
+  <head>
+    <link href="/theme.css" rel="stylesheet">
+    <link href="/font-awesome.min.css" rel="stylesheet">
+    <title>${title}</title>
+    <script src="/components/akkeris-addons.js"></script>
+    <script src="/components/x-dropdown.js"></script>
+    <script src="/components/nav-bar.js"></script>
+    <script src="/components/nav-breadcrumb.js"></script>
+    <script src="/components/nav-sidemenu.js"></script>
+    <script src="/components/nav-avatar.js"></script>
+    <script src="/components/x-search.js"></script>
+    <script src="/components/appkit-app.js"></script>
+    <script src="/components/appkit-footer.js"></script>
+    <script src="/components/x-tabs.js"></script>
+  </head>
+  <body>
+    <nav-bar sidemenu="true">
+      <x-search 
+        class="dark"
+        search-api="/search.json" 
+        title="title"
+        description="text"
+        icon="icon"
+        location="location"
+        placeholder="Search">
+      </x-search>
+      <nav-avatar user-api="/user" direction="right" />
+    </nav-bar>
+    <nav-sidemenu title="">
+      <ul>
+        <li><a href="#"><i class="fa fa-cube" aria-hidden="true"></i> Databases</a></li>
+      </ul>
+    </nav-sidemenu>
+`

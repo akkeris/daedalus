@@ -14,6 +14,11 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 2018,
   },
+  ignorePatterns:[
+    "node_modules",
+    "plugins/ui/public/components/*",
+    "plugins/ui/public/*",
+  ],
   rules: {
   },
 };

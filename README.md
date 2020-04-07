@@ -16,13 +16,30 @@ Daedalus requires a postgresql database (with superuser permissions) to store da
  *  `SECRET` - This is the secret key used to encrypt data with an aes192 encryption. It must be 24 bytes long.
  *  `HASH_SECRET` - This is the secret key used in the hmac process to create a hash, it should be different from `SECRET`.
  *  `ENVS_BLACKLIST` - Optional - This is a comma sepearted list of substrings that if found as the key or value will be redacted when stored. Defaults to `PASS,KEY,SECRET,PRIVATE,TOKEN,SALT,AUTH,HASH`.
+ *  `PORT` - Set this to the value of the port to listen to for the web process (used by either the UI or GraphQL), if this is not set it defaults to port `9000`.
+
+### Setting up UI
+
+ *  `UI` - Set this value to `true` to enable the UI web process.
+ *  `SESSION_SECRET` - The secret to use for encrypting the session id in the browser. If not set, this will default to `HASH_SECRET`.
+ *  `REDIS_URL` - This is the redis url used for session tracking, otherwise an in-memory session storage is used.
+ *  `OAUTH_AUTHORIZE_URL` - The end point for beginning the oauth client redirect flow `/authorize`
+ *  `OAUTH_ACCESS_TOKEN_URL` - The end point to exchange the authorizatoin code for an access token, typically, `/access_token`
+ *  `OAUTH_SCOPES` - Any necessary scopes to add to the authorization request (if needed).
+ *  `OAUTH_CLIENT_URI` - The URI that should be provided as the redirect in the authorization_code, this is typically the url for daedalus (e.g., `https://daedalus.example.com/oauth/callback`)
+ *  `OAUTH_CLIENT_ID` - The client id provided by the oauth system.
+ *  `OAUTH_CLIENT_SECRET` - The client secret provided by the oauth system.
 
 ### Setting up GraphQL
 
 GraphQL API can be configured and turned on independently (infact you can start up daedalus with only the web GraphQL end point exposed and have workers running to collect information on other systems).  To enable the GraphQL API add the environment variables:
 
  *  `GRAPHQL_API` - Set this value to `true` to enable the http web process.
- *  `PORT` - Set this to the value of the port to listen to for the web process, if this is not set it defaults to port `9000`.
+ *  `GRAPHQL_POSTGRAPHILE_OPTIONS` - Sets options for the GraphQL API (https://www.graphile.org/postgraphile/usage-library/#recommended-options)
+
+### Setting up Postgresql Scans
+
+ *  `POSTRESQL` - Set this value to `true` to enable scanning postgres databases for schema changes and statistics.
 
 ### Setting up Kubernetes
 

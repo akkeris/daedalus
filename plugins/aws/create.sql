@@ -74,6 +74,38 @@ begin
     select db_cluster_arn, engine, status, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
 
+  create table if not exists aws.es_clusters_log (
+    es_cluster_log uuid not null primary key default uuid_generate_v4(),
+    engine varchar(128) not null,
+    status varchar(128) not null,
+    name varchar(128) not null,
+    definition jsonb not null,
+    hash varchar(128),
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+
+  drop trigger if exists aws_es_clusters_log_hash on aws.es_clusters_log;
+  create trigger aws_es_clusters_log_hash
+    before insert or update on aws.es_clusters_log
+    for each row execute function aws.calc_hash();
+
+  create or replace view aws.es_clusters as
+    with ordered_list as (
+      select
+        engine,
+        status,
+        name,
+        definition,
+        hash,
+        observed_on,
+        deleted,
+        row_number() over (partition by name order by observed_on desc) as rn
+      from aws.es_clusters_log
+    )
+    select engine, status, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
+
+
   create table if not exists aws.rds_events_log (
     rds_events_log uuid not null primary key default uuid_generate_v4(),
     source_identifier varchar(128) not null,
@@ -91,16 +123,18 @@ begin
     for each row execute function aws.calc_hash();
 
   create or replace view aws.rds_events as
-    with ordered_list as ( select
-      source_identifier,
-      source_type,
-      source_arn,
-      definition,
-      hash,
-      observed_on,
-      deleted,
-      row_number() over (partition by source_identifier order by observed_on desc) as rn
-    from aws.rds_events_log)
+    with ordered_list as ( 
+      select
+        source_identifier,
+        source_type,
+        source_arn,
+        definition,
+        hash,
+        observed_on,
+        deleted,
+        row_number() over (partition by source_identifier order by observed_on desc) as rn
+      from aws.rds_events_log
+    )
     select source_identifier, source_type, source_arn, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
 

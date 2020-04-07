@@ -11,9 +11,11 @@ begin
     name varchar(128) not null,
     host varchar(1024) not null,
     port int not null CHECK(port > 0),
+    config jsonb not null default '[]'::jsonb,
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
+
   create unique index if not exists databases_unique on postgresql.databases_log (name, host, port, deleted);
   create index if not exists databases_observed_on on postgresql.databases_log (name, host, port, observed_on desc);
   create or replace view postgresql.databases as
@@ -22,11 +24,12 @@ begin
       name,
       host,
       port,
+      config,
       observed_on,
       deleted,
       row_number() over (partition by name, host, port order by observed_on desc) as rn
     from postgresql.databases_log)
-    select database, name, host, port, observed_on from ordered_list where rn=1 and deleted = false;
+    select database, name, host, port, config, observed_on from ordered_list where rn=1 and deleted = false;
 
 
   create table if not exists postgresql.roles_log (
@@ -84,6 +87,30 @@ begin
     from postgresql.tables_log join postgresql.databases_log on tables_log.database = databases_log.database)
     select "table", database, catalog, schema, name, is_view, definition, observed_on from ordered_list where rn=1 and tables_deleted = false and databases_deleted = false;
 
+    create or replace view postgresql.table_changes as
+      select 
+        "table",
+        database,
+        catalog,
+        schema,
+        name,
+        is_view,
+        deleted
+      from (
+        select
+          "table",
+          database,
+          catalog,
+          schema,
+          name,
+          is_view,
+          deleted,
+          row_number() over (partition by tables_log.database, tables_log.catalog, tables_log.schema, tables_log.name, tables_log.is_view order by tables_log.observed_on asc) as rn
+        from
+          postgresql.tables_log
+        ) a 
+      where 
+        a.rn > 1;
 
   create table if not exists postgresql.columns_log (
     "column" uuid not null primary key,
@@ -276,6 +303,8 @@ begin
         table_statistics_log.row_amount_estimate,
         table_statistics_log.sequential_scans,
         table_statistics_log.percent_of_times_index_used,
+        table_statistics_log.index_size,
+        table_statistics_log.table_size,
         table_statistics_log.index_hit_rate,
         table_statistics_log.table_hit_rate,
         table_statistics_log.observed_on,
@@ -284,7 +313,7 @@ begin
         row_number() over (partition by table_statistics_log.database, table_statistics_log.catalog, table_statistics_log.schema, table_statistics_log.table  order by table_statistics_log.observed_on desc) as rn
       from postgresql.table_statistics_log
         join postgresql.tables_log on table_statistics_log.table = tables_log.table) 
-    select "table_statistic", database, catalog, schema, "table", row_amount_estimate, sequential_scans, percent_of_times_index_used, index_hit_rate, table_hit_rate, observed_on 
+    select "table_statistic", database, catalog, schema, "table", row_amount_estimate, sequential_scans, percent_of_times_index_used, index_size, table_size, index_hit_rate, table_hit_rate, observed_on 
     from ordered_list 
     where rn=1 and rows_deleted = false and tables_deleted = false;
 

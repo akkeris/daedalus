@@ -1,10 +1,9 @@
-const http = require('http');
 const { postgraphile } = require('postgraphile');
 const debug = require('debug')('daedalus:graphql');
 
 async function run() { debug('Running graphql'); } // eslint-disable-line no-empty-function
 
-async function init(pgpool) {
+async function init(pgpool, bus, app) {
   debug('Initializing graphql...');
   if (process.env.GRAPHQL_API !== 'true') {
     return;
@@ -26,14 +25,14 @@ async function init(pgpool) {
   `)).rows[0];
   const port = process.env.PORT || 9000;
   debug(`Initializing graphql server for schemas: ${schemas}`);
-  http.createServer(
+  app.use(
     postgraphile(
       process.env.DATABASE_URL,
       schemas.split(','),
       postgrahileOptions,
     ),
-  ).listen(port, () => debug(`Listening on http://0.0.0.0:${port}/graphiql and http://0.0.0.0:${port}/graphql`));
-  debug('Initializing graphql... done');
+  );
+  debug(`Initializing graphql... done, listening on http://0.0.0.0:${port}/graphiql and http://0.0.0.0:${port}/graphql`);
 }
 
 module.exports = {

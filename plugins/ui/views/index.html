@@ -1,0 +1,42 @@
+module.exports = (req, res, next, data) => res.send(`
+  ${require('./header.html')()}
+    <appkit-app>
+      <nav-breadcrumb size="small">
+        <ul>
+          <li>
+              <i class="fa fa-cubes" aria-hidden="true"></i> 
+              Home
+          </li>
+        </ul>
+      </nav-breadcrumb>
+      <div class="table-list">
+      ${data.rows.map((row) => `
+        <div class="table-list-item">
+          <div style="max-width:25px;align-self:center;display:inline-flex;padding-left:0.75rem;">
+            <img src="/${row.type.split('.')[0]}.svg" style="max-width:25px;"/>
+          </div>
+          <div>
+            <a style="display:block;" href="/ui/${row.type.replace('.', '/')}/${row.id}">${row.name}</a>
+            <sub style="display:block;">Last seen ${row.observed_on.toLocaleString()}</sub>
+          </div>
+          <div style="text-align:right;">
+            ${row.labels ? Object.keys(row.labels).map((key) => `
+              <span class="pill">
+                <i class="fa fa-tag" aria-hidden="true"></i> 
+                ${key}
+                <span class="inner">${row.labels[key]}</span>
+              </span>
+            `).join("") : ''}
+            ${row.status ? Object.keys(row.status).map((key) => !key.startsWith("max_") ? `
+              <span class="pill subtle">
+                ${key.split("_").map(x => x[0].toUpperCase() + x.substring(1).toLowerCase()).join(" ")}
+                <span class="inner">${row.status['max_' + key] ? row.status[key] + '/' + row.status['max_' + key] : row.status[key]}</span>
+              </span>
+            ` : '').filter((x) => x !== '').join("") : ''}
+          </div>
+        </div>
+      `).join('')}
+      </div>
+    </appkit-app>
+  ${require('./footer.html')(req, res)}
+`);

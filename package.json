@@ -26,9 +26,14 @@
     "@kubernetes/client-node": "^0.11.1",
     "aws-sdk": "^2.638.0",
     "axios": "^0.19.2",
+    "body-parser": "^1.19.0",
+    "connect-redis": "^4.0.4",
     "debug": "^4.1.1",
+    "express": "^4.17.1",
+    "express-session": "^1.17.0",
     "pg": "^7.18.2",
-    "postgraphile": "^4.6.0"
+    "postgraphile": "^4.6.0",
+    "request": "^2.88.2"
   },
   "devDependencies": {
     "eslint": "^6.8.0",

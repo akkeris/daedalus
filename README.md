@@ -52,6 +52,7 @@ To listen to one or more kubernetes clusters, deploy daedalus to multiple cluste
  *  `KUBERNETES_CONTEXT` - This indicates the kubernetes cluster and user being used. This must be set if you want to crawl a kubernetes cluster.
  *  `KUBERNETES_TOKEN` - This should only be set if you want to override looking for a service account or using the local kubectl configuration.
  *  `KUBERNETES_API_URL` - This should only be set if you want to override looking for a service account or using the local kubectl configuration.
+ *  `KUBERNETES_SKIP_TLS_VERIFY` - This should only be set if you want to ignore security warnings for self-signed certificates.
 
 The service account or RBAC access levels for Daedalus must permit read and watch access to pods, servies, nodes, configmaps, persistent volumes, persistent volume claims, events, deployments and ingresses. If istio is installed it should also permit read and watch access to virtual services, gateways and policies.  If cert-manager is installed also permit orders, certificates, challenges and certificaterequests.  See `support/kubernetes-service-account.yaml` for an example service account.
 

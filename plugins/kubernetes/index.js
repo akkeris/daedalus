@@ -69,6 +69,7 @@ preferences: {}
 clusters:
 - name: ${process.env.KUBERNETES_CONTEXT}
   cluster:
+    insecure-skip-tls-verify: ${process.env.KUBERNETES_SKIP_TLS_VERIFY || 'false'}
     server: ${process.env.KUBERNETES_API_URL}
 users:
 - name: ${process.env.KUBERNETES_CONTEXT}

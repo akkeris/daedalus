@@ -1,0 +1,80 @@
+const {formatBytes, getDateDiff} = require('../../../common/format.js');
+module.exports = (req, res, next, data) => res.send(`
+  ${require('./header.html')()}
+    <appkit-app>
+      <nav-breadcrumb size="small">
+        <ul>
+          <li><a href="/"> <i class="fa fa-cubes" aria-hidden="true"></i> Home</a></li>
+          <li><a href="/?filter=databases"> <i class="fa fa-database" aria-hidden="true"></i> Databases </a></li>
+          <li> ${data.database} </li>
+        </ul>
+      </nav-breadcrumb>
+      <div>
+        <h2>${data.name}</h2>
+        <dl class="facts">
+          ${data.config && data.config.server_version && data.config.server_version.value ? `
+          <dt>Version</dt>
+          <dd>${data.config.server_version.value}</dd>` : ''}
+          <dt>Size</dt>
+          <dd>${formatBytes(data.tableStatistics.reduce((acc, x) => (x.index_size + x.table_size + acc), 0))}</dd>
+          <dt>Data Size</dt>
+          <dd>${formatBytes(data.tableStatistics.reduce((acc, x) => (x.table_size + acc), 0))}</dd>
+          <dt>Connections</dt>
+          <dd>${data.databaseStatistics[0].used_connections}/${data.databaseStatistics[0].max_connections}</dd>
+          <dt>Scanned</dt>
+          <dd>${new Date(data.observed_on).toLocaleString()}</dd>
+        </dl>
+        <pre class="code"><code>postgres://${data.host}:${data.port}/${data.name}</code></pre>
+      </div>
+      <x-tabs>
+        <x-tab selected="true"><a href="#changes">Changes</a></x-tab>
+        <x-tab><a href="#used_by">Used By</a></x-tab>
+        <x-tab><a href="#usage">Usage</a></x-tab>
+        <x-tab><a href="#settings">Settings</a></x-tab>
+      </x-tabs>
+      <div name="changes" class="tab-panel list">
+      ${data.changes.filter((x) => x["$type"] !== "constraint").map((x) => 
+      `
+        <div class="list-item">
+          <div><i class="fa fa-${x['$icon']}" aria-hidden="true"></i> <pre class="inline"><code>${(x.schema + '.') + (x.table_name ? x.table_name + '.' : '') + x.name}</code></pre></div>
+          <div>${x["$type"]} ${x.deleted === true ? 'deleted' : 'added'} • ${getDateDiff(x.observed_on)}</div>
+        </div>
+      `
+      ).join("")}
+      </div>
+      <div name="used_by" class="list tab-panel">
+        ${data.usedBy.map((x) => `
+        <div class="list-item">
+          <div class="uno"><img src="/${x['$icon']}" />  ${x['$type']} • ${x.name}</div>
+        </div>
+        `).join("")}
+      </div>
+      <div name="usage" class="list tab-panel">
+        ${data.tables.filter((x) => !x.is_view).map((table) => `
+        <div class="list-item">
+          <div>${table.schema}.${table.name}</div>
+          <div>
+            ${data.tableStatistics.filter((x) => x.table === table.table).map((tableStatistic) => `
+            <dl class="facts">
+              <dt>Rows</dt><dd>${tableStatistic.row_amount_estimate}</dd>
+              <dt>Scans</dt><dd>${tableStatistic.sequential_scans}</dd> 
+              <dt>Index Used</dt><dd>${(tableStatistic.percent_of_times_index_used * 100).toFixed(2)}%</dd>
+              <dt>Index Hit Rate</dt><dd>${(tableStatistic.index_hit_rate * 100).toFixed(2)}%</dd>
+              <dt>Table (Heap) Hit Rate</dt><dd>${(tableStatistic.table_hit_rate * 100).toFixed(2)}%</dd>
+              <dt>Size</dt><dd>${formatBytes(tableStatistic.table_size + tableStatistic.index_size)}</dd>
+            `)}
+          </div>
+        </div>
+        `).join("")}
+      </div> 
+      <div name="settings" class="tab-panel list">
+        ${Object.keys(data.config).map((key) => `
+        <div class="list-item">
+          <div><pre class="inline" style="max-width:50%;overflow-x:scroll;"><code>${key}=${data.config[key].value}</code></pre></div>
+          <div>${data.config[key].description}</div>
+        </div>
+        `).join("")}
+      </div>
+    </appkit-app>
+  ${require('./footer.html')(req, res)}
+`);

@@ -98,7 +98,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
       values 
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
       on conflict (database, catalog, schema, name, is_view, definition, deleted)
-      do update set observed_on = now()
+      do update set name = $4
       returning "table", database, catalog, schema, name
     `, [database.database, table.table_catalog, table.table_schema, table.table_name, false, '', false]))))
       .map((x) => x.rows).flat();
@@ -116,7 +116,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
       values 
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
       on conflict (database, catalog, schema, name, is_view, definition, deleted)
-      do update set observed_on = now()
+      do update set name = $4
       returning "table", database, catalog, schema, name
     `, [database.database, view.table_catalog, view.table_schema, view.table_name, true, view.view_definition || '', false]))))
       .map((x) => x.rows).flat();
@@ -134,7 +134,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
       values 
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       on conflict (database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted) 
-      do update set observed_on = now()
+      do update set name = $5
       returning "column", database, catalog, schema, "table", name
     `, [database.database, column.table_catalog, column.table_schema, findTableOrViewId(tables, views, database.database, column.table_catalog, column.table_schema, column.table_name).table, column.column_name, column.ordinal_position, column.column_default || '', column.is_nullable, column.data_type, column.character_maximum_length || 0, column.character_octet_length || 0, column.numeric_precision || 0, column.numeric_precision_radix || 0, column.numeric_scale || 0, column.datetime_precision || 0, column.is_updatable || true, false]))))
       .map((x) => x.rows).flat();
@@ -152,7 +152,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
       values 
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
       on conflict (database, catalog, schema, "table", name, definition, deleted) 
-      do update set observed_on = now()
+      do update set name = $5
       returning "index", "table", database, catalog, schema, name, definition
     `, [findTableOrViewId(tables, views, database.database, database.name, index.schemaname, index.tablename).table, database.database, database.name, index.schemaname, index.indexname, index.indexdef, false]))))
       .map((x) => x.rows).flat();
@@ -210,7 +210,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         values 
           (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8)
         on conflict (database, name, "type", from_catalog, from_schema, from_table, from_column, deleted) where "type" = 'PRIMARY KEY'
-        do update set observed_on = now()
+        do update set name = $2
         returning "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, deleted
       `, [database.database, constraint.constraint_name, constraint.constraint_type, constraint.from_catalog, constraint.from_schema, tableUUID, columnUUID, false]);
     }))).map((x) => x.rows).flat();
@@ -230,7 +230,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         values 
           (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         on conflict (database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted) where "type" = 'FORIEGN KEY'
-        do update set observed_on = now()
+        do update set name = $2
         returning "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted
       `, [database.database, constraint.constraint_name, constraint.constraint_type, constraint.from_catalog, constraint.from_schema, fromTableUUID, fromColumnUUID, constraint.to_catalog, constraint.to_schema, toTableUUID, toColumnUUID, false]);
     }))).map((x) => x.rows).flat();
@@ -250,7 +250,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         values 
           (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
         on conflict (database, name, type, from_catalog, from_schema, from_table, check_clause, deleted) where "type" = 'CHECK'
-        do update set observed_on = now()
+        do update set name = $2
         returning "constraint", database, name, type, from_catalog, from_schema, from_table, check_clause, deleted
       `, [database.database, constraint.constraint_name, constraint.constraint_type, constraint.from_catalog, constraint.from_schema, tableUUID, columnUUID, constraint.check_clause, false]);
     }))).map((x) => x.rows).flat();
@@ -299,16 +299,22 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         reserved_connections, 
         max_connections - used_connections - reserved_connections as available_connections 
       from 
-        (select count(*) used_connections from pg_stat_activity) a, 
+        (select (count(*) - 1) used_connections from pg_stat_activity where datname = $1) a, 
         (select setting::int reserved_connections from pg_settings where name=$$superuser_reserved_connections$$) b, 
         (select setting::int max_connections from pg_settings where name=$$max_connections$$) c
-    `, [])).rows.map((estimate) => pgpool.query(`
+    `, [database.name])).rows.map((estimate) => pgpool.query(`
       insert into postgresql.database_statistics_log
         ("database_statistic", database, max_connections, used_connections, reserved_connections, available_connections, deleted)
       values
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6)
       on conflict do nothing
     `, [database.database, estimate.max_connections, estimate.used_connections, estimate.reserved_connections, estimate.available_connections, false]))));
+
+    // TODO: This is not tracking changes to the config, it should.
+    //       Probably should be its own log table.
+    const config = (await client.query('show all')).rows.reduce((acc, x) => ({ ...acc, [x.name]: { value: x.setting, description: x.description } }), {});
+    await pgpool.query('update postgresql.databases_log set config = $2 where database = $1',
+      [database.database, config]);
 
     // TODO: User defined data types, Foreign data wrappers, foreign tables, foreign servers
     // TODO: Long running queries, Locks, Vacuum statistics, pg_settings?
@@ -377,7 +383,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         }
       }));
 
-    // Check for foriegn key deletion
+    // Check for foreign key deletion
     await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column from postgresql.constraints where database = $1 and type = \'FOREIGN KEY\'', [database.database]))
       .rows
       .map(async (constraint) => {
@@ -429,6 +435,9 @@ async function writeTablesViewsAndColumns(pgpool, database) {
 async function run(pgpool) {
   debug('Running postgresql plugin...');
   await pgpool.query(fs.readFileSync('./plugins/postgresql/create.sql').toString());
+  if (process.env.POSTGRESQL !== 'true') {
+    return;
+  }
   (await Promise.all((await pgpool.query(`
     select 
       databases.database, databases.name, databases.host, databases.port,

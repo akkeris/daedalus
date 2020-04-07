@@ -1,0 +1,472 @@
+* {
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin:0;
+  padding:0;
+}
+
+:root {
+  --random-bright-color-one:rgb(220, 142, 32);
+  --random-bright-color-two:rgb(231, 42, 126);
+  /* 
+    Highlight colors are bold and demand attention.
+  */
+  --highlight-link-color:rgb(65, 131, 196);
+  --highlight-link-dark-color:rgb(44, 83, 121);
+  --highlight-color:rgb(231, 42, 126);
+  --highlight-background-color:rgba(231, 42, 126, 0.05);
+  --highlight-text-color:white;
+  --subtle-highlight-background-color:rgb(225, 225, 225);
+  /* 
+    Call outs are more "normal" OK colors that do not 
+    actively call attention
+  */
+  --callout-color:rgb(65, 131, 196);
+  --callout-subtle-color:rgba(65, 131, 196, 0.7);
+  --callout-background-color:rgba(65, 131, 196, 0.07);
+  --body-background:linear-gradient(to right, rgb(174,58,152) 0%, rgb(206,57,98) 100%);
+  --subtle-fading-background:linear-gradient(to bottom, rgba(65, 130, 196, 0.00) 0% , rgba(65, 130, 196, 0.04) 100%);
+  --font-main-family:ProximaNova, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --font-main-color:rgb(51, 51, 51);
+  --font-text-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --font-text-color:rgb(100, 100, 100);
+  /* All fonts should be one of these */
+  --font-h1-size:35px;
+  --font-h2-size:30px;
+  --font-h3-size:25px;
+  --font-h4-size:20px;
+  --font-text-size:15px;
+  --font-text-smallest-size:12px;
+  --font-text-button-size:14px;
+  --font-text-small-size:14px;
+  --font-text-large-size:16px;
+  --font-text-line-height:1.5em;
+  --font-subtle-color:rgb(153, 153, 153);
+  --divider-highlight-color:rgb(190, 190, 190);
+  --divider-color:rgb(225, 225, 225);
+  --divider-background-color:rgb(248, 248, 248);
+  --border-radius-containers:5px;
+  --border-radius:3px;
+  --subtle-text-shadow:0 1px 0 rgba(255,255,255,.8);
+}
+
+.danger, a.danger, a[href].danger {
+  color: #de0a0a;
+  font-weight: 500;
+}
+
+/* Subtley highlight a tags */
+button {
+  cursor:pointer;
+  -webkit-appearance:none;
+  -moz-appearance:none;
+  appearance:none;
+  background: none;
+  border: 1px solid var(--highlight-link-color);
+  margin-top: auto;
+  margin-bottom: auto;
+  color: var(--highlight-link-color);
+  font-weight: 600;
+  border-radius: var(--border-radius);
+  padding: 0.5em 0.75em;
+  font-size:var(--font-text-button-size);
+  line-height: 1em;
+}
+
+button.primary {
+  background-image:linear-gradient(to right, var(--highlight-link-color) 0%, var(--highlight-link-color) 100%);
+  /*background-image:linear-gradient(to bottom, var(--highlight-link-color) 0%, var(--highlight-link-dark-color) 100%);*/
+  color:white;
+}
+
+button.primary:hover {
+  background-image:linear-gradient(to right, var(--highlight-link-color) 0%, var(--highlight-link-color) 100%);
+  color:white;
+}
+
+button:hover {
+  background-image: linear-gradient(to right, var(--highlight-link-color) 0%, var(--highlight-link-color) 100%), linear-gradient(to bottom, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.99) 100%);
+  background-blend-mode:lighten;
+}
+
+button.inline.right, a.inline.right {
+  float:right;
+}
+
+button.inline.secondary {
+  border:0;
+  padding:0.25em 0.5em;
+}
+
+/* Two (or more) buttons next to each other should bind */
+button.connected + button.connected {
+  border-left: 0px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-right:0;
+  margin-left:0;
+}
+
+button.connected:first-of-type:not(:last-of-type) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  margin-right:0;
+  margin-left:0;
+}
+
+button.inline {
+  font-size:var(--font-text-smallest-size);
+}
+
+.loading {
+  position:relative;
+  user-select: none;
+}
+
+.loading::before {
+  position: absolute;
+  content:'';
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color:rgba(255,255,255,0.85);
+  z-index:2;
+}
+
+.loading::after {
+  content: '';
+  box-sizing: border-box;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url(../images/loading.svg);
+  background-size: 28px 14px;
+  background-repeat: no-repeat;
+  background-position: center center;
+  z-index: 3;
+}
+
+body.loading::before {
+  position:fixed;
+  background-color:rgba(255,255,255,0.90);
+}
+
+body.loading::after {
+  position:fixed;
+}
+
+.loading .loading::after {
+  display:none;
+}
+
+
+.secret {
+  border-radius: 3px;
+  border: 1px solid #ccc;
+  background-color: #f9f9f9;
+  display: inline-block;
+  padding-left: 7.5px;
+  text-shadow: black 0px 0px 8px;
+  color: transparent;
+}
+.secret:focus {
+  text-shadow: none;
+  color: #333;
+}
+.secret:hover::after {
+  color:var(--font-main-color);
+}
+.secret::after {
+  text-shadow: none;
+  content: "\f06e";
+  font-family: FontAwesome;
+  display: inline-block;
+  margin-left: 7.5px;
+  padding-left: 7.5px;
+  padding-right: 7.5px;
+  cursor: pointer;
+  border-left: 1px solid #dedede;
+  color: var(--font-subtle-color);
+}
+
+.bar {
+  display:flex;
+  padding-top:2rem;
+  border-bottom:1px solid var(--divider-color);
+  padding-bottom:2rem;
+}
+
+.bar header {
+  width:40%;
+  padding-right:4rem;
+  box-sizing: border-box;
+}
+
+.bar h3, .panel h3 {
+  font-weight:600;
+  color:var(--highlight-link-color);
+  border-bottom:0;
+  font-size:var(--font-text-large-size);
+  margin:0;
+  padding-bottom:0.5rem;
+}
+
+.bar p {
+  font-size:var(--font-text-small-size);
+  margin-bottom:0;
+  margin-top:0;
+}
+
+.bar i {
+  font-size:var(--font-text-large-size);
+}
+
+.bar form {
+  width:60%;
+}
+
+.bar form h4, .panel h4 {
+  font-size:var(--font-text-size);
+  font-weight:600;
+  border-bottom:0;
+  color:var(--font-text-color);
+  margin:0;
+  padding-bottom:0.5rem;
+}
+
+.bar form aside {
+  padding:0.5rem 0 1rem 0;
+  font-size:var(--font-text-small-size);
+  color:var(--font-subtle-color);
+}
+
+.bar form input[type="text"], .panel input[type="text"] {
+  -webkit-appearance:none;
+  border:0;
+  width:100%;
+  padding:0.5rem 0;
+  margin:0 0 1px 0;
+  font-size:var(--font-text-large-size);
+  align-self: center;
+  outline:0;
+}
+
+.bar form input[type="text"]::hover {
+  outline:0;
+}
+
+.bar form label.icon, .panel label.icon {
+  margin:0.75rem 0;
+  border-radius:var(--border-radius);
+  border:1px solid var(--divider-color);
+  display:flex;
+}
+
+.bar form label.icon i, .panel label.icon i {
+  padding:0 0.5rem;
+  align-self: center;
+  font-size:var(--font-text-large-size);
+  margin-top:1px;
+}
+
+.bar button.primary {
+  margin-top:0.25rem;
+}
+
+.panel {
+  margin: 1rem 0 0 0;
+  width:100%;
+  display:inline-block;
+  box-sizing: border-box;
+  padding:0.75rem 1rem;
+  box-shadow: 0 0 0 1px rgba(89,105,128,.1), 0 1px 3px 0 rgba(89,105,128,.1), 0 1px 2px 0 rgba(0,0,0,.05);
+  border-radius:var(--border-radius);
+  font-size:var(--font-text-small-size);
+  z-index: auto;
+}
+
+.panel.left {
+  width:calc(50% - 1rem + 4px);
+  margin-right:1rem;
+  vertical-align: top;
+}
+
+.panel.right {
+  width:calc(50% - 0.5rem);
+  box-sizing: border-box;
+  vertical-align: top;
+}
+
+.panel h4 {
+  line-height:1.75rem;
+  margin-bottom:0;
+}
+
+.panel > label.icon {
+  margin:0.25rem 0;
+}
+
+ul.panel h4 {
+  padding-bottom:0;
+}
+
+ul.panel {
+  list-style: none;
+  padding:0;
+}
+
+ul.panel > li {
+  margin-left:0;
+  padding: 0.75rem 1rem;
+  border-bottom:1px solid rgba(89,105,128,.1);
+}
+
+@media only screen and (max-width: 768px) {
+  .panel.left, .panel.right, .panel {
+    width:calc(100% - 2rem - 2px);
+    display:block;
+    margin:1rem;
+  }
+}
+
+/* pill box */
+.pill {
+  font-weight: 700;
+  border-radius: 9px;
+  font-size: 11px;
+  color: white;
+  background-color: var(--highlight-link-color);
+  padding: 0px 0px 0px 0.5rem;
+  display: inline-block;
+}
+.pill.subtle {
+  background-color: var(--random-bright-color-two);
+}
+.pill > .inner {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+  background-color: rgba(255,255,255,0.2);
+  color: white;
+  padding: 0 0.5rem 0 0.5rem;
+  margin: 1px 1px 1px 0.25rem;
+  display: inline-block;
+}
+
+
+/* Tabled List */
+.table-list {
+  width:100%;
+  background-color:#efefef;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding-top:0.5rem;
+  padding-bottom:0.5rem;
+}
+.table-list-item {
+  flex-grow:1;
+  display:flex;
+  margin-top:0.5rem;
+  margin-bottom:0.5rem;
+  background-color:white;
+  background-image:var(--subtle-fading-background);
+  border-radius:0.25rem;
+  box-shadow:0px 2px 5px rgba(0,0,0,0.03);
+}
+.table-list-item > div {
+  flex-grow:1;
+  padding:0.5rem;
+}
+
+.list {
+  width:100%;
+  padding-left:0 !important;
+  padding-right:0 !important;
+}
+.list-item {
+  font-size:var(--font-text-small-size);
+  flex-grow:1;
+  display:flex;
+  margin-top:0;
+  margin-bottom:0;
+  border-bottom:1px solid rgb(238, 241, 246);
+  padding:0.75rem calc(50% - 512px) 0.75rem calc(50% - 512px);
+  align-items:center;
+}
+.list-item:hover {
+  background-color:rgb(251, 251, 253);
+}
+.list-item > div {
+  /*display:flex;*/
+  height:1.5rem;
+  flex-grow:1;
+}
+.list-item > div:last-child{
+  text-align:right;
+}
+.list-item > div > i {
+  margin-right:0.5rem;
+  color:var(--highlight-link-color);
+}
+.list-item > div.uno {
+  width:25px;
+  text-align:left;
+  display:flex;
+}
+.list-item > div.uno > img {
+  max-width:25px;
+  margin-right:1rem;
+}
+
+
+
+/* Facts */
+dl.facts {
+  margin:0;
+  font-size:var(--font-text-smallest-size);
+}
+dl.facts > dt, dl.facts > dd {
+  display:inline-block;
+  margin-left:0;
+}
+dl.facts > dt {
+  margin-right:0.5rem;
+  text-transform:uppercase;
+  font-weight:400;
+  color:var(--callout-subtle-color);
+}
+dl.facts > dd {
+  margin-right:1rem;
+  color:var(--callout-color);
+}
+dl.facts > dd > i {
+  font-style: normal;
+  color:var(--callout-subtle-color);
+}
+
+pre.code {
+  background-color:#f7f8fb;
+  padding:0.25rem 0.5rem;
+  color:#475366;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.1);
+}
+
+pre.inline {
+  display:inline-block;
+  margin-top:0;
+  margin-bottom:0;
+  margin-right:0.25rem;
+}
+
+
+
+
+
+
+

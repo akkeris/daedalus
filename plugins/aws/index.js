@@ -11,7 +11,7 @@ async function runRds(pgpool) {
       .map((x) => x.toLowerCase())
       .map((region) => new AWS.RDS({
         accessKeyId: process.env.AWS_RDS_ACCESS_KEY,
-        secretAccesskey: process.env.AWS_RDS_SECRET_KEY,
+        secretAccessKey: process.env.AWS_RDS_SECRET_KEY,
         region,
       })));
   } else if (process.env.AWS_RDS_REGIONS) {

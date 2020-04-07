@@ -38,8 +38,13 @@ async function init() {
     name: 'daedalus',
   };
   if (process.env.REDIS_URL) {
+    const redisService = require('redis'); // eslint-disable-line global-require
     const Redis = require('connect-redis')(session); // eslint-disable-line global-require
-    sessionOptions.store = new Redis({ url: process.env.REDIS_URL });
+    sessionOptions.store = new Redis({
+      client: redisService.createClient({
+        url: process.env.REDIS_URL,
+      }),
+    });
   }
   app.set('trust proxy', 1);
   app.use(session(sessionOptions));

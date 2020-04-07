@@ -377,6 +377,7 @@ ul.panel > li {
   background-image:var(--subtle-fading-background);
   border-radius:0.25rem;
   box-shadow:0px 2px 5px rgba(0,0,0,0.03);
+  max-height:4rem;
 }
 .table-list-item > div {
   flex-grow:1;

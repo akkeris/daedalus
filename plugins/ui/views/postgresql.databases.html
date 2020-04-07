@@ -20,7 +20,7 @@ module.exports = (req, res, next, data) => res.send(`
           <dt>Data Size</dt>
           <dd>${formatBytes(data.tableStatistics.reduce((acc, x) => (x.table_size + acc), 0))}</dd>
           <dt>Connections</dt>
-          <dd>${data.databaseStatistics[0].used_connections}/${data.databaseStatistics[0].max_connections}</dd>
+          <dd>${data.databaseStatistics[0] ? data.databaseStatistics[0].used_connections : 0}/${data.databaseStatistics[0] ? data.databaseStatistics[0].max_connections : 0}</dd>
           <dt>Scanned</dt>
           <dd>${new Date(data.observed_on).toLocaleString()}</dd>
         </dl>

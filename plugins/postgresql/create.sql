@@ -11,7 +11,7 @@ begin
     name varchar(128) not null,
     host varchar(1024) not null,
     port int not null CHECK(port > 0),
-    config jsonb not null default '[]'::jsonb,
+    config jsonb not null default '{}'::jsonb,
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );

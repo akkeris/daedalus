@@ -355,23 +355,23 @@ async function runElastiCache(pgpool) {
   }));
   await Promise.all(clusters.map(async (es) => { // eslint-disable-line no-await-in-loop,max-len
     await pgpool.query(`
-        insert into aws.es_clusters_log (name, engine, status, definition)
-        select $1::varchar(128), $2, $3, $4::jsonb
-        where not exists (
-          select hash from (
-            select
-              es_clusters_log.name,
-              es_clusters_log.hash,
-              row_number() over (partition by es_clusters_log.name order by es_clusters_log.observed_on desc) as rn
-            from 
-              aws.es_clusters_log
-          ) b 
-          where b.rn=1 and 
-          b.hash=encode(digest($4::text,'sha1'),'hex') and 
-          b.name=$1::varchar(128)
-        )
-        returning *
-      `, [es.CacheClusterId, es.Engine, es.CacheClusterStatus, es]);
+      insert into aws.es_clusters_log (name, engine, status, definition)
+      select $1::varchar(128), $2, $3, $4::jsonb
+      where not exists (
+        select hash from (
+          select
+            es_clusters_log.name,
+            es_clusters_log.hash,
+            row_number() over (partition by es_clusters_log.name order by es_clusters_log.observed_on desc) as rn
+          from 
+            aws.es_clusters_log
+        ) b 
+        where b.rn=1 and 
+        b.hash=encode(digest($4::text,'sha1'),'hex') and 
+        b.name=$1::varchar(128)
+      )
+      returning *
+    `, [es.CacheClusterId, es.Engine, es.CacheClusterStatus, es]);
     return { name: es.CacheClusterId };
   }));
 }

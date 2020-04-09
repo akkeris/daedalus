@@ -2,11 +2,6 @@
 class DropDown extends HTMLElement {
   constructor() {
     super();
-    document.head.insertAdjacentHTML('beforeend', `
-      <style>
-      ${this.styles}
-      </style>
-    `);
   }
 
   get button() {
@@ -48,7 +43,7 @@ class DropDown extends HTMLElement {
     this.render();
   }
 
-  get styles() {
+  static get styles() {
     return `
       x-dropdown {
         position:relative;
@@ -156,4 +151,9 @@ class DropDown extends HTMLElement {
   }
 }
 
+document.head.insertAdjacentHTML('beforeend', `
+  <style>
+  ${DropDown.styles}
+  </style>
+`);
 customElements.define('x-dropdown', DropDown);

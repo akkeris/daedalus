@@ -1,11 +1,26 @@
 const {formatBytes, getDateDiff} = require('../../../common/format.js');
 module.exports = (req, res, next, data) => res.send(`
-  ${require('./header.html')()}
+  ${require('./header.html')(req)}
     <appkit-app>
+      ${req.query.error ? `
+        <dialog class="error" open>
+          <h4>Oops!</h4>
+          <form method="get" action="/ui/postgresql/databases/${data.database}">
+            <p>${req.query.error}</p>
+            <fieldset class="actions">
+              <button class="primary full">Ok</button>
+            </fieldset>
+          </form>
+        </dialog>
+      ` : ''}
       <nav-breadcrumb size="small">
         <ul>
           <li><a href="/"> <i class="fa fa-cubes" aria-hidden="true"></i> Home</a></li>
-          <li><a href="/?filter=databases"> <i class="fa fa-database" aria-hidden="true"></i> Databases </a></li>
+          <li>
+            <a href="/?filter=databases"> <i class="fa fa-database" aria-hidden="true"></i>
+              Databases
+            </a>
+          </li>
           <li> ${data.database} </li>
         </ul>
       </nav-breadcrumb>
@@ -16,64 +31,213 @@ module.exports = (req, res, next, data) => res.send(`
           <dt>Version</dt>
           <dd>${data.config.server_version.value}</dd>` : ''}
           <dt>Size</dt>
-          <dd>${formatBytes(data.tableStatistics.reduce((acc, x) => (x.index_size + x.table_size + acc), 0))}</dd>
+          <dd>
+            ${formatBytes(data.tableStatistics.reduce((acc, x) => 
+              (x.index_size + x.table_size + acc), 0))}
+          </dd>
           <dt>Data Size</dt>
           <dd>${formatBytes(data.tableStatistics.reduce((acc, x) => (x.table_size + acc), 0))}</dd>
           <dt>Connections</dt>
-          <dd>${data.databaseStatistics[0] ? data.databaseStatistics[0].used_connections : 0}/${data.databaseStatistics[0] ? data.databaseStatistics[0].max_connections : 0}</dd>
+          <dd>${data.databaseStatistics[0] ? 
+            data.databaseStatistics[0].used_connections : 0}/${data.databaseStatistics[0] ? 
+              data.databaseStatistics[0].max_connections : 0}</dd>
           <dt>Scanned</dt>
           <dd>${new Date(data.observed_on).toLocaleString()}</dd>
         </dl>
-        <pre class="code"><code>postgres://${data.host}:${data.port}/${data.name}</code></pre>
       </div>
       <x-tabs>
-        <x-tab selected="true"><a href="#changes">Changes</a></x-tab>
+        <x-tab><a href="#metadata">Metadata</a></x-tab>
+        <x-tab><a href="#changes">Changes</a></x-tab>
         <x-tab><a href="#used_by">Used By</a></x-tab>
         <x-tab><a href="#usage">Usage</a></x-tab>
+        <x-tab><a href="#roles">Roles</a></x-tab>
         <x-tab><a href="#settings">Settings</a></x-tab>
       </x-tabs>
-      <div name="changes" class="tab-panel list">
-      ${data.changes.filter((x) => x["$type"] !== "constraint").map((x) => 
-      `
-        <div class="list-item">
-          <div><i class="fa fa-${x['$icon']}" aria-hidden="true"></i> <pre class="inline"><code>${(x.schema + '.') + (x.table_name ? x.table_name + '.' : '') + x.name}</code></pre></div>
-          <div>${x["$type"]} ${x.deleted === true ? 'deleted' : 'added'} • ${getDateDiff(x.observed_on)}</div>
+      <div name="metadata" class="tab-panel list">
+        <div class="list-item group expanded">
+          <a href="#metadata" onclick="this.parentNode.classList.toggle('expanded');">
+            Labels <i class="fa fa-caret-down" aria-hidden="true"></i>
+          </a>
+          <div>
+            <a href="#metadata" onclick="this.children[1].setAttribute('open','true');">
+              <i class="fa fa-plus" aria-hidden="true"></i>
+              <dialog id="add-label" class="popup">
+                <h4>Labels</h4>
+                <form method="post" action="/ui/postgresql/databases/${data.database}/labels">
+                  <fieldset class="content">
+                    <label for="ukey">Name</label>
+                    <input 
+                      autofocus
+                      type="text" 
+                      title="Must be alpha-numeric and at least 3 characters and no more than 128." 
+                      name="name" 
+                      id="uname" 
+                      value="" 
+                      maxlength="128" 
+                      minlength="3" 
+                      pattern="[A-Z-a-z0-9\-\.]*" 
+                      spellcheck="false" />
+                    <label for="uvalue">Value</label>
+                    <input 
+                      type="text" 
+                      title="Must be alpha-numeric and at least 3 characters and no more than 128." 
+                      name="value" 
+                      id="uvalue" 
+                      value="" 
+                      maxlength="128" 
+                      pattern="[A-Z-a-z0-9\-\.]*" 
+                      spellcheck="false" />
+                  </fieldset>
+                  <fieldset class="actions">
+                    <button 
+                      formnovalidate="true"
+                      formaction="/ui/postgresql/databases/${data.database}#metadata"
+                      type="submit"
+                      formmethod="dialog">
+                      Cancel
+                    </button>
+                    <button 
+                      formmethod="post"
+                      action="/ui/postgresql/databases/${data.database}/labels"
+                      type="submit"
+                      class="primary">
+                      Add
+                    </button>
+                  </fieldset>
+                </form>
+              </dialog>
+            </a>
+          </div>
         </div>
-      `
-      ).join("")}
-      </div>
-      <div name="used_by" class="list tab-panel">
-        ${data.usedBy.map((x) => `
+        ${data.labels ? Object.keys(data.labels).sort((a, b) => a > b ? 1 : -1).map((x) => `
         <div class="list-item">
-          <div class="uno"><img src="/${x['$icon']}" />  ${x['$type']} • ${x.name}</div>
+          <div>${x}: ${data.labels[x]}</div>
+          <div>
+            <a href="/ui/postgresql/databases/${data.database}/labels/${x}/delete">
+              <i class="fa fa-trash" aria-hidden="true"></i>
+            </a>
+          </div>
+        </div>
+        `).join("") : ''}
+        <div class="list-item group expanded">
+          <a href="#" onclick="this.parentNode.classList.toggle('expanded');">
+            Annotations <i class="fa fa-caret-down" aria-hidden="true"></i>
+          </a>
+          <div>
+            <a onclick="this.children[1].setAttribute('open','true');">
+              <i class="fa fa-plus" aria-hidden="true"></i>
+              <dialog id="add-label" class="popup">
+                <h4>Annotations</h4>
+                <form method="post" action="/ui/postgresql/databases/${data.database}/annotations">
+                  <fieldset class="content">
+                    <label for="akey">Name</label>
+                    <input 
+                      type="text" 
+                      title="Must be alpha-numeric and at least 3 characters and no more than 128."
+                      name="name"
+                      id="aname"
+                      value=""
+                      maxlength="128"
+                      minlength="3"
+                      pattern="[A-Z-a-z0-9\-\.]*"
+                      spellcheck="false" />
+                    <label for="avalue">Value</label>
+                    <textarea name="value" id="avalue" value=""></textarea>
+                  </fieldset>
+                  <fieldset class="actions">
+                    <button 
+                      type="reset"
+                      formnovalidate="true"
+                      formaction="/ui/postgresql/databases/${data.database}#metadata"
+                      formmethod="dialog">
+                      Cancel
+                    </button>
+                    <button 
+                      formmethod="post"
+                      action="/ui/postgresql/databases/${data.database}/annotations"
+                      type="submit"
+                      class="primary">
+                      Add
+                    </button>
+                  </fieldset>
+                </form>
+              </dialog>
+            </a>
+          </div>
+        </div>
+        ${data.annotations ? Object.keys(data.annotations).sort((a, b) => a>b?1:-1).map((x) => `
+        <div class="list-item">
+          <div style="width:25%">${x}</div>
+          <div style="width:50%">${data.annotations[x]}</div>
+          <div style="width:25%">
+            <a href="/ui/postgresql/databases/${data.database}/annotations/${x}/delete">
+              <i class="fa fa-trash" aria-hidden="true"></i>
+            </a>
+          </div>
+        </div>
+        `).join("") : ''}
+      </div>
+      <div name="changes" class="tab-panel list"> 
+        ${data.changes.filter((x) => x["$type"] !== "constraint").map((x) => `
+        <div class="list-item">
+          <div>
+            <i class="fa fa-${x['$icon']}" aria-hidden="true"></i> 
+            <pre class="inline"><code>${x.schema + '.' + (x.table_name ? x.table_name + '.' : '') + x.name}</code></pre>
+          </div>
+          <div>
+            ${x["$type"]} 
+            ${x.deleted === true ? 'deleted' : 'added'} • ${getDateDiff(x.observed_on)}
+          </div>
         </div>
         `).join("")}
+      </div>
+      <div name="used_by" class="list tab-panel"> ${data.usedBy.map((x) => `
+        <div class="list-item">
+          <div class="uno">
+            <img src="/${x['$icon']}" />
+            <a href="/ui/${x['$type']}/${x.id}">${x['$type']} • ${x.name}</a>
+          </div>
+        </div> `).join("")}
       </div>
       <div name="usage" class="list tab-panel">
         ${data.tables.filter((x) => !x.is_view).map((table) => `
         <div class="list-item">
           <div>${table.schema}.${table.name}</div>
-          <div>
-            ${data.tableStatistics.filter((x) => x.table === table.table).map((tableStatistic) => `
+          <div>${data.tableStatistics.filter((x) => x.table === table.table).map((ts) => `
             <dl class="facts">
-              <dt>Rows</dt><dd>${tableStatistic.row_amount_estimate}</dd>
-              <dt>Scans</dt><dd>${tableStatistic.sequential_scans}</dd> 
-              <dt>Index Used</dt><dd>${(tableStatistic.percent_of_times_index_used * 100).toFixed(2)}%</dd>
-              <dt>Index Hit Rate</dt><dd>${(tableStatistic.index_hit_rate * 100).toFixed(2)}%</dd>
-              <dt>Table (Heap) Hit Rate</dt><dd>${(tableStatistic.table_hit_rate * 100).toFixed(2)}%</dd>
-              <dt>Size</dt><dd>${formatBytes(tableStatistic.table_size + tableStatistic.index_size)}</dd>
-            `)}
+              <dt>Rows</dt><dd>${ts.row_amount_estimate}</dd>
+              <dt>Size</dt><dd>${formatBytes(ts.table_size + ts.index_size)}</dd>
+              <dt>Stats</dt>
+              <dd>
+                <a href="#" class="info-button info-button-${table.schema}-${table.name}">
+                  <i class="fa fa-info-circle" aria-hidden="true"></i>
+                </a>
+                <x-dropdown class="right" target=".info-button-${table.schema}-${table.name}">
+                  <nav>
+                    <ul class="facts">
+                      <li>Scans • ${ts.sequential_scans}</li>
+                      <li>Index Used • ${(ts.percent_of_times_index_used * 100).toFixed(2)}%</li>
+                      <li>Index Hit Rate  • ${(ts.index_hit_rate * 100).toFixed(2)}%</li>
+                      <li>Table (Heap) Hit Rate • ${(ts.table_hit_rate * 100).toFixed(2)}%</li>
+                    </ul>
+                  </nav>
+                </x-dropdown>
+              </dd> `)}
           </div>
         </div>
         `).join("")}
       </div> 
-      <div name="settings" class="tab-panel list">
-        ${Object.keys(data.config).map((key) => `
+      <div name="roles" class="tab-panel list"> ${data.roles.map((role) => `
         <div class="list-item">
-          <div><pre class="inline" style="max-width:50%;overflow-x:scroll;"><code>${key}=${data.config[key].value}</code></pre></div>
+          <div><i class="fa fa-user" aria-hidden="true"></i> ${role.username}</div>
+          <div>postgres://${role.username}@${data.host}:${data.port}/${data.name}</div>
+        </div> `).join("")}
+      </div>
+      <div name="settings" class="tab-panel list"> ${Object.keys(data.config).map((key) => `
+        <div class="list-item">
+          <div><pre class="inline half"><code>${key}=${data.config[key].value}</code></pre></div>
           <div>${data.config[key].description}</div>
-        </div>
-        `).join("")}
+        </div> `).join("")}
       </div>
     </appkit-app>
   ${require('./footer.html')(req, res)}

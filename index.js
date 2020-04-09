@@ -49,6 +49,7 @@ async function init() {
   app.set('trust proxy', 1);
   app.use(session(sessionOptions));
   app.use(parser.json());
+  app.use(parser.urlencoded({ extended: true }));
   debug('Initializing plugins...');
   await Promise.all(plugins.map((plugin) => plugin.init(pgpool, bus, app)));
   debug(`Starting http port at ${process.env.PORT || 9000}`);

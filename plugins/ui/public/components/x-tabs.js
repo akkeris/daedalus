@@ -48,10 +48,15 @@ class Tab extends HTMLElement {
       }
 
       @media only screen and (max-width: 512px) {
+        x-tab:first-child {
+          margin-top:1rem;
+        }
+
         x-tab {
           border-bottom:0;
           margin-bottom:0;
           width:100%;
+          border-top:1px solid var(--divider-color);
         }
 
         x-tab.selected, x-tab:hover {
@@ -59,12 +64,12 @@ class Tab extends HTMLElement {
           margin-bottom:0;
         }
 
-        x-tab:first-child {
-          margin-left:4px;
+        x-tab, x-tab:first-child {
+          margin-left:0px;
         }
 
         x-tab > a {
-          padding: 0.5rem 10px;
+          padding: 0.5rem 0px;
         }
       }
     `;
@@ -90,6 +95,9 @@ class Tab extends HTMLElement {
   }
 
   connectedCallback() {
+    if(!this.parentNode.querySelector('x-tab[selected="true"]')) {
+      this.parentNode.querySelector('x-tab').setAttribute('selected', 'true');
+    }
     if (!document.querySelector('#x-tab-styles')) {
       document.head.insertAdjacentHTML('afterbegin', `
         <style id="x-tab-styles">
@@ -98,14 +106,20 @@ class Tab extends HTMLElement {
       `);
     }
     this.addEventListener('click', () => {
-      this.parentNode.querySelector('x-tab[selected="true"]').removeAttribute('selected');
+      let existing = this.parentNode.querySelector('x-tab[selected="true"]');
+      if(existing) {
+        existing.removeAttribute('selected');
+      }
       this.setAttribute('selected', 'true');
     });
     setTimeout(() => {
       const name = this.parseTabName(this.querySelector('a').href);
       const dest = this.parseTabName(window.location.href);
       if (name === dest) {
-        this.parentNode.querySelector('x-tab[selected="true"]').removeAttribute('selected');
+        let existing = this.parentNode.querySelector('x-tab[selected="true"]');
+        if(existing) {
+          existing.removeAttribute('selected');
+        }
         this.setAttribute('selected', 'true');
       } else {
         this.attributeChangedCallback('selected', null, this.getAttribute('selected'));

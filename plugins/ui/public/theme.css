@@ -10,6 +10,7 @@ body {
 :root {
   --random-bright-color-one:rgb(220, 142, 32);
   --random-bright-color-two:rgb(231, 42, 126);
+  --default-background:white;
   /* 
     Highlight colors are bold and demand attention.
   */
@@ -28,6 +29,7 @@ body {
   --callout-background-color:rgba(65, 131, 196, 0.07);
   --body-background:linear-gradient(to right, rgb(174,58,152) 0%, rgb(206,57,98) 100%);
   --subtle-fading-background:linear-gradient(to bottom, rgba(65, 130, 196, 0.00) 0% , rgba(65, 130, 196, 0.04) 100%);
+  --subtle-background-color:rgb(247, 248, 251);
   --font-main-family:ProximaNova, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   --font-main-color:rgb(51, 51, 51);
   --font-text-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
@@ -42,6 +44,7 @@ body {
   --font-text-button-size:14px;
   --font-text-small-size:14px;
   --font-text-large-size:16px;
+  --font-text-largest-size:18px;
   --font-text-line-height:1.5em;
   --font-subtle-color:rgb(153, 153, 153);
   --divider-highlight-color:rgb(190, 190, 190);
@@ -78,12 +81,12 @@ button {
 button.primary {
   background-image:linear-gradient(to right, var(--highlight-link-color) 0%, var(--highlight-link-color) 100%);
   /*background-image:linear-gradient(to bottom, var(--highlight-link-color) 0%, var(--highlight-link-dark-color) 100%);*/
-  color:white;
+  color:var(--highlight-text-color);
 }
 
 button.primary:hover {
   background-image:linear-gradient(to right, var(--highlight-link-color) 0%, var(--highlight-link-color) 100%);
-  color:white;
+  color:var(--highlight-text-color);
 }
 
 button:hover {
@@ -339,7 +342,7 @@ ul.panel > li {
   font-weight: 700;
   border-radius: 9px;
   font-size: 11px;
-  color: white;
+  color: var(--highlight-text-color);
   background-color: var(--highlight-link-color);
   padding: 0px 0px 0px 0.5rem;
   display: inline-block;
@@ -351,7 +354,7 @@ ul.panel > li {
   border-top-right-radius: 8px;
   border-bottom-right-radius: 8px;
   background-color: rgba(255,255,255,0.2);
-  color: white;
+  color: var(--highlight-text-color);
   padding: 0 0.5rem 0 0.5rem;
   margin: 1px 1px 1px 0.25rem;
   display: inline-block;
@@ -373,7 +376,7 @@ ul.panel > li {
   display:flex;
   margin-top:0.5rem;
   margin-bottom:0.5rem;
-  background-color:white;
+  background-color:var(--default-background);
   background-image:var(--subtle-fading-background);
   border-radius:0.25rem;
   box-shadow:0px 2px 5px rgba(0,0,0,0.03);
@@ -421,12 +424,43 @@ ul.panel > li {
 }
 .list-item > div.uno > img {
   max-width:25px;
-  margin-right:1rem;
+  margin-right:0.5rem;
+}
+.list-item.group {
+  background-color:var(--subtle-background-color);
+}
+.list-item.group:not(.expanded) ~ .list-item:not(.group) {
+  display:none;
+}
+.list-item.group > a {
+  width:100%;
+  font-weight:400;
+}
+.list-item.group > a > i {
+  margin-left:0.5rem;
+}
+.list-item.group.expanded > a > i {
+  transform:rotate(180deg);
 }
 
+@media only screen and (max-width: 1024px) {
+  .list-item {
+    padding:0.75rem 1rem;
+  }
+}
 
+@media only screen and (max-width: 768px) {
+  .list-item > div:first-child {
+    width:60%;
+    overflow-x:auto;
+  }
+  .list-item > div:last-child {
+    width:40%;
+    overflow-x:auto;
+  }
+}
 
-/* Facts */
+/* A list laid out horizontally to express small facts. */
 dl.facts {
   margin:0;
   font-size:var(--font-text-smallest-size);
@@ -450,6 +484,8 @@ dl.facts > dd > i {
   color:var(--callout-subtle-color);
 }
 
+
+/* Code stylizing */
 pre.code {
   background-color:#f7f8fb;
   padding:0.25rem 0.5rem;
@@ -457,17 +493,160 @@ pre.code {
   border-radius: 3px;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,.1);
 }
-
 pre.inline {
   display:inline-block;
   margin-top:0;
   margin-bottom:0;
   margin-right:0.25rem;
 }
+pre.inline.half {
+  max-width:50%;
+  overflow-x:scroll;
+}
+@media only screen and (max-width: 768px) {
+  pre.inline {
+    overflow-x: hidden;
+    width: 80%;
+    word-break: break-all;
+  }
+}
 
+x-dropdown > nav > ul.facts > li {
+  padding:0.125rem 0.5rem;
+  font-size:var(--font-text-smallest-size);
+  font-weight:400;
+  color:var(--callout-subtle-color);
+}
 
+/* Dialog */
+dialog {
+  display:flex;
+  flex-direction:column;
+  text-align:left;
+  min-height:330px;
+  max-height:80vh;
+  max-width:80vw;
+  min-width:350px;
+  position:fixed;
+  top:15vh;
+  left:25vw;
+  right:25vw;
+  background-color:var(--default-background);
+  box-shadow: 0px 11px 15px -7px rgba(0,0,0,0.2),0px 24px 38px 3px rgba(0,0,0,0.14),0px 9px 46px 8px rgba(0,0,0,0.12);
+  border-radius:4px;
+  border:0;
+  padding:0;
+  box-sizing:border-box;
+  z-index:1000000;
+  width:50vw;
+}
 
+@media only screen and (max-width: 1024px) {
+  dialog {
+    left:10vw;
+    right:10vw;
+    width:80vw;
+  }
+}
 
+@media only screen and (max-width: 768px) {
+  dialog {
+    left:5vw;
+    right:5vw;
+    width:90vw;
+    max-width:100%;
+  }
+}
 
+dialog:not([open]) {
+  display:none;
+}
+dialog > h1, dialog > h2, dialog > h3, dialog > h4, dialog > h5 {
+  padding:1.25rem 1.5rem;
+  margin:0;
+  z-index:1;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+}
+dialog > form {
+  display:flex;
+  flex-direction:column;
+  flex-grow:1;
+  background-color:var(--subtle-background-color);
+  border-bottom-right-radius:4px;
+  border-bottom-left-radius:4px;
+}
+dialog > form > fieldset {
+  padding:1.25rem 1.5rem;
+  border:0;
+  margin:0;
+  flex-grow:1;
+}
+dialog > form > fieldset.content {
+  overflow-y: auto;
+}
+dialog > form > fieldset.actions {
+  /*box-shadow:0px 11px 15px -7px rgba(0,0,0,0.1),0px 24px 38px 3px rgba(0,0,0,0.07),0px 9px 46px 8px rgba(0,0,0,0.06);*/
+  border-top:1px solid var(--divider-color);
+  background-color:var(--default-background);
+  text-align:right;
+  flex-grow:0;
+  border-bottom-right-radius:4px;
+  border-bottom-left-radius:4px;
+}
+dialog.error {
+  top:calc(100% - 80vh);
+  height:calc(100% - 40vh);
+  left:calc(100% - 70vw);
+  right:calc(100% - 30vw);
+  width:calc(100% - 50vw);
+  padding-left:0;
+  padding-right:0;
+}
+dialog.error > form > p {
+  padding:1.25rem 1.5rem;
+  flex-grow:1;
+  font-size:var(--font-text-largest-size);
+}
+dialog.error > form > fieldset.actions {
+  padding:0.75rem 0.5rem;
+}
+dialog.error > form > fieldset > button.full {
+  padding:0.75rem 0.5rem;
+  font-size:var(--font-text-large-size);
+  width:100%;
+}
 
+/* Form labels */
+form > * > label, form > label {
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+  font-size: var(--font-text-smallest-size);
+  font-weight: 500;
+  color: var(--font-text-color);
+  text-transform: uppercase;
+  display:block;
+}
+form > fieldset > * {
+  box-sizing: border-box;
+}
+form > * > label + input[type="text"], form > * > label + textarea {
+  padding:0.5rem;
+  display:block;
+  width:100%;
+  border-radius:2px;
+  font-size:var(--font-text-small-size);
+  border:1px solid var(--subtle-highlight-background-color);
+}
+form > * > label + input[type="text"]:invalid {
+  border:1px solid var(--highlight-color);
+}
+
+a[onclick] {
+  cursor:pointer;
+}
+
+.facts .info-button .fa-info-circle {
+  font-size:var(--font-text-button-size);
+}
 

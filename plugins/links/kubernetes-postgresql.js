@@ -43,6 +43,47 @@ async function writePostgresqlFromConfigMaps(pgpool, type, configMapRecords) {
   }));
 }
 
+async function writePostgresqlFromReplicaSets(pgpool, type, replicaSetRecords) {
+  if (type !== 'sync') {
+    return;
+  }
+  debug(`Examining ${replicaSetRecords.length} replicaset for envs that have a postgres string.`);
+  await Promise.all(replicaSetRecords.map(async (replicaSet) => {
+    await Promise.all((replicaSet.definition.spec.template.spec.containers || [])
+      .reduce((envs, container) => envs.concat((container.env || []).filter((env) => env.value && env.value.startsWith('postgres://')))
+        .map(async (env) => {
+          if (env.value) {
+            const dbUrl = new URL(env.value);
+            const db = await pgpool.query(`
+              insert into postgresql.databases_log (database, name, host, port, deleted)
+              values (uuid_generate_v4(), $1, $2, $3, $4)
+              on conflict (name, host, port, deleted) 
+              do update set name = $1 
+              returning database`,
+            [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
+            assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
+            assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
+            const role = await pgpool.query(`
+              insert into postgresql.roles_log (role, database, username, password, options, deleted)
+              values (uuid_generate_v4(), $1, $2, $3, $4, $5)
+              on conflict (database, username, (password->>'hash'), deleted) 
+              do update set username = $2 
+              returning role`,
+            [db.rows[0].database, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
+            assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
+            assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
+            await pgpool.query(`
+              insert into links.from_kubernetes_replicasets_to_postgresql_roles_log
+              (link, replicaset, role, observed_on, deleted)
+              values (uuid_generate_v4(), $1, $2, now(), false)
+              on conflict (replicaset, role, deleted)
+              do nothing
+            `, [replicaSet.replicaset, role.rows[0].role]);
+          }
+        }), []));
+  }));
+}
+
 async function writePostgresqlFromPods(pgpool, type, podRecords) {
   if (type !== 'sync') {
     return;
@@ -83,7 +124,6 @@ async function writePostgresqlFromPods(pgpool, type, podRecords) {
         }), []));
   }));
 }
-
 
 async function writePostgresqlFromDeployments(pgpool, type, deploymentRecords) {
   if (type !== 'sync') {
@@ -130,6 +170,7 @@ async function init(pgpool, bus) {
   bus.on('kubernetes.pod', writePostgresqlFromPods.bind(null, pgpool));
   bus.on('kubernetes.config_map', writePostgresqlFromConfigMaps.bind(null, pgpool));
   bus.on('kubernetes.deployment', writePostgresqlFromDeployments.bind(null, pgpool));
+  bus.on('kubernetes.replicaset', writePostgresqlFromReplicaSets.bind(null, pgpool));
 }
 
 async function run(pgpool) { // eslint-disable-line no-unused-vars

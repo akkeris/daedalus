@@ -79,7 +79,7 @@ begin
       "column" uuid not null references postgresql.columns_log("column")
     );
     create index if not exists labels_on_postgresql_columns_label on metadata.labels_on_postgresql_columns("label");
-    CREATE INDEX if not exists labels_on_postgresql_columns_annotation on metadata.annotations_on_postgresql_columns("column");
+    create index if not exists metadata_labels_on_postgresql_columns_column on metadata.labels_on_postgresql_columns("column");
     create unique index if not exists name_value_unique_labels_on_postgresql_columns on metadata.labels_on_postgresql_columns (name, value, implicit, "column");
 
     create table if not exists metadata.annotations_on_postgresql_columns (
@@ -92,7 +92,7 @@ begin
       "column" uuid not null references postgresql.columns_log("column")
     );
     create index if not exists annotations_on_postgresql_columns_annotation on metadata.annotations_on_postgresql_columns("annotation");
-    create index if not exists metadata_labels_on_postgresql_columns_column on metadata.labels_on_postgresql_columns("column");
+    create index if not exists labels_on_postgresql_columns_annotation on metadata.annotations_on_postgresql_columns("column");
     create unique index if not exists name_unique_annotations_on_postgresql_columns on metadata.annotations_on_postgresql_columns (name, implicit, "column");
 
     create table if not exists metadata.labels_on_kubernetes_deployments (

@@ -166,7 +166,7 @@ async function run(pgpool) {
     .filter((space) => !spaces.map((x) => x.id).includes(space.space))
     .map((space) => pgpool.query(`
       insert into akkeris.spaces_log (space_log, space, name, definition, observed_on, deleted)
-      values (uuid_generate_v4(), $1, $2, now(), true)
+      values (uuid_generate_v4(), $1, $2, $3, now(), true)
       on conflict (space, name, (definition->>'updated_at'), deleted)
       do update set name = EXCLUDED.name
       returning space_log, space, name, definition, observed_on, deleted

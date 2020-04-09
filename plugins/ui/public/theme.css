@@ -424,7 +424,7 @@ ul.panel > li {
 }
 .list-item > div.uno > img {
   max-width:25px;
-  margin-right:1rem;
+  margin-right:0.5rem;
 }
 .list-item.group {
   background-color:var(--subtle-background-color);

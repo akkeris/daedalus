@@ -101,6 +101,30 @@ begin
     from kubernetes.config_maps_log where deleted = false) 
     select config_map, name, namespace, context, definition, observed_on from ordered_list where rn=1;
 
+  create table if not exists kubernetes.replicasets_log (
+    replicaset uuid not null primary key,
+    name varchar(128) not null,
+    namespace varchar(128) not null,
+    context varchar(128) not null,
+    definition jsonb not null,
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+  create unique index if not exists replicasets_unique on kubernetes.replicasets_log (name, namespace, context, ((definition->'metadata')->>'resourceVersion'), deleted);
+  create index if not exists replicasets_observed_on on kubernetes.replicasets_log (name, namespace, context, observed_on desc);
+  create or replace view kubernetes.replicasets as
+    with ordered_list as ( select
+      replicaset,
+      name,
+      namespace,
+      context,
+      definition,
+      observed_on,
+      deleted,
+      row_number() over (partition by name, namespace, context order by observed_on desc) as rn
+    from kubernetes.replicasets_log) 
+    select replicaset, name, namespace, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
+
   create table if not exists kubernetes.deployments_log (
     deployment uuid not null primary key,
     name varchar(128) not null,

@@ -9,6 +9,7 @@ const security = require('../../common/security.js');
 
 async function checkPermissions(kc) {
   const accessPods = { spec: { resourceAttributes: { verb: 'watch', resource: 'pods' } } };
+  const accessReplicaSets = { spec: { resourceAttributes: { verb: 'watch', resource: 'replicasets' } } };
   const accessServices = { spec: { resourceAttributes: { verb: 'watch', resource: 'services' } } };
   const accessNodes = { spec: { resourceAttributes: { verb: 'watch', resource: 'nodes' } } };
   const accessConfigMaps = { spec: { resourceAttributes: { verb: 'watch', resource: 'configmaps' } } };
@@ -19,6 +20,7 @@ async function checkPermissions(kc) {
   const k8sApi = kc.makeApiClient(k8s.AuthorizationV1Api);
 
   const canWatchPods = (await k8sApi.createSelfSubjectAccessReview(accessPods)).body.status.allowed;
+  const canWatchReplicaSets = (await k8sApi.createSelfSubjectAccessReview(accessReplicaSets)).body.status.allowed; // eslint-disable-line max-len
   const canWatchServices = (await k8sApi.createSelfSubjectAccessReview(accessServices)).body.status.allowed; // eslint-disable-line max-len
   const canWatchNodes = (await k8sApi.createSelfSubjectAccessReview(accessNodes)).body.status.allowed; // eslint-disable-line max-len
   const canWatchConfigMaps = (await k8sApi.createSelfSubjectAccessReview(accessConfigMaps)).body.status.allowed; // eslint-disable-line max-len
@@ -29,6 +31,7 @@ async function checkPermissions(kc) {
 
   accessDeployments.spec.resourceAttributes.verb = 'get';
   accessPods.spec.resourceAttributes.verb = 'get';
+  accessReplicaSets.spec.resourceAttributes.verb = 'get';
   accessNodes.spec.resourceAttributes.verb = 'get';
   accessServices.spec.resourceAttributes.verb = 'get';
   accessConfigMaps.spec.resourceAttributes.verb = 'get';
@@ -44,6 +47,7 @@ async function checkPermissions(kc) {
   const canGetPersistentVolumes = (await k8sApi.createSelfSubjectAccessReview(accessPersistentVolumes)).body.status.allowed; // eslint-disable-line max-len
   const canGetPersistentVolumeClaims = (await k8sApi.createSelfSubjectAccessReview(accessPersistentVolumeClaims)).body.status.allowed; // eslint-disable-line max-len
   const canGetEvents = (await k8sApi.createSelfSubjectAccessReview(accessEvents)).body.status.allowed; // eslint-disable-line max-len
+  const canGetReplicaSets = (await k8sApi.createSelfSubjectAccessReview(accessReplicaSets)).body.status.allowed; // eslint-disable-line max-len
 
   return canWatchPods && canGetPods
     && canWatchDeployments && canGetDeployments
@@ -52,7 +56,8 @@ async function checkPermissions(kc) {
     && canWatchConfigMaps && canGetConfigMaps
     && canWatchPersistentVolumes && canGetPersistentVolumes
     && canWatchPersistentVolumeClaims && canGetPersistentVolumeClaims
-    && canWatchEvents && canGetEvents;
+    && canWatchEvents && canGetEvents
+    && canWatchReplicaSets && canGetReplicaSets;
 }
 
 async function loadFromKubeEnvironment(kc) {
@@ -306,6 +311,17 @@ async function run(pgpool, bus) {
   const k8sCoreApi = kc.makeApiClient(k8s.CoreV1Api);
   const k8sAppsApi = kc.makeApiClient(k8s.AppsV1Api);
   const maxMemory = 1 * 1024 * 1024;
+
+  debug(`Refreshing deployments from ${process.env.KUBERNETES_CONTEXT}`);
+  await writeDeletedNamespacedObjs(pgpool, 'deployment',
+    await writeNamespacedObjs(pgpool, bus, 'deployment',
+      k8sAppsApi.listDeploymentForAllNamespaces.bind(k8sAppsApi),
+      { limit: Math.floor(maxMemory / 4096) }));
+  debug(`Refreshing replicasets from ${process.env.KUBERNETES_CONTEXT}`);
+  await writeDeletedNamespacedObjs(pgpool, 'replicaset',
+    await writeNamespacedObjs(pgpool, bus, 'replicaset',
+      k8sAppsApi.listReplicaSetForAllNamespaces.bind(k8sAppsApi),
+      { limit: Math.floor(maxMemory / 4096) }));
   debug(`Refreshing pods from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'pod',
     await writeNamespacedObjs(pgpool, bus, 'pod',
@@ -341,12 +357,8 @@ async function run(pgpool, bus) {
     await writeNamespacedObjs(pgpool, bus, 'event',
       k8sCoreApi.listEventForAllNamespaces.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 2048) }));
-  debug(`Refreshing deployments from ${process.env.KUBERNETES_CONTEXT}`);
-  await writeDeletedNamespacedObjs(pgpool, 'deployment',
-    await writeNamespacedObjs(pgpool, bus, 'deployment',
-      k8sAppsApi.listDeploymentForAllNamespaces.bind(k8sAppsApi),
-      { limit: Math.floor(maxMemory / 4096) }));
 
+  // TODO: Job? DaemonSet? StatefulSet?
   // TODO: istio?
   // TODO: ingress objects?
   // TODO: cert-manager objects?

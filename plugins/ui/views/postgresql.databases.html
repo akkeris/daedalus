@@ -1,4 +1,21 @@
 const {formatBytes, getDateDiff} = require('../../../common/format.js');
+
+function getChildren(usedBy, parent, index) {
+  return usedBy
+    .filter((x) => x.owner === parent.id)
+    .map((x) => `
+      <div class="list-item">
+        <div class="uno" style="margin-left:${index * 2}rem;">
+          <img src="/${x['$icon']}" />
+          <a href="/ui/${x['$type']}/${x.id}">
+            ${x['$type']} • ${x.name}
+          </a>
+        </div>
+      </div>
+      ${getChildren(usedBy, x, index + 1)}
+    `).join("");
+}
+
 module.exports = (req, res, next, data) => res.send(`
   ${require('./header.html')(req)}
     <appkit-app>
@@ -146,7 +163,7 @@ module.exports = (req, res, next, data) => res.send(`
                   </fieldset>
                   <fieldset class="actions">
                     <button 
-                      type="reset"
+                      type="submit"
                       formnovalidate="true"
                       formaction="/ui/postgresql/databases/${data.database}#metadata"
                       formmethod="dialog">
@@ -191,13 +208,18 @@ module.exports = (req, res, next, data) => res.send(`
         </div>
         `).join("")}
       </div>
-      <div name="used_by" class="list tab-panel"> ${data.usedBy.map((x) => `
+      <div name="used_by" class="list tab-panel"> 
+      ${data.usedBy.filter((x) => !x.owner).map((x) => {
+        return `
         <div class="list-item">
           <div class="uno">
             <img src="/${x['$icon']}" />
-            <a href="/ui/${x['$type']}/${x.id}">${x['$type']} • ${x.name}</a>
+            <a href="/ui/${x['$type']}/${x.id}">${x['$type']} • ${x.name}${x.owner ? ' (owned by) ' + x['$owner_type'] + ' • ' + x['owner_name'] : ''}</a>
           </div>
-        </div> `).join("")}
+        </div> 
+        ${getChildren(data.usedBy, x, 1)}
+        `;
+      }).join("")}
       </div>
       <div name="usage" class="list tab-panel">
         ${data.tables.filter((x) => !x.is_view).map((table) => `

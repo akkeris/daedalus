@@ -50,13 +50,22 @@ async function init() {
   app.use(session(sessionOptions));
   app.use(parser.json());
   app.use(parser.urlencoded({ extended: true }));
+
   debug('Initializing plugins...');
-  await Promise.all(plugins.map((plugin) => plugin.init(pgpool, bus, app)));
+  /* This must be done syncronously to avoid deadlocks in DDL chagnes,
+   * do not put this in a map with Promise.all */
+  for (const plugin of plugins) { // eslint-disable-line no-restricted-syntax
+    await plugin.init(pgpool, bus, app); // eslint-disable-line no-await-in-loop
+  }
   debug(`Starting http port at ${process.env.PORT || 9000}`);
   app.listen(process.env.PORT || 9000, '0.0.0.0', (err) => {
     if (err) {
       console.error(err); // eslint-disable-line no-console
-      process.exit(1);
+      if (pgpool) {
+        pgpool.end(() => process.exit(1));
+      } else {
+        process.exit(1);
+      }
     }
     debug('http services started.');
   });
@@ -71,8 +80,13 @@ async function run() {
 }
 
 function fatal(e) {
-  console.error(e); // eslint-disable-line no-console
-  process.exit(1);
+  if (pgpool) {
+    console.error(e); // eslint-disable-line no-console
+    pgpool.end(() => process.exit(1));
+  } else {
+    console.error(e); // eslint-disable-line no-console
+    process.exit(1);
+  }
 }
 
 if (require.main === module) {

@@ -87,18 +87,6 @@ async function run(pgpool) {
   [item.id, item.name, item]))))
     .map((x) => x.rows).flat();
 
-  debug('Getting routes');
-  const { data: routes } = await get('/routes');
-  (await Promise.all(routes.map((item) => pgpool.query(`
-    insert into akkeris.routes_log (route_log, route, site_log, definition, observed_on, deleted)
-    values (uuid_generate_v4(), $1, $2, $3, now(), false)
-    on conflict (route, site_log, (definition->>'updated_at'), deleted)
-    do update set route = EXCLUDED.route
-    returning route_log, route, site_log, definition, observed_on, deleted
-  `,
-  [item.id, lookupSiteById(sitesLog, item.site.id), item]))))
-    .map((x) => x.rows).flat();
-
   debug('Getting apps');
   const { data: apps } = await get('/apps');
   let appsLog = (await Promise.all(apps.map((item) => pgpool.query(`
@@ -109,6 +97,18 @@ async function run(pgpool) {
     returning app_log, app, name, space_log, definition, observed_on, deleted
   `,
   [item.id, item.name, lookupSpaceById(spacesLog, item.space.id), item]))))
+    .map((x) => x.rows).flat();
+
+  debug('Getting routes');
+  const { data: routes } = await get('/routes');
+  (await Promise.all(routes.map((item) => pgpool.query(`
+    insert into akkeris.routes_log (route_log, route, site_log, app_log, target_path, source_path, definition, observed_on, deleted)
+    values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, now(), false)
+    on conflict (route, site_log, app_log, (definition->>'updated_at'), deleted)
+    do update set route = EXCLUDED.route
+    returning route_log, route, site_log, app_log, target_path, source_path, definition, observed_on, deleted
+  `,
+  [item.id, lookupSiteById(sitesLog, item.site.id), lookupAppById(appsLog, item.app.id), item.source_path, item.target_path, item])))) // eslint-disable-line max-len
     .map((x) => x.rows).flat();
 
   debug('Getting addons');

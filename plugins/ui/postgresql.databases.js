@@ -133,8 +133,10 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
           null as "$owner_type"
         from 
           postgresql.roles 
-          join links.from_kubernetes_config_maps_to_postgresql_roles on roles.role = from_kubernetes_config_maps_to_postgresql_roles.role
-          join kubernetes.config_maps on from_kubernetes_config_maps_to_postgresql_roles.config_map = config_maps.config_map
+          join links.from_kubernetes_config_maps_to_postgresql_roles
+            on roles.role = from_kubernetes_config_maps_to_postgresql_roles.role
+          join kubernetes.config_maps
+            on from_kubernetes_config_maps_to_postgresql_roles.config_map = config_maps.config_map
         where
           roles.database = $1
       ), cte_deployments as (
@@ -143,13 +145,19 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
           'kubernetes/deployments' as "$type",
           kubernetes.deployments.deployment as id,
           kubernetes.deployments.namespace || '/' || kubernetes.deployments.name as name,
-          null::uuid as owner,
-          null::text as owner_name,
-          null as "$owner_type"
+          akkeris.apps.app_log as owner,
+          akkeris.apps.name as owner_name,
+          (case when akkeris.apps.app_log is not null then 'akkeris/apps' else null end) as "$owner_type"
         from 
           postgresql.roles 
-          join links.from_kubernetes_deployments_to_postgresql_roles on roles.role = from_kubernetes_deployments_to_postgresql_roles.role
-          join kubernetes.deployments on from_kubernetes_deployments_to_postgresql_roles.deployment = deployments.deployment
+          join links.from_kubernetes_deployments_to_postgresql_roles
+            on roles.role = from_kubernetes_deployments_to_postgresql_roles.role
+          join kubernetes.deployments
+            on from_kubernetes_deployments_to_postgresql_roles.deployment = deployments.deployment
+          left join links.from_kubernetes_deployments_to_akkeris_apps
+            on from_kubernetes_deployments_to_akkeris_apps.deployment = from_kubernetes_deployments_to_postgresql_roles.deployment
+          left join akkeris.apps
+            on from_kubernetes_deployments_to_akkeris_apps.app_log = akkeris.apps.app_log
         where
           roles.database = $1
       ), cte_deployments_from_config_maps as (
@@ -184,10 +192,14 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
           'kubernetes/replicasets' as "$owner_type"
         from 
           postgresql.roles 
-          join links.from_kubernetes_pods_to_postgresql_roles on roles.role = from_kubernetes_pods_to_postgresql_roles.role
-          join kubernetes.pods on from_kubernetes_pods_to_postgresql_roles.pod = pods.pod
-          join links.from_kubernetes_pods_to_kubernetes_replicasets on from_kubernetes_pods_to_kubernetes_replicasets.pod = pods.pod
-          join kubernetes.replicasets on from_kubernetes_pods_to_kubernetes_replicasets.replicaset = replicasets.replicaset
+          join links.from_kubernetes_pods_to_postgresql_roles
+            on roles.role = from_kubernetes_pods_to_postgresql_roles.role
+          join kubernetes.pods
+            on from_kubernetes_pods_to_postgresql_roles.pod = pods.pod
+          join links.from_kubernetes_pods_to_kubernetes_replicasets
+            on from_kubernetes_pods_to_kubernetes_replicasets.pod = pods.pod
+          join kubernetes.replicasets
+            on from_kubernetes_pods_to_kubernetes_replicasets.replicaset = replicasets.replicaset
         where
           roles.database = $1
       ), cte_replicasets as (
@@ -201,10 +213,55 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
           'kubernetes/deployments' as "$owner_type"
         from 
           postgresql.roles 
-          join links.from_kubernetes_replicasets_to_postgresql_roles on roles.role = from_kubernetes_replicasets_to_postgresql_roles.role
-          join kubernetes.replicasets on from_kubernetes_replicasets_to_postgresql_roles.replicaset = replicasets.replicaset
-          join links.from_kubernetes_replicasets_to_kubernetes_deployments on from_kubernetes_replicasets_to_kubernetes_deployments.replicaset = replicasets.replicaset
-          join kubernetes.deployments on from_kubernetes_replicasets_to_kubernetes_deployments.deployment = deployments.deployment
+          join links.from_kubernetes_replicasets_to_postgresql_roles
+            on roles.role = from_kubernetes_replicasets_to_postgresql_roles.role
+          join kubernetes.replicasets
+            on from_kubernetes_replicasets_to_postgresql_roles.replicaset = replicasets.replicaset
+          join links.from_kubernetes_replicasets_to_kubernetes_deployments
+            on from_kubernetes_replicasets_to_kubernetes_deployments.replicaset = replicasets.replicaset
+          join kubernetes.deployments
+            on from_kubernetes_replicasets_to_kubernetes_deployments.deployment = deployments.deployment
+          join links.from_kubernetes_pods_to_kubernetes_replicasets
+            on from_kubernetes_pods_to_kubernetes_replicasets.replicaset = from_kubernetes_replicasets_to_kubernetes_deployments.replicaset
+            --  ^ prevents replicasets without pods from showing up and cluttering ui.
+        where
+          roles.database = $1
+      ), cte_akkeris_apps as (
+        select
+          'akkeris.apps.svg' as "$icon",
+          'akkeris/apps' as "$type",
+          akkeris.apps.app_log as id,
+          akkeris.apps.name as name,
+          null::uuid as owner,
+          null::text as owner_name,
+          null::text as "$owner_type"
+        from
+          postgresql.roles 
+          join links.from_kubernetes_deployments_to_postgresql_roles
+            on roles.role = from_kubernetes_deployments_to_postgresql_roles.role
+          join links.from_kubernetes_deployments_to_akkeris_apps
+            on from_kubernetes_deployments_to_akkeris_apps.deployment = from_kubernetes_deployments_to_postgresql_roles.deployment
+          join akkeris.apps
+            on from_kubernetes_deployments_to_akkeris_apps.app_log = akkeris.apps.app_log
+        where
+          roles.database = $1
+      ), cte_akkeris_sites as (
+        select
+          'akkeris.sites.svg' as "$icon",
+          'akkeris/sites' as "$type",
+          from_akkeris_apps_to_akkeris_sites.site_log as id,
+          'https://' || from_akkeris_apps_to_akkeris_sites.site_name || from_akkeris_apps_to_akkeris_sites.source_path as name,
+          from_akkeris_apps_to_akkeris_sites.app_log as owner,
+          from_akkeris_apps_to_akkeris_sites.app_name as owner_name,
+          'akkeris/apps' as "$owner_type"
+        from
+          postgresql.roles 
+          join links.from_kubernetes_deployments_to_postgresql_roles
+            on roles.role = from_kubernetes_deployments_to_postgresql_roles.role
+          join links.from_kubernetes_deployments_to_akkeris_apps
+            on from_kubernetes_deployments_to_akkeris_apps.deployment = from_kubernetes_deployments_to_postgresql_roles.deployment
+          join links.from_akkeris_apps_to_akkeris_sites
+            on from_kubernetes_deployments_to_akkeris_apps.app_log = from_akkeris_apps_to_akkeris_sites.app_log
         where
           roles.database = $1
       )
@@ -217,6 +274,10 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
       select * from cte_replicasets
       union
       select * from cte_pods
+      union
+      select * from cte_akkeris_apps
+      union
+      select * from cte_akkeris_sites
     `, [req.params.postgresql_database_id]);
 
     let changes = columnChanges.map((x) => ({ ...x, $type: 'column' }))

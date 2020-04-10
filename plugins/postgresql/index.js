@@ -376,7 +376,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
           insert into postgresql.constraints_log 
             ("constraint", database, name, "type", from_catalog, from_schema, from_table, from_column, deleted)
           values 
-            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
+            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8)
           on conflict (database, name, "type", from_catalog, from_schema, from_table, from_column, deleted) where "type" = 'PRIMARY KEY'
           do update set deleted = true`,
           [database.database, constraint.name, constraint.type, constraint.from_catalog, constraint.from_schema, constraint.from_table, constraint.from_column, true]); // eslint-disable-line max-len
@@ -424,9 +424,12 @@ async function writeTablesViewsAndColumns(pgpool, database) {
       // How do we do this, if the host is unavailalbe we shouldn't assume the db is unavailable,
       // if the password is changed, what should we do? if the database no longer exists should
       // we remove it?
+      console.log(`=== Error posgres://${database.username}@${database.host}:${database.port}/${database.name}`); // eslint-disable-line no-console
       console.error(e); // eslint-disable-line no-console
+      console.log(`=== Error posgres://${database.username}@${database.host}:${database.port}/${database.name}`); // eslint-disable-line no-console
     }
   } finally {
+    debug(`Done writing tables, views and columns for posgres://${database.username}@${database.host}:${database.port}/${database.name} database...`); // eslint-disable-line max-len
     await client.end();
   }
   /* /END critical section */

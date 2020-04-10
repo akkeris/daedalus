@@ -322,11 +322,6 @@ async function run(pgpool, bus) {
     await writeNamespacedObjs(pgpool, bus, 'replicaset',
       k8sAppsApi.listReplicaSetForAllNamespaces.bind(k8sAppsApi),
       { limit: Math.floor(maxMemory / 4096) }));
-  debug(`Refreshing pods from ${process.env.KUBERNETES_CONTEXT}`);
-  await writeDeletedNamespacedObjs(pgpool, 'pod',
-    await writeNamespacedObjs(pgpool, bus, 'pod',
-      k8sCoreApi.listPodForAllNamespaces.bind(k8sCoreApi),
-      { limit: Math.floor(maxMemory / 4096) }));
   debug(`Refreshing services from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'service',
     await writeNamespacedObjs(pgpool, bus, 'service',
@@ -336,6 +331,11 @@ async function run(pgpool, bus) {
   await writeDeletedObjs(pgpool, 'node',
     await writeObjs(pgpool, bus, 'node',
       k8sCoreApi.listNode.bind(k8sCoreApi),
+      { limit: Math.floor(maxMemory / 4096) }));
+  debug(`Refreshing pods from ${process.env.KUBERNETES_CONTEXT}`);
+  await writeDeletedNamespacedObjs(pgpool, 'pod',
+    await writeNamespacedObjs(pgpool, bus, 'pod',
+      k8sCoreApi.listPodForAllNamespaces.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 4096) }));
   debug(`Refreshing config maps from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'config_map',

@@ -37,6 +37,7 @@ begin
   create index if not exists apps_log_space_log on akkeris.apps_log (space_log);
   create or replace view akkeris.apps as
     with ordered_list as ( select
+      apps_log.app_log,
       apps_log.app,
       apps_log.name,
       spaces_log.space,
@@ -45,7 +46,7 @@ begin
       apps_log.deleted,
       row_number() over (partition by apps_log.name, spaces_log.space order by apps_log.observed_on desc) as rn
     from akkeris.apps_log join akkeris.spaces_log on apps_log.space_log = spaces_log.space_log) 
-    select app, name, space, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select app_log, app, name, space, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
 
   create table if not exists akkeris.addon_services_log (
@@ -154,6 +155,7 @@ begin
   create unique index if not exists sites_unique on akkeris.sites_log (site, name, (definition->>'updated_at'), deleted);
   create or replace view akkeris.sites as
     with ordered_list as ( select
+      site_log,
       site,
       name,
       definition,
@@ -161,33 +163,42 @@ begin
       deleted,
       row_number() over (partition by name, definition order by observed_on desc) as rn
     from akkeris.sites_log) 
-    select site, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select site_log, site, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
 
   create table if not exists akkeris.routes_log (
     route_log uuid not null primary key,
     route uuid not null,
     site_log uuid not null references akkeris.sites_log("site_log"),
+    app_log uuid not null references akkeris.apps_log("app_log"),
+    source_path text not null,
+    target_path text not null,
     definition jsonb not null,
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
-  create unique index if not exists routes_unique on akkeris.routes_log (route, site_log, (definition->>'updated_at'), deleted);
+  create unique index if not exists routes_unique on akkeris.routes_log (route, site_log, app_log, (definition->>'updated_at'), deleted);
   create index if not exists routes_log_site_log on akkeris.routes_log (site_log);
+  create index if not exists routes_log_app_log on akkeris.routes_log (app_log);
   create or replace view akkeris.routes as
     with ordered_list as ( 
       select
+        routes_log.route_log,
         routes_log.route,
         sites_log.site,
+        apps_log.app,
+        routes_log.source_path,
+        routes_log.target_path,
         routes_log.definition,
         routes_log.observed_on,
         routes_log.deleted as routes_deleted,
         sites_log.deleted as sites_deleted,
-        row_number() over (partition by sites_log.site, routes_log.definition order by routes_log.observed_on desc) as rn
+        row_number() over (partition by sites_log.site, apps_log.app, routes_log.definition order by routes_log.observed_on desc) as rn
       from akkeris.routes_log 
         join akkeris.sites_log on routes_log.site_log = sites_log.site_log
+        join akkeris.apps_log on apps_log.app_log = routes_log.app_log
   ) 
-  select route, site, definition, observed_on from ordered_list where rn=1 and routes_deleted = false and sites_deleted = false;
+  select route, site, app, source_path, target_path, definition, observed_on from ordered_list where rn=1 and routes_deleted = false and sites_deleted = false;
 
 end
 $$;

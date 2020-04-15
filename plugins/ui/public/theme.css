@@ -168,6 +168,12 @@ body.loading::after {
   display:none;
 }
 
+/* Header and sub properties */
+h2 > sub {
+  font-size: var(--font-text-smallest-size);
+  vertical-align: initial;
+  margin-left: 0.5rem;
+}
 
 .secret {
   border-radius: 3px;

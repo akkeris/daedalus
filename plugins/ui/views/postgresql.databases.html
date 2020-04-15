@@ -4,22 +4,28 @@ module.exports = (req, res, next, data) => res.send(`
     <appkit-app>
       ${require('./object-header.html')(req, data, 'Databases', 'fa-database', `/ui/postgresql/databases/${data.database}`, data.database, 'databases')}
       <div>
-        <h2>${data.name}</h2>
+        <h2>${data.human_name}<sub>${data.human_name !== data.name ? `(${data.name})` : ``}</sub></h2>
         <dl class="facts">
           ${data.config && data.config.server_version && data.config.server_version.value ? `
           <dt>Version</dt>
-          <dd>${data.config.server_version.value}</dd>` : ''}
+          <dd>${data.config.server_version.value}</dd>
+          ` : ''}
           <dt>Size</dt>
           <dd>
             ${formatBytes(data.tableStatistics.reduce((acc, x) => 
               (x.index_size + x.table_size + acc), 0))}
           </dd>
           <dt>Data Size</dt>
-          <dd>${formatBytes(data.tableStatistics.reduce((acc, x) => (x.table_size + acc), 0))}</dd>
+          <dd>
+            ${formatBytes(data.tableStatistics.reduce((acc, x) => 
+              (x.table_size + acc), 0))}
+          </dd>
           <dt>Connections</dt>
-          <dd>${data.databaseStatistics[0] ? 
-            data.databaseStatistics[0].used_connections : 0}/${data.databaseStatistics[0] ? 
-              data.databaseStatistics[0].max_connections : 0}</dd>
+          <dd>
+            ${data.databaseStatistics[0] ? 
+              data.databaseStatistics[0].used_connections : 0}/${data.databaseStatistics[0] ? 
+                data.databaseStatistics[0].max_connections : 0}
+          </dd>
           <dt>Scanned</dt>
           <dd>${new Date(data.observed_on).toLocaleString()}</dd>
         </dl>

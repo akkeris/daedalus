@@ -6,7 +6,7 @@ const HASH_KEY_LENGTH = 512 / 8;
 const KEY_LENGTH = 192 / 8;
 const CIPHER_ALGORITHM = 'aes192';
 const HMAC_ALGORITHM = 'sha256';
-const ENVS_BLACKLIST = process.env.ENVS_BLACKLIST || 'PASS,KEY,SECRET,PRIVATE,TOKEN,SALT,AUTH,HASH';
+const ENVS_BLACKLIST = process.env.ENVS_BLACKLIST || 'PASS,KEY,SECRET,PRIVATE,TOKEN,SALT,AUTH,HASH,PASSWORD';
 
 function hashRegex(match, p1 = '', p2 = '') {
   assert.ok(process.env.HASH_SECRET, 'The environment variable HASH_SECRET was not set.');

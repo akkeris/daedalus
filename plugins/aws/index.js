@@ -377,7 +377,7 @@ async function runElastiCache(pgpool) {
 }
 async function run(pgpool) {
   debug('Running aws plugin...');
-  await pgpool.query(fs.readFileSync('./plugins/aws/create.sql').toString());
+  await new Promise((res) => setTimeout(res, 30 * 1000));
   await runRds(pgpool);
   await runElastiCache(pgpool);
 }

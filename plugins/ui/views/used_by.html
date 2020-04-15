@@ -1,0 +1,51 @@
+
+function getChildren(usedBy, parent, index) {
+  return usedBy
+    .filter((x) => x.owner === parent.id)
+    .map((x) => {
+      let children = getChildren(usedBy.filter((y) => y.id !== x.id), x, index + 1);
+      // this is hack to prevent lots of replicasets from crowding up the view, probably
+      // useful to filter other non-sense out. Maybe these should be formalized.
+      if(children === '' && x['$type'] === 'kubernetes/replicasets') {
+        return ``;
+      }
+      return `
+      <div class="list-item">
+        <div class="uno" style="margin-left:${index * 2}rem;">
+          <img src="/${x['$icon']}" />
+          <a href="/ui/${x['$type']}/${x.id}">
+            ${x['$type']} • ${x.name}
+          </a>
+        </div>
+      </div>
+      ${children}
+      `;
+    }).join("");
+}
+
+module.exports = (req, data) => `
+      ${data.usedBy.filter((x) => !data.usedBy.some((y) => y.id === x.owner))
+          .map((x) => x.owner)
+          .filter((x, i, s) => s.indexOf(x) === i)
+          .map((x) => ({items:data.usedBy.filter((y) => y.owner === x)}))
+          .map((x) => `
+        <div class="list-item group expanded">
+          <div class="uno">
+            <a href="#used_by" style="margin-left:0rem;margin-right:1rem;" onclick="this.parentNode.parentNode.classList.toggle('expanded');">
+              <i class="fa fa-caret-down" aria-hidden="true"></i>
+            </a>
+            <img src="/${x.items[0]['$owner_icon']}" />
+            <a href="/ui/${x.items[0]['$owner_type']}/${x.items[0].owner}">${x.items[0]['$owner_type']} • ${x.items[0].owner_name}</a>
+          </div>
+        </div> 
+        ${x.items.map((y) => `
+        <div class="list-item">
+          <div class="uno" style="margin-left:4rem;">
+            <img src="/${y['$icon']}" />
+            <a href="/ui/${y['$type']}/${y.id}">${y['$type']} • ${y.name}</a>
+          </div>
+        </div> 
+        ${getChildren(data.usedBy.filter((z) => z.id !== y.id), y, 3)}
+        `).join("")}
+      `).join("")}
+`;

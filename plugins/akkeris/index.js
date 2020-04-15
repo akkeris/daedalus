@@ -39,8 +39,6 @@ function lookupAddonById(addons, id) {
 
 async function run(pgpool) {
   debug('Running akkeris plugin...');
-
-  await pgpool.query(fs.readFileSync('./plugins/akkeris/create.sql').toString());
   if (!process.env.AKKERIS_URL || !process.env.AKKERIS_TOKEN) {
     return;
   }

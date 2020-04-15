@@ -88,7 +88,7 @@ class SideMenu extends HTMLElement {
         width:100%;
         color:var(--font-text-color);
         font-family:var(--font-text-family);
-        font-size:16px;
+        font-size:var(--font-text-button-size);
         text-decoration:none;
         text-transform: uppercase;
         box-sizing: border-box;

@@ -1,0 +1,36 @@
+module.exports = (req, data) => `
+      <ul class="pagination">
+        <li><a rel="prev" ${data.cursor.page - 1 < 1 ? 'class="disabled"' : ` href="?page=${data.cursor.page - 1 < 1 ? 1 : data.cursor.page - 1}&${data.cursor.template}"`}>Previous</a></li>
+        <li ${data.cursor.page === 1 ? 'class="selected"' : ''}><a href="?page=1&${data.cursor.template}">1</a></li>
+        ${data.cursor.pages > 2 ? `<li ${data.cursor.page === 2 ? 'class="selected"' : ''}><a href="?page=2&${data.cursor.template}">2</a></li>`
+        : ''}
+        ${data.cursor.page < 7 ? `
+          ${data.cursor.pages > 2 ? `<li ${data.cursor.page === 3 ? 'class="selected"' : ''}><a href="?page=3&${data.cursor.template}">3</a></li>` : ''}
+          ${data.cursor.pages > 3 ? `<li ${data.cursor.page === 4 ? 'class="selected"' : ''}><a href="?page=4&${data.cursor.template}">4</a></li>` : ''}
+          ${data.cursor.pages > 4 ? `<li ${data.cursor.page === 5 ? 'class="selected"' : ''}><a href="?page=5&${data.cursor.template}">5</a></li>` : ''}
+          ${data.cursor.page > 4 ? `
+            <li ${data.cursor.page === 6 ? 'class="selected"' : ''}><a href="?page=6&${data.cursor.template}">6</a></li>
+            <li ${data.cursor.page === 7 ? 'class="selected"' : ''}><a href="?page=7&${data.cursor.template}">7</a></li>
+          ` : ``}
+        ` : `
+          <li class="break">...</li>
+          <li><a href="?page=${data.cursor.page - 2}&${data.cursor.template}">${data.cursor.page - 2}</a>
+          <li><a href="?page=${data.cursor.page - 1}&${data.cursor.template}">${data.cursor.page - 1}</a>
+          <li class="selected"><a href="#">${data.cursor.page}</a> <!-- current page -->
+          ${(data.cursor.pages - 1) >= (data.cursor.page + 1) ? `
+            <li><a href="?page=${data.cursor.page + 1}&${data.cursor.template}">${data.cursor.page + 1}</a>
+          ` : ''}
+          ${(data.cursor.pages - 1) >= (data.cursor.page + 2) ? `
+            <li><a href="?page=${data.cursor.page + 2}&${data.cursor.template}">${data.cursor.page + 2}</a>
+          ` : ''}
+        `}
+        ${(data.cursor.pages - 1) >= (data.cursor.page + 3) ? `
+          <li class="break">...</li>
+          <li><a href="?page=${data.cursor.pages - 1}&${data.cursor.template}">${data.cursor.pages - 1}</a></li>
+        ` : ''}
+        ${data.cursor.pages > 1 && data.cursor.pages !== data.cursor.page || data.cursor.pages === data.cursor.page && data.cursor.pages < 3 && data.cursor.pages !== 1 ? `
+          <li ${data.cursor.page === data.cursor.pages ? 'class="selected"' : ''} ><a href="?page=${data.cursor.pages}&${data.cursor.template}">${data.cursor.pages}</a></li>
+        ` : ''}
+        <li><a rel="next" ${(data.cursor.page + 1) > data.cursor.pages ? `class="disabled"` : `href="?page=${data.cursor.page + 1}"`}>Next</a></li>
+      </ul>
+`;

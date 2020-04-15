@@ -5,6 +5,7 @@ const path = require('path');
 const pg = require('pg');
 const express = require('express');
 const session = require('express-session');
+const PGSession = require('connect-pg-simple')(session);
 const parser = require('body-parser');
 const debug = require('debug')('daedalus:index');
 
@@ -28,6 +29,9 @@ const plugins = fs.readdirSync('./plugins')
 
 async function init() {
   debug('Initializing express...');
+
+  await pgpool.query(fs.readFileSync('./create.sql').toString());
+
   if (!process.env.SESSION_SECRET) {
     process.env.SESSION_SECRET = process.env.HASH_SECRET;
   }
@@ -36,16 +40,8 @@ async function init() {
     resave: false,
     saveUninitialized: false,
     name: 'daedalus',
+    store: new PGSession(), // by default will look for DATABASE_URL
   };
-  if (process.env.REDIS_URL) {
-    const redisService = require('redis'); // eslint-disable-line global-require
-    const Redis = require('connect-redis')(session); // eslint-disable-line global-require
-    sessionOptions.store = new Redis({
-      client: redisService.createClient({
-        url: process.env.REDIS_URL,
-      }),
-    });
-  }
   app.set('trust proxy', 1);
   app.use(session(sessionOptions));
   app.use(parser.json());

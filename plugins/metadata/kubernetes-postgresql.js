@@ -1,4 +1,4 @@
-const debug = require('debug')('daedalus:links');
+const debug = require('debug')('daedalus:metadata');
 const assert = require('assert');
 const security = require('../../common/security.js');
 
@@ -7,6 +7,11 @@ async function writePostgresqlFromConfigMaps(pgpool, type, configMapRecords) {
     return;
   }
   debug(`Examining ${configMapRecords.length} configMaps for envs that have a postgres string.`);
+
+  const databaseType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/databases\'')).rows[0].type;
+  const roleType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/roles\'')).rows[0].type;
+  const configMapType = (await pgpool.query('select "type" from metadata.node_types where name = \'kubernetes/config_maps\'')).rows[0].type;
+
   await Promise.all(configMapRecords.map(async (configMap) => {
     if (configMap.definition.data) {
       await Promise.all(Object.keys(configMap.definition.data).map(async (env) => {
@@ -17,7 +22,7 @@ async function writePostgresqlFromConfigMaps(pgpool, type, configMapRecords) {
             values (uuid_generate_v4(), $1, $2, $3, $4)
             on conflict (name, host, port, deleted) 
             do update set name = $1 
-            returning database`,
+            returning database, name`,
           [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
           assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
           assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
@@ -26,17 +31,30 @@ async function writePostgresqlFromConfigMaps(pgpool, type, configMapRecords) {
             values (uuid_generate_v4(), $1, $2, $3, $4, $5)
             on conflict (database, username, (password->>'hash'), deleted) 
             do update set username = $2 
-            returning role`,
+            returning role, username`,
           [db.rows[0].database, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
           assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
           assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
-          await pgpool.query(`
-            insert into links.from_kubernetes_config_maps_to_postgresql_roles_log
-            (link, config_map, role, observed_on, deleted)
-            values (uuid_generate_v4(), $1, $2, now(), false)
-            on conflict (config_map, role, deleted)
-            do nothing
-          `, [configMap.config_map, role.rows[0].role]);
+          assert.ok(configMap.config_map, 'configMap.config_map was undefined.');
+          assert.ok(configMap.name, 'configMap.name was undefined.');
+          assert.ok(configMapType, 'configMapType was undefined.');
+          assert.ok(role.rows[0].role, 'role.rows[0].role was undefined.');
+          assert.ok(role.rows[0].username, 'role.rows[0].username was undefined.');
+          assert.ok(roleType, 'roleType was undefined.');
+          assert.ok(db.rows[0].database, 'db.rows[0].database was undefined.');
+          db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
+
+          assert.ok(databaseType, 'databaseType was undefined.');
+          await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+            [configMap.config_map, configMap.name, configMapType]);
+          await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+            [role.rows[0].role, role.rows[0].username, roleType]);
+          await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+            [db.rows[0].database, db.rows[0].name, databaseType]);
+          await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+            [db.rows[0].database, role.rows[0].role]);
+          await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+            [role.rows[0].role, configMap.config_map]);
         }
       }), []);
     }
@@ -68,17 +86,10 @@ async function writePostgresqlFromReplicaSets(pgpool, type, replicaSetRecords) {
               values (uuid_generate_v4(), $1, $2, $3, $4, $5)
               on conflict (database, username, (password->>'hash'), deleted) 
               do update set username = $2 
-              returning role`,
+              returning role, username`,
             [db.rows[0].database, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
             assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
             assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
-            await pgpool.query(`
-              insert into links.from_kubernetes_replicasets_to_postgresql_roles_log
-              (link, replicaset, role, observed_on, deleted)
-              values (uuid_generate_v4(), $1, $2, now(), false)
-              on conflict (replicaset, role, deleted)
-              do nothing
-            `, [replicaSet.replicaset, role.rows[0].role]);
           }
         }), []));
   }));
@@ -89,6 +100,11 @@ async function writePostgresqlFromPods(pgpool, type, podRecords) {
     return;
   }
   debug(`Examining ${podRecords.length} pods for envs that have a postgres string.`);
+
+  const databaseType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/databases\'')).rows[0].type;
+  const roleType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/roles\'')).rows[0].type;
+  const podType = (await pgpool.query('select "type" from metadata.node_types where name = \'kubernetes/pods\'')).rows[0].type;
+
   await Promise.all(podRecords.map(async (pod) => {
     await Promise.all((pod.definition.spec.containers || [])
       .reduce((envs, container) => envs.concat((container.env || []).filter((env) => env.value && env.value.startsWith('postgres://')))
@@ -100,7 +116,7 @@ async function writePostgresqlFromPods(pgpool, type, podRecords) {
               values (uuid_generate_v4(), $1, $2, $3, $4)
               on conflict (name, host, port, deleted) 
               do update set name = $1 
-              returning database`,
+              returning database, name`,
             [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
             assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
             assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
@@ -109,17 +125,29 @@ async function writePostgresqlFromPods(pgpool, type, podRecords) {
               values (uuid_generate_v4(), $1, $2, $3, $4, $5)
               on conflict (database, username, (password->>'hash'), deleted) 
               do update set username = $2 
-              returning role`,
+              returning role, username`,
             [db.rows[0].database, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
             assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
             assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
-            await pgpool.query(`
-              insert into links.from_kubernetes_pods_to_postgresql_roles_log
-              (link, pod, role, observed_on, deleted)
-              values (uuid_generate_v4(), $1, $2, now(), false)
-              on conflict (pod, role, deleted)
-              do nothing
-            `, [pod.pod, role.rows[0].role]);
+            assert.ok(pod.pod, 'pod.pod was undefined.');
+            assert.ok(pod.name, 'pod.name was undefined.');
+            assert.ok(podType, 'podType was undefined.');
+            assert.ok(role.rows[0].role, 'role.rows[0].role was undefined.');
+            assert.ok(role.rows[0].username, 'role.rows[0].username was undefined.');
+            assert.ok(roleType, 'roleType was undefined.');
+            assert.ok(db.rows[0].database, 'db.rows[0].database was undefined.');
+            db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
+            assert.ok(databaseType, 'databaseType was undefined.');
+            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+              [pod.pod, pod.name, podType]);
+            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+              [db.rows[0].database, db.rows[0].name, databaseType]);
+            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+              [role.rows[0].role, role.rows[0].username, roleType]);
+            await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+              [db.rows[0].database, role.rows[0].role]);
+            await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+              [role.rows[0].role, pod.pod]);
           }
         }), []));
   }));
@@ -130,6 +158,11 @@ async function writePostgresqlFromDeployments(pgpool, type, deploymentRecords) {
     return;
   }
   debug(`Examining ${deploymentRecords.length} deployment for envs that have a postgres string.`);
+
+  const databaseType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/databases\'')).rows[0].type;
+  const roleType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/roles\'')).rows[0].type;
+  const deploymentType = (await pgpool.query('select "type" from metadata.node_types where name = \'kubernetes/deployments\'')).rows[0].type;
+
   await Promise.all(deploymentRecords.map(async (deployment) => {
     await Promise.all((deployment.definition.spec.template.spec.containers || [])
       .reduce((envs, container) => envs.concat((container.env || []).filter((env) => env.value && env.value.startsWith('postgres://')))
@@ -141,7 +174,7 @@ async function writePostgresqlFromDeployments(pgpool, type, deploymentRecords) {
               values (uuid_generate_v4(), $1, $2, $3, $4)
               on conflict (name, host, port, deleted) 
               do update set name = $1 
-              returning database`,
+              returning database, name`,
             [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
             assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
             assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
@@ -150,17 +183,22 @@ async function writePostgresqlFromDeployments(pgpool, type, deploymentRecords) {
               values (uuid_generate_v4(), $1, $2, $3, $4, $5)
               on conflict (database, username, (password->>'hash'), deleted) 
               do update set username = $2 
-              returning role`,
+              returning role, username`,
             [db.rows[0].database, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
             assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
             assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
-            await pgpool.query(`
-              insert into links.from_kubernetes_deployments_to_postgresql_roles_log
-              (link, deployment, role, observed_on, deleted)
-              values (uuid_generate_v4(), $1, $2, now(), false)
-              on conflict (deployment, role, deleted)
-              do nothing
-            `, [deployment.deployment, role.rows[0].role]);
+            db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
+            assert.ok(databaseType, 'databaseType was undefined.');
+            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+              [deployment.deployment, deployment.name, deploymentType]);
+            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+              [db.rows[0].database, db.rows[0].name, databaseType]);
+            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+              [role.rows[0].role, role.rows[0].username, roleType]);
+            await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+              [db.rows[0].database, role.rows[0].role]);
+            await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+              [role.rows[0].role, deployment.deployment]);
           }
         }), []));
   }));
@@ -182,35 +220,6 @@ async function run(pgpool) { // eslint-disable-line no-unused-vars
   // we can for sure say we found it, and we can for sure say our automated systems did not
   // find it a second pass around, but we cannot say that its fully removed, even if we cant
   // connect to it, without a source of truth.
-  /*
-  (await pgpool.query(`
-    with links as (
-      select distinct role from (
-        select role from links.from_kubernetes_deployments_to_postgresql_roles
-        union
-        select role from links.from_kubernetes_pods_to_postgresql_roles
-        union
-        select role from links.from_kubernetes_config_maps_to_postgresql_roles
-      ) a
-    )
-    select
-      roles.role,
-      roles.database,
-      roles.password,
-      roles.username,
-      roles.options,
-      links.role
-    from postgresql.roles
-      left join links on roles.role = links.role
-    where links.role is null
-  `)).rows.map(async (deadlink) => pgpool.query(`
-    insert into postgresql.roles_log (role, database, username, password, options, deleted)
-    values (uuid_generate_v4(), $1, $2, $3, $4, true)
-    on conflict (database, username, (password->>'hash'), deleted)
-    do update set username = $2
-    returning role
-  `, [deadlink.database, deadlink.username, deadlink.password, deadlink.options]));
-  */
 }
 
 module.exports = {

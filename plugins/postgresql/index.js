@@ -437,7 +437,6 @@ async function writeTablesViewsAndColumns(pgpool, database) {
 
 async function run(pgpool) {
   debug('Running postgresql plugin...');
-  await pgpool.query(fs.readFileSync('./plugins/postgresql/create.sql').toString());
   if (process.env.POSTGRESQL !== 'true') {
     return;
   }

@@ -12,7 +12,7 @@ Daedalus is a knowledge system intended for collecting an examining resources on
 
 Daedalus requires a postgresql database (with superuser permissions) to store data. The docker image `akkeris/daedalus:latest` or `akkeris/daedalus:[release]` can be deployed with the following environment variables set.
 
- *  `DATABASE_URL` - This is the database used for daedalus.
+ *  `DATABASE_URL` - This is the database used for daedalus. 
  *  `SECRET` - This is the secret key used to encrypt data with an aes192 encryption. It must be 24 bytes long.
  *  `HASH_SECRET` - This is the secret key used in the hmac process to create a hash, it should be different from `SECRET`.
  *  `ENVS_BLACKLIST` - Optional - This is a comma sepearted list of substrings that if found as the key or value will be redacted when stored. Defaults to `PASS,KEY,SECRET,PRIVATE,TOKEN,SALT,AUTH,HASH`.
@@ -22,7 +22,6 @@ Daedalus requires a postgresql database (with superuser permissions) to store da
 
  *  `UI` - Set this value to `true` to enable the UI web process.
  *  `SESSION_SECRET` - The secret to use for encrypting the session id in the browser. If not set, this will default to `HASH_SECRET`.
- *  `REDIS_URL` - This is the redis url used for session tracking, otherwise an in-memory session storage is used.
  *  `OAUTH_AUTHORIZE_URL` - The end point for beginning the oauth client redirect flow `/authorize`
  *  `OAUTH_ACCESS_TOKEN_URL` - The end point to exchange the authorizatoin code for an access token, typically, `/access_token`
  *  `OAUTH_SCOPES` - Any necessary scopes to add to the authorization request (if needed).
@@ -30,12 +29,16 @@ Daedalus requires a postgresql database (with superuser permissions) to store da
  *  `OAUTH_CLIENT_ID` - The client id provided by the oauth system.
  *  `OAUTH_CLIENT_SECRET` - The client secret provided by the oauth system.
 
+ Note that session information is stored in the `public` schema in the table `session`.
+
 ### Setting up GraphQL
 
 GraphQL API can be configured and turned on independently (infact you can start up daedalus with only the web GraphQL end point exposed and have workers running to collect information on other systems).  To enable the GraphQL API add the environment variables:
 
- *  `GRAPHQL_API` - Set this value to `true` to enable the http web process.
+ *  `GRAPHQL_API` - Set this value to `true` to enable the http web process. Postgraphile information is written to the `postgraphile_watch` schema.
  *  `GRAPHQL_POSTGRAPHILE_OPTIONS` - Sets options for the GraphQL API (https://www.graphile.org/postgraphile/usage-library/#recommended-options)
+
+Because session information is stored in the `public` schema we exclude it from analysis by default.
 
 ### Setting up Postgresql Scans
 
@@ -81,6 +84,8 @@ To debug, set the environment variable `DEBUG=daedalus:*`, to debug specific sec
  *  `daedalus:postgresql` - postgresql importing and checks.
  *  `daedalus:kubernetes` - kubernetes debugging, importing and checks.
  *  `daedalus:akkeris` - akkeris debugging, importing and checks.
+ *  `daedalus:links` - turn on debugging for module that attempts to establish links between various objects.
+ *  `daedalus:metadata` - turn on debugging for module that attempts to classify with labels and annotations.
  *  `daedalus:aws` - aws debugging, importing and checks.
 
 ## Running Locally

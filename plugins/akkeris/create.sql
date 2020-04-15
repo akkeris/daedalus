@@ -198,7 +198,7 @@ begin
         join akkeris.sites_log on routes_log.site_log = sites_log.site_log
         join akkeris.apps_log on apps_log.app_log = routes_log.app_log
   ) 
-  select route, site, app, source_path, target_path, definition, observed_on from ordered_list where rn=1 and routes_deleted = false and sites_deleted = false;
+  select route_log, route, site, app, source_path, target_path, definition, observed_on from ordered_list where rn=1 and routes_deleted = false and sites_deleted = false;
 
 end
 $$;

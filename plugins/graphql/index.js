@@ -21,7 +21,8 @@ async function init(pgpool, bus, app) {
     where 
       schema_name not like 'pg_%' and 
       schema_name <> 'information_schema' and 
-      schema_name not like 'postgraphile_%'
+      schema_name not like 'postgraphile_%' and
+      schema_name <> 'public'
   `)).rows[0];
   const port = process.env.PORT || 9000;
   debug(`Initializing graphql server for schemas: ${schemas}`);

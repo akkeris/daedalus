@@ -1,0 +1,24 @@
+  module.exports = (req, data, title, icon, url, id, objname) => `
+      ${req.query.error ? `
+        <dialog class="error" open>
+          <h4>Oops!</h4>
+          <form method="get" action="${url}">
+            <p>${req.query.error}</p> 
+            <fieldset class="actions">
+              <button class="primary full">Ok</button>
+            </fieldset>
+          </form>
+        </dialog>
+      ` : ''}
+      <nav-breadcrumb size="small">
+        <ul>
+          <li><a href="/"> <i class="fa fa-cubes" aria-hidden="true"></i> Home</a></li>
+          <li>
+            <a href="/?filter=${objname}"> <i class="fa ${icon}" style="margin-right:0.25rem;" aria-hidden="true"></i>
+              ${title}
+            </a>
+          </li>
+          <li>${id}</li>
+        </ul>
+      </nav-breadcrumb>
+`;

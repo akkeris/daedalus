@@ -34,6 +34,7 @@ body {
   --font-main-color:rgb(51, 51, 51);
   --font-text-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   --font-text-color:rgb(100, 100, 100);
+  --font-text-disabled-color:rgb(200, 200, 200);
   /* All fonts should be one of these */
   --font-h1-size:35px;
   --font-h2-size:30px;
@@ -347,6 +348,9 @@ ul.panel > li {
   padding: 0px 0px 0px 0.5rem;
   display: inline-block;
 }
+.pill:visited {
+  color: var(--highlight-text-color);
+}
 .pill.subtle {
   background-color: var(--random-bright-color-two);
 }
@@ -429,17 +433,39 @@ ul.panel > li {
 .list-item.group {
   background-color:var(--subtle-background-color);
 }
-.list-item.group:not(.expanded) ~ .list-item:not(.group) {
+.list-item.group:not(.expanded) ~ .list-item:not(.group),
+.list-item.group ~ .list-item.group:not(.expanded) ~ .list-item:not(.group),
+.list-item.group ~ .list-item.group ~ .list-item.group:not(.expanded) ~ .list-item:not(.group),
+.list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group:not(.expanded) ~ .list-item:not(.group),
+.list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group:not(.expanded) ~ .list-item:not(.group),
+.list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group:not(.expanded) ~ .list-item:not(.group),
+.list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group:not(.expanded) ~ .list-item:not(.group),
+.list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group:not(.expanded) ~ .list-item:not(.group),
+.list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group:not(.expanded) ~ .list-item:not(.group)
+{
   display:none;
 }
+.list-item.group ~ .list-item:not(.group),
+.list-item.group ~ .list-item.group ~ .list-item:not(.group),
+.list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item:not(.group),
+.list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item:not(.group), 
+.list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item:not(.group), 
+.list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item:not(.group),
+.list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item:not(.group),
+.list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item:not(.group),
+.list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item.group ~ .list-item:not(.group)
+{
+  display:flex;
+}
+
 .list-item.group > a {
   width:100%;
   font-weight:400;
 }
-.list-item.group > a > i {
+.list-item.group > a > i, .list-item.group > div > a > i {
   margin-left:0.5rem;
 }
-.list-item.group.expanded > a > i {
+.list-item.group.expanded > a > i, .list-item.group.expanded > div > a > i{
   transform:rotate(180deg);
 }
 
@@ -484,6 +510,9 @@ dl.facts > dd > i {
   color:var(--callout-subtle-color);
 }
 
+dl.facts .info-button .fa-info-circle {
+  font-size:var(--font-text-button-size);
+}
 
 /* Code stylizing */
 pre.code {
@@ -646,7 +675,55 @@ a[onclick] {
   cursor:pointer;
 }
 
-.facts .info-button .fa-info-circle {
-  font-size:var(--font-text-button-size);
-}
+/* Pagination */
 
+ul.pagination {
+  display:flex;
+  flex-direction:row;
+  flex-wrap:nowrap;
+  justify-content: center;
+}
+ul.pagination > li {
+  margin:0;
+  list-style:none;
+  border:1px solid var(--divider-color);
+  border-left: 0;
+}
+ul.pagination > li:first-child {
+  border-top-left-radius:var(--border-radius);
+  border-bottom-left-radius:var(--border-radius);
+  border-left: 1px solid var(--divider-color);
+}
+ul.pagination > li:last-child {
+  border-top-right-radius:var(--border-radius);
+  border-bottom-right-radius:var(--border-radius);
+  border-right: 1px solid var(--divider-color);
+}
+ul.pagination > li.break {
+  color:var(--font-text-disabled-color);
+  min-width:1.5rem;
+  padding:0.4rem 0.5rem;
+  text-align:center;
+}
+ul.pagination > li.selected {
+  box-shadow:inset 0px 0px 3px rgba(0,0,0,0.2);
+  background-color:var(--callout-color);
+  border-color:var(--callout-color);
+}
+ul.pagination > li > a {
+  min-width:1.5rem;
+  text-align:center;
+  font-size:var(--font-text-small-size);
+  font-weight:700;
+  display:inline-block;
+  padding:0.4rem 0.4rem;
+}
+ul.pagination > li.selected > a {
+  color:var(--highlight-text-color);
+}
+ul.pagination > li > a.disabled {
+  color:var(--font-text-disabled-color);
+}
+ul.pagination > li:not(.selected) > a:not(.disabled):hover {
+  background-color:var(--subtle-background-color);
+}

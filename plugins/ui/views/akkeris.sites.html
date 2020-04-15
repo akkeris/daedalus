@@ -1,0 +1,26 @@
+const {formatBytes} = require('../../../common/format.js');
+module.exports = (req, res, next, data) => res.send(`
+  ${require('./header.html')(req)}
+    <appkit-app>
+      ${require('./object-header.html')(req, data, 'Sites', 'fa-site', `/ui/akkeris/sites/${data.site}`, data.site, 'sites')}
+      <div>
+        <h2>${data.name}</h2>
+      </div>
+      <x-tabs>
+        <x-tab><a href="#metadata">Metadata</a></x-tab>
+        <x-tab><a href="#changes">Changes</a></x-tab>
+        <x-tab><a href="#used_by">Used By</a></x-tab>
+      </x-tabs>
+      <div name="metadata" class="tab-panel list">
+        ${require('./labels.html')(req, data)}
+        ${require('./annotations.html')(req, data)}
+      </div>
+      <div name="changes" class="tab-panel list">
+        ${require('./changes.html')(req, data)}
+      </div>
+      <div name="used_by" class="list tab-panel"> 
+        ${require('./used_by.html')(req, data)}
+      </div>
+    </appkit-app>
+  ${require('./footer.html')(req, res)}
+`);

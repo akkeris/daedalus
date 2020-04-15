@@ -168,8 +168,8 @@ function redactPods(data) {
 
 function redactDeployments(data) {
   const x = JSON.parse(JSON.stringify(data)); // make a copy
-  if (x.spec && x.spec.template && x.spec.template.spec && x.spec.template.containers) {
-    x.spec.template.containers = x.spec.template.containers.map((y) => {
+  if (x.spec && x.spec.template && x.spec.template.spec && x.spec.template.spec.containers) {
+    x.spec.template.spec.containers = x.spec.template.spec.containers.map((y) => {
       if (y.env) {
         const redactedValues = security.redact(fromEnvArrayToObj(y.env));
         return {
@@ -222,7 +222,7 @@ async function writeNamespacedObjs(pgpool, bus, type, func, args) {
       insert into kubernetes.${type}s_log (${type}, name, namespace, context, definition, deleted)
       values (uuid_generate_v4(), $1, $2, $3, $4, $5)
       on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
-      do update set name = $1
+      do update set name = $1, definition = $4
       returning ${type}, name, context, definition, deleted
     `, [definition.metadata.name, definition.metadata.namespace, process.env.KUBERNETES_CONTEXT, JSON.stringify(redacted, null, 2), false]);
     dbObj.rows[0].definition = definition;
@@ -288,7 +288,6 @@ async function writeDeletedObjs(pgpool, type, items) {
 
 async function run(pgpool, bus) {
   debug('Running kubernetes plugin');
-  await pgpool.query(fs.readFileSync('./plugins/kubernetes/create.sql').toString());
   if (!process.env.KUBERNETES_CONTEXT) {
     return;
   }
@@ -362,6 +361,7 @@ async function run(pgpool, bus) {
   // TODO: istio?
   // TODO: ingress objects?
   // TODO: cert-manager objects?
+  // TODO: docker images?
 }
 
 module.exports = {

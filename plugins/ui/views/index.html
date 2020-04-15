@@ -13,30 +13,31 @@ module.exports = (req, res, next, data) => res.send(`
       ${data.rows.map((row) => `
         <div class="table-list-item">
           <div style="max-width:25px;align-self:center;display:inline-flex;padding-left:0.75rem;">
-            <img src="/${row.type.split('.')[0]}.svg" style="max-width:25px;"/>
+            <img src="/${row.type.split('/').join('.')}.svg" style="max-width:25px;"/>
           </div>
           <div>
-            <a style="display:block;" href="/ui/${row.type.replace('.', '/')}/${row.id}">${row.name}</a>
+            <a style="display:block;" href="/ui/${row.type.replace('.', '/')}/${row.node}">${row.name}</a>
             <sub style="display:block;">Last seen ${row.observed_on.toLocaleString()}</sub>
           </div>
           <div style="text-align:right;">
             ${row.labels ? Object.keys(row.labels).map((key) => `
-              <span class="pill">
-                <i class="fa fa-tag" aria-hidden="true"></i> 
-                ${key}
-                <span class="inner">${row.labels[key]}</span>
-              </span>
+            <a class="pill" href="?${data.cursor.template}&labels=${key}">
+              <i class="fa fa-tag" aria-hidden="true"></i> 
+              ${key}
+              <span class="inner">${row.labels[key]}</span>
+            </a>
             `).join("") : ''}
             ${row.status ? Object.keys(row.status).map((key) => !key.startsWith("max_") ? `
-              <span class="pill subtle">
-                ${key.split("_").map(x => x[0].toUpperCase() + x.substring(1).toLowerCase()).join(" ")}
-                <span class="inner">${row.status['max_' + key] ? row.status[key] + '/' + row.status['max_' + key] : row.status[key]}</span>
-              </span>
+            <span class="pill subtle">
+              ${key.split("_").map(x => x[0].toUpperCase() + x.substring(1).toLowerCase()).join(" ")}
+              <span class="inner">${row.status['max_' + key] ? row.status[key] + '/' + row.status['max_' + key] : row.status[key]}</span>
+            </span>
             ` : '').filter((x) => x !== '').join("") : ''}
           </div>
         </div>
       `).join('')}
       </div>
+      ${require('./pagination.html')(req, data)}
     </appkit-app>
   ${require('./footer.html')(req, res)}
 `);

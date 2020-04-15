@@ -1,0 +1,67 @@
+module.exports = (req, data, base_url) => `
+        <div class="list-item group expanded">
+          <a href="#metadata" onclick="this.parentNode.classList.toggle('expanded');">
+            Labels <i class="fa fa-caret-down" aria-hidden="true"></i>
+          </a>
+          <div>
+            <a href="#metadata" onclick="this.children[1].setAttribute('open','true');">
+              <i class="fa fa-plus" aria-hidden="true"></i>
+              <dialog id="add-label" class="popup">
+                <h4>Labels</h4>
+                <form method="post" action="${base_url}/labels">
+                  <fieldset class="content">
+                    <label for="ukey">Name</label>
+                    <input 
+                      autofocus
+                      type="text" 
+                      title="Must be alpha-numeric and at least 3 characters and no more than 128." 
+                      name="name" 
+                      id="uname" 
+                      value="" 
+                      maxlength="128" 
+                      minlength="3" 
+                      pattern="[A-Z-a-z0-9\-\.]*" 
+                      spellcheck="false" />
+                    <label for="uvalue">Value</label>
+                    <input 
+                      type="text" 
+                      title="Must be alpha-numeric and at least 3 characters and no more than 128." 
+                      name="value" 
+                      id="uvalue" 
+                      value="" 
+                      maxlength="128" 
+                      pattern="[A-Z-a-z0-9\-\.]*" 
+                      spellcheck="false" />
+                  </fieldset>
+                  <fieldset class="actions">
+                    <button 
+                      formnovalidate="true"
+                      formaction="${base_url}#metadata"
+                      type="submit"
+                      formmethod="dialog">
+                      Cancel
+                    </button>
+                    <button 
+                      formmethod="post"
+                      action="${base_url}/labels"
+                      type="submit"
+                      class="primary">
+                      Add
+                    </button>
+                  </fieldset>
+                </form>
+              </dialog>
+            </a>
+          </div>
+        </div>
+        ${data.labels ? Object.keys(data.labels).sort((a, b) => a > b ? 1 : -1).map((x) => `
+        <div class="list-item">
+          <div>${x}: ${data.labels[x]}</div>
+          <div>
+            <a href="${base_url}/labels/${x}/delete">
+              <i class="fa fa-trash" aria-hidden="true"></i>
+            </a>
+          </div>
+        </div>
+        `).join("") : ''}
+`;

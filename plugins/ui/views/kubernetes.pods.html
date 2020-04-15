@@ -1,0 +1,113 @@
+const {formatBytes} = require('../../../common/format.js');
+module.exports = (req, res, next, data) => res.send(`
+  ${require('./header.html')(req)}
+    <appkit-app>
+      ${require('./object-header.html')(req, data, 'Pods', 'fa-server', `/ui/kubernetes/pods/${data.pod}`, data.pod, 'pods')}
+      <div>
+        <h2>${data.name}</h2>
+        <dl class="facts">
+          ${data.definition && data.definition.spec ? `
+          <dt>Containers</dt>
+          <dd>${data.definition.spec.containers.length}</dd>
+          <dt>Namespace</dt>
+          <dd>${data.definition.metadata.namespace}</dd>
+          ` : ''}
+          <dt>Context</dt>
+          <dd>${data.context}</dd>
+          <dt>Scanned</dt>
+          <dd>${new Date(data.observed_on).toLocaleString()}</dd>
+        </dl>
+      </div>
+      <x-tabs>
+        <x-tab><a href="#metadata">Metadata</a></x-tab>
+        <x-tab><a href="#changes">Changes</a></x-tab>
+        <x-tab><a href="#used_by">Used By</a></x-tab>
+        <x-tab><a href="#containers">Containers</a></x-tab>
+        <x-tab><a href="#definition">Definition</a></x-tab>
+      </x-tabs>
+      <div name="metadata" class="tab-panel list">
+        ${require('./labels.html')(req, data, `/ui/kubernetes/pods/${data.pod}`)}
+        ${require('./annotations.html')(req, data, `/ui/kubernetes/pods/${data.pod}`)}
+      </div>
+      <div name="changes" class="tab-panel list">
+        ${require('./changes.html')(req, data)}
+      </div>
+      <div name="used_by" class="list tab-panel"> 
+        ${require('./used_by.html')(req, data)}
+      </div>
+      <div name="containers" class="list tab-panel">
+        ${data.definition && 
+          data.definition.spec && 
+          data.definition.spec.containers && 
+          data.definition.spec.containers.map((container) => `
+        <div class="list-item group expanded">
+          <div class="uno">
+            <a href="#used_by" style="margin-left:0rem;margin-right:1rem;" onclick="this.parentNode.parentNode.classList.toggle('expanded');">
+              <i class="fa fa-caret-down" aria-hidden="true"></i>
+            </a>
+            <dl class="facts">
+              <dt>Name</dt>
+              <dd>${container.name}</dd>
+              <dt>Image</dt>
+              <dd>docker://${container.image}</dd>
+            </dl>
+          </div>
+        </div>
+        ${container.ports ? container.ports.map((x) => `
+        <div class="list-item">
+          <div class="uno" style="align-items:center;">
+            <i class="fa fa-shield" aria-hidden="true" style="margin-left:2rem;"></i>
+            <dl class="facts">
+              <dt>Port</dt><dd>${x.containerPort}</dd>
+              <dt>Protocol</dt><dd>${x.protocol}</dd>
+          </div>
+        </div>
+        `).join('') : ``}
+        ${container.env ? container.env.map((x) => `
+        <div class="list-item">
+          <div class="uno">
+            <dl class="facts" style="margin-left:2rem;">
+              <dt>Env Name</dt>
+              <dd>${x.name}</dd>
+              <dt>Value</dt>
+              <dd>${x.value ? `${x.value}` : '<i>From Secrets</i>'}</dd>
+            </dl>
+          </div>
+        </div>
+        `).join('') : ``}
+        ${container.volumeMounts ? container.volumeMounts.map((x) => `
+        <div class="list-item">
+          <div class="uno">
+            <dl class="facts" style="margin-left:2rem;">
+              <dt>Volume Name</dt>
+              <dd>${x.name}</dd>
+              <dt>Mount Path</dt>
+              <dd>${x.mountPath}</dd>
+            </dl>
+          </div>
+        </div>
+        `).join('') : ``}
+        ${container.resources ? `
+        <div class="list-item">
+          <div class="uno">
+            <dl class="facts" style="margin-left:2rem;">
+              <dt>CPU Limit</dt>
+              <dd>${container.resources.limits.cpu}</dd>
+              <dt>Memory Limit</dt>
+              <dd>${container.resources.limits.memory}</dd>
+              <dt>CPU Requests</dt>
+              <dd>${container.resources.requests.cpu}</dd>
+              <dt>Memory Requests</dt>
+              <dd>${container.resources.requests.memory}</dd>
+            </dl>
+          </div>
+        </div>
+        ` : ``}
+        `).join('')}
+      </div>
+      <div name="definition" class="tab-panel">
+        <pre><code class="hljs json">${JSON.stringify(data.definition, null, 2)}</code></pre>
+      </div>
+    </appkit-app>
+  ${require('./footer.html')(req, res)}
+`);

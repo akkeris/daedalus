@@ -4,7 +4,7 @@ module.exports = (req, res, next, data) => res.send(`
     <appkit-app>
       ${require('./object-header.html')(req, data, 'Replica Sets', 'fa-clone', `/ui/kubernetes/replicasets/${data.replicaset}`, data.replicaset, 'replicasets')}
       <div>
-        <h2>${data.name}</h2>
+        <h2>${data.human_name}</h2>
         <dl class="facts">
           ${data.definition && data.definition.spec ? `
           <dt>Replicas</dt>

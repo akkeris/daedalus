@@ -311,6 +311,12 @@ async function run(pgpool, bus) {
   const k8sAppsApi = kc.makeApiClient(k8s.AppsV1Api);
   const maxMemory = 1 * 1024 * 1024;
 
+  // The order of these do matter.
+  debug(`Refreshing config maps from ${process.env.KUBERNETES_CONTEXT}`);
+  await writeDeletedNamespacedObjs(pgpool, 'config_map',
+    await writeNamespacedObjs(pgpool, bus, 'config_map',
+      k8sCoreApi.listConfigMapForAllNamespaces.bind(k8sCoreApi),
+      { limit: Math.floor(maxMemory / 4096) }));
   debug(`Refreshing deployments from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'deployment',
     await writeNamespacedObjs(pgpool, bus, 'deployment',
@@ -335,11 +341,6 @@ async function run(pgpool, bus) {
   await writeDeletedNamespacedObjs(pgpool, 'pod',
     await writeNamespacedObjs(pgpool, bus, 'pod',
       k8sCoreApi.listPodForAllNamespaces.bind(k8sCoreApi),
-      { limit: Math.floor(maxMemory / 4096) }));
-  debug(`Refreshing config maps from ${process.env.KUBERNETES_CONTEXT}`);
-  await writeDeletedNamespacedObjs(pgpool, 'config_map',
-    await writeNamespacedObjs(pgpool, bus, 'config_map',
-      k8sCoreApi.listConfigMapForAllNamespaces.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 4096) }));
   debug(`Refreshing persistent volumes from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedObjs(pgpool, 'persistent_volume',

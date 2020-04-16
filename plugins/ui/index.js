@@ -15,10 +15,10 @@ async function init(pgpool, bus, app) {
     app.all('/ui/*', oauth.check);
     app.get('/ui/', async (req, res, next) => {
       const cursor = await cursors(req);
-      const { rows: [{ count }] } = await pgpool.query(`select count(*) as count from metadata.objects ${cursor.filter}`, cursor.params);
+      const { rows: [{ count }] } = await pgpool.query(`select count(*) as count from metadata.active_objects ${cursor.filter}`, cursor.params);
       grab('./views/index.html', req, res, next,
         {
-          ...(await pgpool.query(`select * from metadata.objects ${cursor.sql}`, cursor.params)),
+          ...(await pgpool.query(`select * from metadata.active_objects ${cursor.sql}`, cursor.params)),
           cursor: {
             count,
             ...cursor,

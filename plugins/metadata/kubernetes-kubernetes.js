@@ -13,12 +13,12 @@ async function writeKubernetesPodToReplicaSets(pgpool, type, podRecords) {
     if (pod.definition.metadata.ownerReferences) {
       await Promise.all(pod.definition.metadata.ownerReferences.map(async (ref) => {
         if (ref.kind === 'ReplicaSet') {
-          const { rows: [{ replicaset, name }] } = await pgpool.query('select replicaset, name from kubernetes.replicasets where name = $1 and namespace = $2',
+          const { rows: [{ replicaset, name, definition }] } = await pgpool.query('select replicaset, name, definition from kubernetes.replicasets where name = $1 and namespace = $2',
             [ref.name, pod.definition.metadata.namespace]);
           await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
             [pod.pod, pod.name, podType]);
-          await pgpool.query('insert into metadata.nodes (node, name, type, transient) values ($1, $2, $3, true) on conflict (node) do nothing',
-            [replicaset, name, replicaSetType]);
+          await pgpool.query('insert into metadata.nodes (node, name, type, transient) values ($1, $2, $3, $4) on conflict (node) do update set transient = $4',
+            [replicaset, name, replicaSetType, definition.spec.replicas === 0]);
           await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
             [replicaset, pod.pod]);
         } else if (ref.kind === 'Job') { // TODO
@@ -49,8 +49,8 @@ async function writeKubernetesReplicaSetToDeployments(pgpool, type, replicaSetRe
         if (ref.kind === 'Deployment') {
           const { rows: [{ deployment, name }] } = await pgpool.query('select deployment, name from kubernetes.deployments where name = $1 and namespace = $2',
             [ref.name, replicaSet.definition.metadata.namespace]);
-          await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-            [replicaSet.replicaset, replicaSet.name, replicaSetType]);
+          await pgpool.query('insert into metadata.nodes (node, name, type, transient) values ($1, $2, $3, $4) on conflict (node) do update set transient = $4',
+            [replicaSet.replicaset, replicaSet.name, replicaSetType, replicaSet.definition.spec.replicas === 0]); // eslint-disable-line max-len
           await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
             [deployment, name, deploymentType]);
           await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',

@@ -419,6 +419,27 @@ ul.panel > li {
   /*display:flex;*/
   height:1.5rem;
   flex-grow:1;
+} 
+.table-list-item > div.icon {
+  max-width:25px;
+  align-self:center;
+  display:inline-flex;
+  padding-left:0.75rem;
+}
+.table-list-item > div.icon > img {
+  max-width:25px;
+}
+.table-list-item > div > a.name {
+  display:block;
+}
+.table-list-item > div > a.name > sub {
+  vertical-align:initial;
+}
+.table-list-item > div > sub.last-seen {
+  display:block;
+}
+.table-list-item > div.labels {
+  text-align:right;
 }
 .list-item > div:last-child{
   text-align:right;

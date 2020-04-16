@@ -86,6 +86,33 @@ begin
       nodes.status,
       nodes.observed_on;
 
+  create or replace view metadata.active_objects as
+    select
+      nodes.node,
+      nodes.name,
+      coalesce(name_label.value, nodes.name) as "human_name",
+      node_types.name as "type",
+      nodes.definition,
+      nodes.status,
+      nodes.observed_on,
+      ('{' || string_agg('"' || metadata.labels.name || '":"' ||  metadata.labels.value || '"', ',') || '}')::jsonb as labels,
+      ('{' || string_agg('"' || metadata.annotations.name || '":"' ||  metadata.annotations.value || '"', ',') || '}')::jsonb as annotations
+    from
+      metadata.nodes
+      join metadata.node_types on nodes.type = node_types.type
+      left join metadata.labels on nodes.node = labels.node and nodes.type = labels.type
+      left join metadata.labels as name_label on nodes.node = name_label.node and nodes.type = name_label.type and name_label.name = 'name'
+      left join metadata.annotations on nodes.node = annotations.node and nodes.type = annotations.type
+    where
+      nodes.transient = false
+    group by
+      nodes.node,
+      nodes.name,
+      name_label.value,
+      node_types.name,
+      nodes.definition,
+      nodes.status,
+      nodes.observed_on;
 
   -- metadata on how information is connected.
   create table if not exists metadata.families (

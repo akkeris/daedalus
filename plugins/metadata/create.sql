@@ -25,6 +25,7 @@ begin
     definition jsonb not null default '{}',
     status jsonb not null default '{}',
     observed_on timestamp with time zone not null default now(),
+    transient boolean not null default false, -- transient describes a node that only represents a link between two object and temporarily exists.
     deleted boolean not null default false
   );
   create index if not exists metadata_nodes_type on metadata.nodes("type");

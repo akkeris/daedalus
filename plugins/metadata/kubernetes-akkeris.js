@@ -26,6 +26,9 @@ async function writeAkkersAppsFromDeployments(pgpool, type, deployments) {
       }
     }
   }));
+
+  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select app_log from akkeris.apps)', [appType]);
+  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select deployment from kubernetes.deployments)', [deploymentType]);
 }
 
 async function init(pgpool, bus) {

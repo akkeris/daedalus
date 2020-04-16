@@ -17,7 +17,7 @@ async function writeKubernetesPodToReplicaSets(pgpool, type, podRecords) {
             [ref.name, pod.definition.metadata.namespace]);
           await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
             [pod.pod, pod.name, podType]);
-          await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+          await pgpool.query('insert into metadata.nodes (node, name, type, transient) values ($1, $2, $3, true) on conflict (node) do nothing',
             [replicaset, name, replicaSetType]);
           await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
             [replicaset, pod.pod]);
@@ -30,6 +30,8 @@ async function writeKubernetesPodToReplicaSets(pgpool, type, podRecords) {
       }));
     }
   }));
+
+  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select pod from kubernetes.pods)', [podType]);
 }
 
 async function writeKubernetesReplicaSetToDeployments(pgpool, type, replicaSetRecords) {
@@ -59,6 +61,8 @@ async function writeKubernetesReplicaSetToDeployments(pgpool, type, replicaSetRe
       }));
     }
   }));
+
+  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select replicaset from kubernetes.replicasets)', [replicaSetType]);
 }
 
 async function writeKubernetesDeploymentToConfigMaps(pgpool, type, deployments) {
@@ -90,6 +94,7 @@ async function writeKubernetesDeploymentToConfigMaps(pgpool, type, deployments) 
       }));
     }
   }));
+  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select config_map from kubernetes.config_maps)', [configMapType]);
 }
 
 async function init(pgpool, bus) {

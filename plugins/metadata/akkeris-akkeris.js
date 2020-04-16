@@ -6,6 +6,7 @@ async function writeAkkerisAppsToSites(pgpool) {
       akkeris.sites.site_log,
       akkeris.apps.app_log,
       akkeris.routes.route_log,
+      akkeris.apps.definition->>'web_url' as app_path,
       akkeris.sites.name as site_name,
       akkeris.routes.source_path as source_path,
       akkeris.routes.target_path as target_path,
@@ -27,12 +28,14 @@ async function writeAkkerisAppsToSites(pgpool) {
     await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
       [route.site_log, route.site_name, sitesType]);
     await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-      [route.route_log, `Proxy ${route.source_path} to ${route.target_path}`, routeType]);
+      [route.route_log, `Proxy https://${route.site_name}${route.source_path.substring(1)} to ${route.web_url}${route.target_path.substring(1)}`, routeType]);
     await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
       [route.app_log, route.route_log]);
     await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
       [route.route_log, route.site_log]);
   }));
+
+  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select route_log from akkeris.routes)', [routeType]);
 }
 
 async function init() {} // eslint-disable-line no-empty-function

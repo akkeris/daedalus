@@ -59,6 +59,8 @@ async function writePostgresqlFromConfigMaps(pgpool, type, configMapRecords) {
       }), []);
     }
   }));
+
+  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select role from postgresql.roles)', [roleType]);
 }
 
 async function writePostgresqlFromReplicaSets(pgpool, type, replicaSetRecords) {
@@ -151,6 +153,8 @@ async function writePostgresqlFromPods(pgpool, type, podRecords) {
           }
         }), []));
   }));
+
+  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select database from postgresql.databases)', [databaseType]);
 }
 
 async function writePostgresqlFromDeployments(pgpool, type, deploymentRecords) {
@@ -202,6 +206,8 @@ async function writePostgresqlFromDeployments(pgpool, type, deploymentRecords) {
           }
         }), []));
   }));
+
+  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select database from postgresql.databases)', [databaseType]);
 }
 
 async function init(pgpool, bus) {

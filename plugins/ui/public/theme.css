@@ -387,7 +387,6 @@ ul.panel > li {
   margin-top:0.5rem;
   margin-bottom:0.5rem;
   background-color:var(--default-background);
-  background-image:var(--subtle-fading-background);
   border-radius:0.25rem;
   box-shadow:0px 2px 5px rgba(0,0,0,0.03);
   max-height:4rem;

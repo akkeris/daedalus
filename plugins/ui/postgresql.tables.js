@@ -1,26 +1,24 @@
 const { grab, addExpressAnnotationsAndLabelRoutes } = require('./common.js');
 
 module.exports = async function addExpressRoutes(pgpool, bus, app) {
-  app.param('postgresql_database_id', async (req, res, next) => {
-    const { rows: databases } = await pgpool.query('select * from postgresql.databases where (database::varchar(128) = $1 or name::varchar(128) = $1)', [req.params.postgresql_database_id]);
-    if (databases.length !== 1) {
-      delete req.params.postgresql_database_id;
+  app.param('postgresql_table_id', async (req, res, next) => {
+    const { rows: tables } = await pgpool.query('select * from postgresql.tables where ("table"::varchar(128) = $1 or name::varchar(128) = $1)', [req.params.postgresql_table_id]);
+    if (tables.length !== 1) {
+      delete req.params.postgresql_table_id;
       res.sendStatus(404);
       return;
     }
-    req.params.postgresql_database = databases[0]; // eslint-disable-line prefer-destructuring
-    req.params.postgresql_database_id = databases[0].database;
+    req.params.postgresql_table = tables[0]; // eslint-disable-line prefer-destructuring
+    req.params.postgresql_table_id = tables[0].table;
     next();
   });
-  app.get('/ui/postgresql/databases/:postgresql_database_id', async (req, res, next) => {
-    const { rows: metadata } = await pgpool.query('select * from metadata.objects where node = $1', [req.params.postgresql_database_id]);
-    const { rows: roles } = await pgpool.query('select * from postgresql.roles where database = $1', [req.params.postgresql_database_id]);
-    const { rows: tables } = await pgpool.query('select * from postgresql.tables where database = $1', [req.params.postgresql_database_id]);
-    const { rows: columns } = await pgpool.query('select * from postgresql.columns where database = $1', [req.params.postgresql_database_id]);
-    const { rows: indexes } = await pgpool.query('select * from postgresql.indexes where database = $1', [req.params.postgresql_database_id]);
-    const { rows: constraints } = await pgpool.query('select * from postgresql.constraints where database = $1', [req.params.postgresql_database_id]);
-    const { rows: databaseStatistics } = await pgpool.query('select * from postgresql.database_statistics where database = $1', [req.params.postgresql_database_id]);
-    const { rows: tableStatistics } = await pgpool.query('select * from postgresql.table_statistics where database = $1', [req.params.postgresql_database_id]);
+  app.get('/ui/postgresql/tables/:postgresql_table_id', async (req, res, next) => {
+    const { rows: metadata } = await pgpool.query('select * from metadata.objects where node = $1', [req.params.postgresql_table_id]);
+    const { rows: tables } = await pgpool.query('select * from postgresql.tables where "table" = $1', [req.params.postgresql_table_id]);
+    const { rows: columns } = await pgpool.query('select * from postgresql.columns where "table" = $1', [req.params.postgresql_table_id]);
+    const { rows: indexes } = await pgpool.query('select * from postgresql.indexes where "table" = $1', [req.params.postgresql_table_id]);
+    const { rows: constraints } = await pgpool.query('select * from postgresql.constraints where from_table = $1 or to_table = $1', [req.params.postgresql_table_id]);
+    const { rows: tableStatistics } = await pgpool.query('select * from postgresql.table_statistics where "table" = $1', [req.params.postgresql_table_id]);
     const { rows: tableChanges } = await pgpool.query(`
       select
         'table' as "$icon",
@@ -36,10 +34,10 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
       from
         postgresql.tables_log
       where
-        database = $1
+        "table" = $1
       order by
         observed_on desc
-    `, [req.params.postgresql_database_id]);
+    `, [req.params.postgresql_table_id]);
 
     const { rows: columnChanges } = await pgpool.query(`
       select
@@ -67,10 +65,10 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
       from
         postgresql.columns_log join postgresql.tables_log on columns_log.table = tables_log.table
       where
-        columns_log.database = $1
+        columns_log.table = $1
       order by
         columns_log.observed_on desc
-    `, [req.params.postgresql_database_id]);
+    `, [req.params.postgresql_table_id]);
 
     const { rows: indexChanges } = await pgpool.query(`
       select
@@ -88,10 +86,10 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
       from
         postgresql.indexes_log
       where
-        database = $1
+        "table" = $1
       order by
         observed_on desc
-    `, [req.params.postgresql_database_id]);
+    `, [req.params.postgresql_table_id]);
 
     const { rows: constraintChanges } = await pgpool.query(`
       select
@@ -115,11 +113,11 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
       from
         postgresql.constraints_log
       where
-        database = $1 and
+        from_table = $1 or to_table = $1 and
         check_clause not like '%IS NOT NULL%'
       order by
         observed_on desc
-    `, [req.params.postgresql_database_id]);
+    `, [req.params.postgresql_table_id]);
 
     const { rows: usedBy } = await pgpool.query(`
       select 
@@ -133,7 +131,7 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
         parent_icon as "$owner_icon"
       from 
         metadata.find_node_relatives($1)
-    `, [req.params.postgresql_database_id]);
+    `, [req.params.postgresql_table_id]);
 
     let changes = columnChanges.map((x) => ({ ...x, $type: 'column' }))
       .concat(tableChanges.map((x) => ({ ...x, $type: 'table' })))
@@ -147,24 +145,22 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
     changes = changes.slice(0, changes.length > 200 ? 200 : changes.length);
 
     const data = {
-      ...req.params.postgresql_database,
+      ...req.params.postgresql_table,
       ...metadata[0],
       tables,
       columns,
       indexes,
       constraints,
-      databaseStatistics,
       tableStatistics,
       tableChanges,
       columnChanges,
       indexChanges,
       constraintChanges,
       changes,
-      roles,
       usedBy,
     };
 
-    grab('./views/postgresql.databases.html', req, res, next, data);
+    grab('./views/postgresql.tables.html', req, res, next, data);
   });
-  await addExpressAnnotationsAndLabelRoutes(pgpool, app, 'postgresql/databases', 'postgresql_database_id');
+  await addExpressAnnotationsAndLabelRoutes(pgpool, app, 'postgresql/tables', 'postgresql_table_id');
 };

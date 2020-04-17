@@ -4,6 +4,7 @@ const kp = require('./kubernetes-postgresql.js');
 const kk = require('./kubernetes-kubernetes.js');
 const ka = require('./kubernetes-akkeris.js');
 const aa = require('./akkeris-akkeris.js');
+const pp = require('./postgresql-postgresql.js');
 
 async function run(pgpool, bus) {
   debug('Running metadata plugin...');
@@ -12,6 +13,7 @@ async function run(pgpool, bus) {
   await kk.run(pgpool, bus);
   await ka.run(pgpool, bus);
   await aa.run(pgpool, bus);
+  await pp.run(pgpool, bus);
 }
 
 // todo: akkeris apps -> akkeris apps (based on configuration)
@@ -28,6 +30,7 @@ async function init(pgpool, bus) {
   await kk.init(pgpool, bus);
   await ka.init(pgpool, bus);
   await aa.init(pgpool, bus);
+  await pp.init(pgpool, bus);
   debug('Initializing metadata plugin... done');
 }
 

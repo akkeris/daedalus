@@ -14,6 +14,7 @@ begin
   create unique index if not exists spaces_unique on akkeris.spaces_log (space, name, (definition->>'updated_at'), deleted);
   create or replace view akkeris.spaces as
     with ordered_list as ( select
+      space_log,
       space,
       name,
       definition,
@@ -21,7 +22,7 @@ begin
       deleted,
       row_number() over (partition by name, space order by observed_on desc) as rn
     from akkeris.spaces_log) 
-    select space, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select space_log, space, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
 
   create table if not exists akkeris.apps_log (
@@ -60,6 +61,7 @@ begin
   create unique index if not exists addon_services_unique on akkeris.addon_services_log (addon_service, name, (definition->>'updated_at'), deleted);
   create or replace view akkeris.addon_services as
     with ordered_list as ( select
+      addon_service_log,
       addon_service,
       name,
       definition,
@@ -67,7 +69,7 @@ begin
       deleted,
       row_number() over (partition by name, definition order by observed_on desc) as rn
     from akkeris.addon_services_log) 
-    select addon_service, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select addon_service_log, addon_service, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
 
   create table if not exists akkeris.addons_log (
@@ -86,6 +88,7 @@ begin
 
   create or replace view akkeris.addons as
     with ordered_list as ( select
+      addons_log.addon_log,
       addons_log.addon,
       addons_log.name,
       apps_log.app,
@@ -101,7 +104,7 @@ begin
       join akkeris.addon_services_log on addon_services_log.addon_service_log = addons_log.addon_service_log 
       join akkeris.apps_log on apps_log.app_log = addons_log.app_log 
       join akkeris.spaces_log on spaces_log.space_log = apps_log.space_log) 
-    select addon, name, app, addon_service, definition, observed_on 
+    select addon_log, addon, name, app, addon_service, definition, observed_on 
     from ordered_list where rn=1 and addon_deleted = false and app_deleted = false and addon_service_deleted = false and space_deleted = false;
 
 
@@ -122,6 +125,7 @@ begin
   create index if not exists addon_attachments_log_addon_service_log on akkeris.addon_attachments_log (addon_service_log);
   create or replace view akkeris.addon_attachments as
     with ordered_list as ( select
+      addon_attachments_log.addon_attachment_log,
       addon_attachments_log.addon_attachment,
       addon_attachments_log.name,
       addons_log.addon,
@@ -140,7 +144,7 @@ begin
       join akkeris.apps_log on apps_log.app_log = addon_attachments_log.app_log 
       join akkeris.spaces_log on spaces_log.space_log = apps_log.space_log
     ) 
-    select addon_attachment, addon, name, app, addon_service, definition, observed_on 
+    select addon_attachment_log, addon_attachment, addon, name, app, addon_service, definition, observed_on 
     from ordered_list where rn=1 and addon_deleted = false and app_deleted = false and addon_service_deleted = false and space_deleted = false;
 
 

@@ -134,7 +134,7 @@ async function run(pgpool) {
 
 
   debug('Checking for site deletions');
-  sitesLog = sitesLog.concat((await Promise.all((await pgpool.query('select site, name, definition, observed_on from akkeris.sites'))
+  sitesLog = sitesLog.concat((await Promise.all((await pgpool.query('select site_log, site, name, definition, observed_on from akkeris.sites'))
     .rows
     .filter((site) => !sites.map((x) => x.id).includes(site.site))
     .map((site) => pgpool.query(`
@@ -147,7 +147,7 @@ async function run(pgpool) {
     .map((x) => x.rows).flat());
 
   debug('Checking for addon service deletions');
-  addonServicesLog = addonServicesLog.concat((await Promise.all((await pgpool.query('select addon_service, name, definition, observed_on from akkeris.addon_services'))
+  addonServicesLog = addonServicesLog.concat((await Promise.all((await pgpool.query('select addon_service_log, addon_service, name, definition, observed_on from akkeris.addon_services'))
     .rows
     .filter((addonService) => !addonServices.map((x) => x.id).includes(addonService.addon_service))
     .map((addonService) => pgpool.query(`
@@ -159,7 +159,7 @@ async function run(pgpool) {
     `, [addonService.addon_service, addonService.name, addonService.definition])))).map((x) => x.rows).flat());
 
   debug('Checking for spaces deletions');
-  spacesLog = spacesLog.concat((await Promise.all((await pgpool.query('select space, name, definition, observed_on from akkeris.spaces'))
+  spacesLog = spacesLog.concat((await Promise.all((await pgpool.query('select space_log, space, name, definition, observed_on from akkeris.spaces'))
     .rows
     .filter((space) => !spaces.map((x) => x.id).includes(space.space))
     .map((space) => pgpool.query(`
@@ -171,19 +171,19 @@ async function run(pgpool) {
     `, [space.space, space.name, space.definition])))).map((x) => x.rows).flat());
 
   debug('Checking for routes deletions');
-  (await pgpool.query('select route, site, definition, observed_on from akkeris.routes'))
+  (await pgpool.query('select route_log, route, site, definition, observed_on from akkeris.routes'))
     .rows
     .filter((route) => !routes.map((x) => x.id).includes(route.route))
     .map((route) => pgpool.query(`
-      insert into akkeris.routes_log (route, site_log, definition, observed_on, deleted)
-      values (uuid_generate_v4(), $1, $2, now(), true)
+      insert into akkeris.routes_log (route_log, route, site_log, definition, observed_on, deleted)
+      values (uuid_generate_v4(), $1, $2, $3, now(), true)
       on conflict (route, site_log, (definition->>'updated_at'), deleted)
       do update set route = EXCLUDED.route
       returning route_log, route, site_log, definition, observed_on, deleted
     `, [route.route, lookupSiteById(sitesLog, route.site), route.definition]));
 
   debug('Checking for apps deletions');
-  appsLog = appsLog.concat((await Promise.all((await pgpool.query('select app, name, space, definition, observed_on from akkeris.apps'))
+  appsLog = appsLog.concat((await Promise.all((await pgpool.query('select app_log, app, name, space, definition, observed_on from akkeris.apps'))
     .rows
     .filter((app) => !apps.map((x) => x.id).includes(app.app))
     .map((app) => pgpool.query(`
@@ -196,7 +196,7 @@ async function run(pgpool) {
     .map((x) => x.rows).flat());
 
   debug('Checking for addons deletions');
-  addonsLog = addonsLog.concat((await Promise.all((await pgpool.query('select addon, app, addon_service, name, definition, observed_on from akkeris.addons'))
+  addonsLog = addonsLog.concat((await Promise.all((await pgpool.query('select addon_log, addon, app, addon_service, name, definition, observed_on from akkeris.addons'))
     .rows
     .filter((addon) => !addons.map((x) => x.id).includes(addon.addon))
     .map((addon) => pgpool.query(`
@@ -209,7 +209,7 @@ async function run(pgpool) {
     .map((x) => x.rows).flat());
 
   debug('Checking for addon attachments deletions');
-  (await pgpool.query('select addon_attachment, addon, app, addon_service, name, definition, observed_on from akkeris.addon_attachments'))
+  (await pgpool.query('select addon_attachment_log, addon_attachment, addon, app, addon_service, name, definition, observed_on from akkeris.addon_attachments'))
     .rows
     .filter((addonAttachment) => !addonAttachments.map((x) => x.id).includes(addonAttachment.addon_attachment)) // eslint-disable-line max-len
     .map((addonAttachment) => pgpool.query(`

@@ -1,4 +1,4 @@
-const { grab } = require('./common.js');
+const { grab, addExpressAnnotationsAndLabelRoutes } = require('./common.js');
 
 module.exports = async function addExpressRoutes(pgpool, bus, app) {
   app.param('kubernetes_config_map_id', async (req, res, next) => {
@@ -51,56 +51,6 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
 
     grab('./views/kubernetes.config_maps.html', req, res, next, data);
   });
-  app.post('/ui/kubernetes/config_maps/:kubernetes_config_map_id/labels', async (req, res) => {
-    try {
-      const { rows: [{ type }] } = await pgpool.query('select type from metadata.node_types where name=\'kubernetes/config_maps\'');
-      await pgpool.query(`
-        insert into metadata.labels (label, name, value, implicit, node, type) 
-        values (uuid_generate_v4(), $1, $2, false, $3, $4) 
-        on conflict (name, value, implicit, node, type) 
-        do update set value = $2`,
-      [req.body.name, req.body.value, req.params.kubernetes_config_map_id, type]);
-      res.redirect(`/ui/kubernetes/config_maps/${req.params.kubernetes_config_map_id}#metadata`);
-    } catch (e) {
-      console.error(e); // eslint-disable-line no-console
-      res.redirect(`/ui/kubernetes/config_maps/${req.params.kubernetes_config_map_id}?error=${e.message}#metadata`);
-    }
-  });
-  app.post('/ui/kubernetes/config_maps/:kubernetes_config_map_id/annotations', async (req, res) => {
-    try {
-      const { rows: [{ type }] } = await pgpool.query('select type from metadata.node_types where name=\'kubernetes/config_maps\'');
-      await pgpool.query(`
-        insert into metadata.annotations (annotation, name, value, implicit, node, type) 
-        values (uuid_generate_v4(), $1, $2, false, $3, $4) 
-        on conflict (node, type, name, implicit) 
-        do update set value = $2`,
-      [req.body.name, req.body.value, req.params.kubernetes_config_map_id, type]);
-      res.redirect(`/ui/kubernetes/config_maps/${req.params.kubernetes_config_map_id}#metadata`);
-    } catch (e) {
-      console.error(e); // eslint-disable-line no-console
-      res.redirect(`/ui/kubernetes/config_maps/${req.params.kubernetes_config_map_id}?error=${e.message}#metadata`);
-    }
-  });
-  app.get('/ui/kubernetes/config_maps/:kubernetes_config_map_id/labels/:label/delete', async (req, res) => {
-    try {
-      const { rows: [{ type }] } = await pgpool.query('select type from metadata.node_types where name=\'kubernetes/config_maps\'');
-      await pgpool.query('delete from metadata.labels where node = $1 and name = $2 and type = $3',
-        [req.params.kubernetes_config_map_id, req.params.label, type]);
-      res.redirect(`/ui/kubernetes/config_maps/${req.params.kubernetes_config_map_id}#metadata`);
-    } catch (e) {
-      console.error(e); // eslint-disable-line no-console
-      res.redirect(`/ui/kubernetes/config_maps/${req.params.kubernetes_config_map_id}?error=${e.message}#metadata`);
-    }
-  });
-  app.get('/ui/kubernetes/config_maps/:kubernetes_config_map_id/annotations/:annotation/delete', async (req, res) => {
-    try {
-      const { rows: [{ type }] } = await pgpool.query('select type from metadata.node_types where name=\'kubernetes/config_maps\'');
-      await pgpool.query('delete from metadata.annotations where node = $1 and name = $2 and type = $3',
-        [req.params.kubernetes_config_map_id, req.params.annotation, type]);
-      res.redirect(`/ui/kubernetes/config_maps/${req.params.kubernetes_config_map_id}#metadata`);
-    } catch (e) {
-      console.error(e); // eslint-disable-line no-console
-      res.redirect(`/ui/kubernetes/config_maps/${req.params.kubernetes_config_map_id}?error=${e.message}#metadata`);
-    }
-  });
+
+  await addExpressAnnotationsAndLabelRoutes(pgpool, app, 'kubernetes/config_maps', 'kubernetes_config_map_id');
 };

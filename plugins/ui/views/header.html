@@ -37,7 +37,12 @@ module.exports = (req, title = "daedalus") => `
     </nav-bar>
     <nav-sidemenu title="">
       <ul>
+        <li><a href="/ui/?type=akkeris/sites"><i class="fa fa-sitemap" aria-hidden="true"></i> Sites</a></li>
+        <li><a href="/ui/?type=akkeris/apps"><i class="fa fa-terminal" aria-hidden="true"></i> Apps</a></li>
+        <li><a href="/ui/?type=postgresql/tables"><i class="fa fa-table" aria-hidden="true"></i> Tables</a></li>
         <li><a href="/ui/?type=postgresql/databases"><i class="fa fa-database" aria-hidden="true"></i> Databases</a></li>
+        <li><a href="/ui/?type=postgresql/tables"><i class="fa fa-table" aria-hidden="true"></i> Tables</a></li>
+        <li><a href="/ui/?type=postgresql/columns"><i class="fa fa-columns" aria-hidden="true"></i> Columns</a></li>
         <li><a href="/ui/?type=kubernetes/config_maps"><i class="fa fa-map" aria-hidden="true"></i> Config Maps</a></li>
         <li><a href="/ui/?type=kubernetes/deployments"><i class="fa fa-rocket" aria-hidden="true"></i> Deployments</a></li>
         <li><a href="/ui/?type=kubernetes/replicasets"><i class="fa fa-clone" aria-hidden="true"></i> Replica Sets</a></li>

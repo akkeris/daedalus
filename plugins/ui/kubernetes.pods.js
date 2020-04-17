@@ -1,4 +1,4 @@
-const { grab } = require('./common.js');
+const { grab, addExpressAnnotationsAndLabelRoutes } = require('./common.js');
 
 module.exports = async function addExpressRoutes(pgpool, bus, app) {
   app.param('kubernetes_pod_id', async (req, res, next) => {
@@ -66,41 +66,5 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
       res.redirect(`/ui/kubernetes/pods/${req.params.kubernetes_pod_id}?error=${e.message}#metadata`);
     }
   });
-  app.post('/ui/kubernetes/pods/:kubernetes_pod_id/annotations', async (req, res) => {
-    try {
-      const { rows: [{ type }] } = await pgpool.query('select type from metadata.node_types where name=\'kubernetes/pods\'');
-      await pgpool.query(`
-        insert into metadata.annotations (annotation, name, value, implicit, node, type) 
-        values (uuid_generate_v4(), $1, $2, false, $3, $4) 
-        on conflict (node, type, name, implicit) 
-        do update set value = $2`,
-      [req.body.name, req.body.value, req.params.kubernetes_pod_id, type]);
-      res.redirect(`/ui/kubernetes/pods/${req.params.kubernetes_pod_id}#metadata`);
-    } catch (e) {
-      console.error(e); // eslint-disable-line no-console
-      res.redirect(`/ui/kubernetes/pods/${req.params.kubernetes_pod_id}?error=${e.message}#metadata`);
-    }
-  });
-  app.get('/ui/kubernetes/pods/:kubernetes_pod_id/labels/:label/delete', async (req, res) => {
-    try {
-      const { rows: [{ type }] } = await pgpool.query('select type from metadata.node_types where name=\'kubernetes/pods\'');
-      await pgpool.query('delete from metadata.labels where node = $1 and name = $2 and type = $3',
-        [req.params.kubernetes_pod_id, req.params.label, type]);
-      res.redirect(`/ui/kubernetes/pods/${req.params.kubernetes_pod_id}#metadata`);
-    } catch (e) {
-      console.error(e); // eslint-disable-line no-console
-      res.redirect(`/ui/kubernetes/pods/${req.params.kubernetes_pod_id}?error=${e.message}#metadata`);
-    }
-  });
-  app.get('/ui/kubernetes/pods/:kubernetes_pod_id/annotations/:annotation/delete', async (req, res) => {
-    try {
-      const { rows: [{ type }] } = await pgpool.query('select type from metadata.node_types where name=\'kubernetes/pods\'');
-      await pgpool.query('delete from metadata.annotations where node = $1 and name = $2 and type = $3',
-        [req.params.kubernetes_pod_id, req.params.annotation, type]);
-      res.redirect(`/ui/kubernetes/pods/${req.params.kubernetes_pod_id}#metadata`);
-    } catch (e) {
-      console.error(e); // eslint-disable-line no-console
-      res.redirect(`/ui/kubernetes/pods/${req.params.kubernetes_pod_id}?error=${e.message}#metadata`);
-    }
-  });
+  await addExpressAnnotationsAndLabelRoutes(pgpool, app, 'kubernetes/pods', 'kubernetes_pod_id');
 };

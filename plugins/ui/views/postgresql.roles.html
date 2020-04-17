@@ -2,9 +2,15 @@ const {formatBytes} = require('../../../common/format.js');
 module.exports = (req, res, next, data) => res.send(`
   ${require('./header.html')(req)}
     <appkit-app>
-      ${require('./object-header.html')(req, data, 'Sites', 'fa-sitemap', `/ui/akkeris/sites/${data.site}`, data.site, 'akkeris/sites')}
+      ${require('./object-header.html')(req, data, 'Roles', 'fa-user', `/ui/postgresql/roles/${data.role}`, data.role, 'postgresql/roles')}
       <div>
-        <h2>${data.name}</h2>
+        <h2>${data.human_name}<sub>${data.human_name !== data.name ? `(${data.name})` : ``}</sub></h2>
+        <dl class="facts">
+          <dt>Host</dt>
+          <dd>${data.databases[0].host}</dd>
+          <dt>Scanned</dt>
+          <dd>${new Date(data.observed_on).toLocaleString()}</dd>
+        </dl>
       </div>
       <x-tabs>
         <x-tab><a href="#metadata">Metadata</a></x-tab>
@@ -12,8 +18,8 @@ module.exports = (req, res, next, data) => res.send(`
         <x-tab><a href="#used_by">Used By</a></x-tab>
       </x-tabs>
       <div name="metadata" class="tab-panel list">
-        ${require('./labels.html')(req, data)}
-        ${require('./annotations.html')(req, data)}
+        ${require('./labels.html')(req, data, `/ui/postgresql/roles/${data.role}`)}
+        ${require('./annotations.html')(req, data, `/ui/postgresql/roles/${data.role}`)}
       </div>
       <div name="changes" class="tab-panel list">
         ${require('./changes.html')(req, data)}

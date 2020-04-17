@@ -51,6 +51,8 @@ function findTableOrViewId(tables, views, database, catalog, schema, name) {
       && view.name === name))[0];
 }
 
+// TODO: detect permission changes in roles.
+
 // TODO: Fix the issue if there's a state flip back to the original state the diff breaks.
 // e.g. drop a column and re-add it (exactly how it was). The system can't handle that.
 // e.g. change the port of a database to 1 from 5432 then back 5432, breaks.
@@ -318,6 +320,8 @@ async function writeTablesViewsAndColumns(pgpool, database) {
 
     // TODO: User defined data types, Foreign data wrappers, foreign tables, foreign servers
     // TODO: Long running queries, Locks, Vacuum statistics, pg_settings?
+    // TODO: Check for column statistics of some sort?
+    // TODO: Index statistics? I can't imagine this exists but, constraint statistics?...
 
     // Check for table deletion
     await Promise.all((await pgpool.query('select "table", database, catalog, schema, name, is_view, definition from postgresql.tables where database = $1', [database.database]))

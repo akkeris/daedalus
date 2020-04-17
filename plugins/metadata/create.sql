@@ -9,6 +9,8 @@ begin
   );
   create unique index if not exists metadata_node_types_ndx on metadata.node_types(name, icon);
   insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'postgresql/databases', 'postgresql.databases.svg') on conflict (name, icon) do nothing;
+  insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'postgresql/tables', 'postgresql.tables.svg') on conflict (name, icon) do nothing;
+  insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'postgresql/columns', 'postgresql.columns.svg') on conflict (name, icon) do nothing;
   insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'postgresql/roles', 'postgresql.roles.svg') on conflict (name, icon) do nothing;
   insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'kubernetes/config_maps', 'kubernetes.config_maps.svg') on conflict (name, icon) do nothing;
   insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'kubernetes/deployments', 'kubernetes.deployments.svg') on conflict (name, icon) do nothing;

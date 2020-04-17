@@ -56,7 +56,9 @@ class NavBreadCrumb extends HTMLElement {
         padding-left:0;
         flex-grow:1;
       }
-
+      nav-breadcrumb[size="small"] > ul > li:first-child {
+        margin-left:0.65rem;
+      }
       nav-breadcrumb > ul, nav-breadcrumb > ul > li {
         display:inline-block;
         font-size:var(--font-text-small-size);

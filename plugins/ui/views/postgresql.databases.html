@@ -2,7 +2,7 @@ const {formatBytes} = require('../../../common/format.js');
 module.exports = (req, res, next, data) => res.send(`
   ${require('./header.html')(req)}
     <appkit-app>
-      ${require('./object-header.html')(req, data, 'Databases', 'fa-database', `/ui/postgresql/databases/${data.database}`, data.database, 'databases')}
+      ${require('./object-header.html')(req, data, 'Databases', 'fa-database', `/ui/postgresql/databases/${data.database}`, data.database, 'postgresql/databases')}
       <div>
         <h2>${data.human_name}<sub>${data.human_name !== data.name ? `(${data.name})` : ``}</sub></h2>
         <dl class="facts">
@@ -51,7 +51,7 @@ module.exports = (req, res, next, data) => res.send(`
       <div name="tables" class="list tab-panel">
         ${data.tables.filter((x) => !x.is_view).map((table) => `
         <div class="list-item">
-          <div>${table.schema}.${table.name}</div>
+          <div><a href="/ui/postgresql/tables/${table.table}">${table.schema}.${table.name}</a></div>
           <div>${data.tableStatistics.filter((x) => x.table === table.table).map((ts) => `
             <dl class="facts">
               <dt>Rows</dt><dd>${ts.row_amount_estimate}</dd>
@@ -72,6 +72,7 @@ module.exports = (req, res, next, data) => res.send(`
                   </nav>
                 </x-dropdown>
               </dd> `)}
+            </dl>
           </div>
         </div>
         `).join("")}

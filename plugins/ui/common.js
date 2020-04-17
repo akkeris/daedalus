@@ -60,7 +60,60 @@ async function cursors(req) {
   };
 }
 
+async function addExpressAnnotationsAndLabelRoutes(pgpool, app, typeName, param) {
+  const { rows: [{ type }] } = await pgpool.query(`select type from metadata.node_types where name='${typeName}'`);
+  app.post(`/ui/${typeName}/:${param}/labels`, async (req, res) => {
+    try {
+      await pgpool.query(`
+        insert into metadata.labels (label, name, value, implicit, node, type) 
+        values (uuid_generate_v4(), $1, $2, false, $3, $4) 
+        on conflict (node, type, name, value, implicit) 
+        do update set value = $2`,
+      [req.body.name, req.body.value, req.params[param], type]);
+      res.redirect(`/ui/${typeName}/${req.params[param]}#metadata`);
+    } catch (e) {
+      console.error(e); // eslint-disable-line no-console
+      res.redirect(`/ui/${typeName}/${req.params[param]}?error=${e.message}#metadata`);
+    }
+  });
+  app.post(`/ui/${typeName}/:${param}/annotations`, async (req, res) => {
+    try {
+      await pgpool.query(`
+        insert into metadata.annotations (annotation, name, value, implicit, node, type) 
+        values (uuid_generate_v4(), $1, $2, false, $3, $4) 
+        on conflict (node, type, name, implicit)
+        do update set value = $2`,
+      [req.body.name, req.body.value, req.params[param], type]);
+      res.redirect(`/ui/${typeName}/${req.params[param]}#metadata`);
+    } catch (e) {
+      console.error(e); // eslint-disable-line no-console
+      res.redirect(`/ui/${typeName}/${req.params[param]}?error=${e.message}#metadata`);
+    }
+  });
+  app.get(`/ui/${typeName}/:${param}/labels/:label/delete`, async (req, res) => {
+    try {
+      await pgpool.query('delete from metadata.labels where node = $1 and name = $2 and type = $3',
+        [req.params[param], req.params.label, type]);
+      res.redirect(`/ui/${typeName}/${req.params[param]}#metadata`);
+    } catch (e) {
+      console.error(e); // eslint-disable-line no-console
+      res.redirect(`/ui/${typeName}/${req.params.postgresql_role_id}?error=${e.message}#metadata`);
+    }
+  });
+  app.get(`/ui/${typeName}/:${param}/annotations/:annotation/delete`, async (req, res) => {
+    try {
+      await pgpool.query('delete from metadata.annotations where node = $1 and name = $2 and type = $3',
+        [req.params[param], req.params.annotation, type]);
+      res.redirect(`/ui/${typeName}/${req.params[param]}#metadata`);
+    } catch (e) {
+      console.error(e); // eslint-disable-line no-console
+      res.redirect(`/ui/${typeName}/${req.params[param]}?error=${e.message}#metadata`);
+    }
+  });
+}
+
 module.exports = {
   grab,
   cursors,
+  addExpressAnnotationsAndLabelRoutes,
 };

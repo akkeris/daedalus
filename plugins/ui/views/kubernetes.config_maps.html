@@ -2,7 +2,7 @@ const {formatBytes} = require('../../../common/format.js');
 module.exports = (req, res, next, data) => res.send(`
   ${require('./header.html')(req)}
     <appkit-app>
-      ${require('./object-header.html')(req, data, 'Config Maps', 'fa-map', `/ui/kubernetes/config_maps/${data.config_map}`, data.config_map, 'config_maps')}
+      ${require('./object-header.html')(req, data, 'Config Maps', 'fa-map', `/ui/kubernetes/config_maps/${data.config_map}`, data.config_map, 'kubernetes/config_maps')}
       <div>
         <h2>${data.human_name}</h2>
         <dl class="facts">

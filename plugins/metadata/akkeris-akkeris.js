@@ -13,8 +13,9 @@ async function writeAkkerisAppsToSites(pgpool) {
       akkeris.apps.name as app_name,
       akkeris.routes.observed_on
     from akkeris.routes
-    join akkeris.sites on akkeris.routes.site = akkeris.sites.site
-    join akkeris.apps on akkeris.apps.app = akkeris.routes.app
+      join akkeris.sites on akkeris.routes.site = akkeris.sites.site
+      join akkeris.apps on akkeris.apps.app = akkeris.routes.app
+    where akkeris.apps.definition->>'web_url' is not null
   `);
   debug(`Examining ${routes.length} routes for links from apps to sites.`);
 
@@ -27,8 +28,8 @@ async function writeAkkerisAppsToSites(pgpool) {
       [route.app_log, route.app_name, appType]);
     await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
       [route.site_log, route.site_name, sitesType]);
-    await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-      [route.route_log, `Proxy https://${route.site_name}${route.source_path} to ${route.app_path}${route.target_path.substring(1)}`, routeType]);
+    await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
+      [route.route_log, `Proxy https://${route.site_name + route.source_path} to ${route.app_path + route.target_path.substring(1)}`, routeType]);
     await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
       [route.app_log, route.route_log]);
     await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',

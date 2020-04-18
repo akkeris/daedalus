@@ -57,7 +57,12 @@ module.exports = (req, res, next, data) => res.send(`
         </div>
         `).join("")}
       </div> 
-      <div name="definition" class="tab-panel"><pre><code class="hljs json">${JSON.stringify({...data.tables[0], columns:data.columns}, null, 2)}</code></pre></div>
+      <div name="definition" class="tab-panel">
+        <pre>${data.is_view ? 
+          `<code class="hljs sql">${data.tables[0].definition}</code>` : 
+          `<code class="hljs json">${JSON.stringify({...data.tables[0], columns:data.columns}, null, 2)}`
+        }</pre>
+      </div>
     </appkit-app>
   ${require('./footer.html')(req, res)}
 `);

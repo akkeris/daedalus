@@ -35,21 +35,14 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
         routes_log.route_log as id,
         routes_log.deleted,
         routes_log.observed_on,
-        'Proxy site path ' || routes_log.source_path || ' to application path ' || routes_log.target_path as name
+        ('Proxy https://' || sites_log.name || routes_log.source_path || ' to ' || (apps_log.definition::jsonb->>'web_url') || substring(routes_log.target_path from 2)) as name
       from 
-        akkeris.sites_log join akkeris.routes_log on sites_log.site_log = routes_log.site_log
+        akkeris.sites_log 
+          join akkeris.routes_log on sites_log.site_log = routes_log.site_log
+          join akkeris.apps_log on routes_log.app_log = apps_log.app_log
       where
         sites_log.site_log = $1
     `, [req.params.akkeris_site_id]);
-
-    /* let changes = columnChanges.map((x) => ({ ...x, $type: 'column' }))
-      .concat(tableChanges.map((x) => ({ ...x, $type: 'table' })))
-      .concat(constraintChanges.map((x) => ({ ...x, $type: 'constraint' })))
-      .concat(indexChanges.map((x) => ({ ...x, $type: 'index' })))
-      .sort((a, b) => (a.observed_on.getTime() < b.observed_on.getTime() ? 1 : -1));
-
-    changes = changes.slice(0, changes.length > 200 ? 200 : changes.length);
-    let changes = []; */
 
     const data = {
       ...req.params.akkeris_site,

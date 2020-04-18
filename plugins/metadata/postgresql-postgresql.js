@@ -40,7 +40,7 @@ async function writePostgresqlColumnsFromTables(pgpool) {
       columns.observed_on
     from
       postgresql.columns
-      join postgresql.tables on columns.table = tables.table
+        join postgresql.tables on columns.table = tables.table
   `);
   debug(`Examining ${columns.length} postgresql columns.`);
 

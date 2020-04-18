@@ -51,20 +51,5 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
 
     grab('./views/kubernetes.pods.html', req, res, next, data);
   });
-  app.post('/ui/kubernetes/pods/:kubernetes_pod_id/labels', async (req, res) => {
-    try {
-      const { rows: [{ type }] } = await pgpool.query('select type from metadata.node_types where name=\'kubernetes/pods\'');
-      await pgpool.query(`
-        insert into metadata.labels (label, name, value, implicit, node, type) 
-        values (uuid_generate_v4(), $1, $2, false, $3, $4) 
-        on conflict (name, value, implicit, node, type) 
-        do update set value = $2`,
-      [req.body.name, req.body.value, req.params.kubernetes_pod_id, type]);
-      res.redirect(`/ui/kubernetes/pods/${req.params.kubernetes_pod_id}#metadata`);
-    } catch (e) {
-      console.error(e); // eslint-disable-line no-console
-      res.redirect(`/ui/kubernetes/pods/${req.params.kubernetes_pod_id}?error=${e.message}#metadata`);
-    }
-  });
   await addExpressAnnotationsAndLabelRoutes(pgpool, app, 'kubernetes/pods', 'kubernetes_pod_id');
 };

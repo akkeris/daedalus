@@ -9,7 +9,7 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
       return;
     }
     req.params.postgresql_column = columns[0]; // eslint-disable-line prefer-destructuring
-    req.params.postgresql_column_id = columns[0].table;
+    req.params.postgresql_column_id = columns[0].column;
     next();
   });
   app.get('/ui/postgresql/columns/:postgresql_column_id', async (req, res, next) => {

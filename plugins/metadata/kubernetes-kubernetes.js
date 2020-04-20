@@ -29,7 +29,7 @@ async function writeKubernetesPodToReplicaSets(pgpool, type, podRecords) {
             console.warn(`Warning: unknown owner reference found on pod ${pod.definition.metadata.name}/${pod.definition.metadata.namespace}: ${JSON.stringify(ref, null, 2)}`); // eslint-disable-line no-console
           }
         } catch (e) {
-          console.error(`Error unable to add link for pod ${pod.pod} to replicaset ${`${ref.name}/${pod.definition.metadata.namespace}`}`); // eslint-disable-line max-len,no-console
+          debug(`Error unable to add link for pod ${pod.pod} to replicaset ${`${ref.name}/${pod.definition.metadata.namespace}`}`); // eslint-disable-line max-len,no-console
         }
       }));
     }
@@ -64,7 +64,7 @@ async function writeKubernetesReplicaSetToDeployments(pgpool, type, replicaSetRe
             console.warn(`Warning: unknown owner reference found on replicaset ${replicaSet.definition.metadata.name}/${replicaSet.definition.metadata.namespace}: ${JSON.stringify(ref, null, 2)}`); // eslint-disable-line no-console
           }
         } catch (e) {
-          console.error(`Error unable to add link for replicaset ${replicaSet.replicaset} to deployment ${`${ref.name}/${replicaSet.definition.metadata.namespace}`}`); // eslint-disable-line max-len,no-console
+          debug(`Error unable to add link for replicaset ${replicaSet.replicaset} to deployment ${`${ref.name}/${replicaSet.definition.metadata.namespace}`}`); // eslint-disable-line max-len,no-console
         }
       }));
     }
@@ -98,7 +98,7 @@ async function writeKubernetesDeploymentToConfigMaps(pgpool, type, deployments) 
                 await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
                   [config_map, deployment.deployment]); // eslint-disable-line camelcase
               } catch (e) {
-                console.error(`Error unable to add link for deployment ${deployment.deployment} to configmap ${envFrom.configMapRef.name}`); // eslint-disable-line max-len,no-console
+                debug(`Error unable to add link for deployment ${deployment.deployment} to configmap ${envFrom.configMapRef.name}`); // eslint-disable-line max-len,no-console
               }
             }
           }));

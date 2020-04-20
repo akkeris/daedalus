@@ -24,16 +24,20 @@ async function writeAkkerisAppsToSites(pgpool) {
   const routeType = (await pgpool.query('select "type" from metadata.node_types where name = \'akkeris/routes\'')).rows[0].type;
 
   await Promise.all(routes.map(async (route) => {
-    await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-      [route.app_log, route.app_name, appType]);
-    await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-      [route.site_log, route.site_name, sitesType]);
-    await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
-      [route.route_log, `Proxy https://${route.site_name + route.source_path} to ${route.app_path + route.target_path.substring(1)}`, routeType]);
-    await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-      [route.app_log, route.route_log]);
-    await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-      [route.route_log, route.site_log]);
+    try {
+      await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+        [route.app_log, route.app_name, appType]);
+      await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+        [route.site_log, route.site_name, sitesType]);
+      await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
+        [route.route_log, `Proxy https://${route.site_name + route.source_path} to ${route.app_path + route.target_path.substring(1)}`, routeType]);
+      await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+        [route.app_log, route.route_log]);
+      await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+        [route.route_log, route.site_log]);
+    } catch (e) {
+      debug(`Error cannot add link between ${route.app_log} and ${route.route_log} and ${route.site_log} due to: ${e.message}`);
+    }
   }));
 
   await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select route_log from akkeris.routes)', [routeType]);

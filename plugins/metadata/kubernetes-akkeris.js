@@ -22,7 +22,7 @@ async function writeAkkersAppsFromDeployments(pgpool, type, deployments) {
         await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
           [app_log, deployment.deployment]); // eslint-disable-line camelcase
       } catch (e) {
-        debug(`warning: looking for app ${deployment.definition.metadata.labels['akkeris.io/app-uuid']} named ${deployment.definition.metadata.labels['akkeris.io/app-name']} failed: ${e.message}`);
+        debug(`Error unable to link app ${deployment.definition.metadata.labels['akkeris.io/app-uuid']} named ${deployment.definition.metadata.labels['akkeris.io/app-name']} to deployment ${deployment.deployment} due to: ${e.message}`);
       }
     }
   }));

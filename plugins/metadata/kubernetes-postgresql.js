@@ -57,7 +57,7 @@ async function writePostgresqlFromConfigMaps(pgpool, type, configMapRecords) {
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
               [role.rows[0].role, configMap.config_map]);
           } catch (e) {
-            console.error(`Error adding postgresql entry from replicaset ${configMap.config_map} due to: ${e.message}`); // eslint-disable-line no-console
+            debug(`Error adding link from ${configMap.config_map} to postgresql role found inside, due to: ${e.message}`); // eslint-disable-line no-console
           }
         }
       }), []);
@@ -98,7 +98,7 @@ async function writePostgresqlFromReplicaSets(pgpool, type, replicaSetRecords) {
               assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
               assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
             } catch (e) {
-              console.error(`Error adding postgresql entry from replicaset ${replicaSet.replicaset} due to: ${e.message}`); // eslint-disable-line no-console
+              debug(`Error adding postgresql entry from replicaset ${replicaSet.replicaset} due to: ${e.message}`); // eslint-disable-line no-console
             }
           }
         }), []));
@@ -160,7 +160,7 @@ async function writePostgresqlFromPods(pgpool, type, podRecords) {
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
                 [role.rows[0].role, pod.pod]);
             } catch (e) {
-              console.error(`Error adding postgresql entry from pod ${pod.pod} due to: ${e.message}`); // eslint-disable-line no-console
+              debug(`Error adding postgresql entry from pod ${pod.pod} due to: ${e.message}`); // eslint-disable-line no-console
             }
           }
         }), []));
@@ -217,7 +217,7 @@ async function writePostgresqlFromDeployments(pgpool, type, deploymentRecords) {
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
                 [role.rows[0].role, deployment.deployment]);
             } catch (e) {
-              console.error(`Error adding postgresql entry from deployment ${deployment.deployment} due to: ${e.message}`); // eslint-disable-line no-console
+              debug(`Error adding postgresql entry from deployment ${deployment.deployment} due to: ${e.message}`); // eslint-disable-line no-console
             }
           }
         }), []));

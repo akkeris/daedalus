@@ -8,7 +8,6 @@ const pp = require('./postgresql-postgresql.js');
 
 async function run(pgpool, bus) {
   debug('Running metadata plugin...');
-  await pgpool.query(fs.readFileSync('./plugins/metadata/create.sql').toString());
   await kp.run(pgpool, bus);
   await kk.run(pgpool, bus);
   await ka.run(pgpool, bus);

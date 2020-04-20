@@ -65,12 +65,23 @@ begin
     schema varchar(1024) not null,
     name varchar(1024) not null,
     is_view boolean not null default false,
+    hash varchar(128) not null,
     definition text not null default '',
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
-  create unique index if not exists tables_unique on postgresql.tables_log (database, catalog, schema, name, is_view, definition, deleted);
-  create index if not exists tables_observed_on on postgresql.tables_log (database, catalog, schema, name, is_view, definition, observed_on desc);
+
+  -- migration
+  if not exists (select 1 from information_schema.columns where table_schema='postgresql' and table_name='tables_log' and column_name='hash') then
+    drop index postgresql.tables_unique;
+    drop index postgresql.tables_observed_on;
+    alter table postgresql.tables_log add column hash varchar(128) not null default '';
+    update postgresql.tables_log set hash = encode(digest(definition::text, 'sha1'), 'hex');
+    alter table postgresql.tables_log alter column hash set not null;
+  end if;
+
+  create unique index if not exists tables_unique on postgresql.tables_log (database, catalog, schema, name, is_view, hash, deleted);
+  create index if not exists tables_observed_on on postgresql.tables_log (database, catalog, schema, name, is_view, hash, observed_on desc);
   create or replace view postgresql.tables as
     with ordered_list as ( select
       tables_log.table,
@@ -176,11 +187,22 @@ begin
     "table" uuid references postgresql.tables_log("table") not null,
     name varchar(1024) not null,
     definition text not null default '',
+    hash varchar(128) not null,
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
-  create unique index if not exists indexes_unique on postgresql.indexes_log (database, catalog, schema, "table", name, definition, deleted);
-  create index if not exists indexes_observed_on on postgresql.indexes_log (database, catalog, schema, "table", name, definition, observed_on desc);
+  
+  -- migration
+  if not exists (select 1 from information_schema.columns where table_schema='postgresql' and table_name='indexes_log' and column_name='hash') then
+    drop index postgresql.indexes_unique;
+    drop index postgresql.indexes_observed_on;
+    alter table postgresql.indexes_log add column hash varchar(128);
+    update postgresql.indexes_log set hash = encode(digest(definition::text, 'sha1'), 'hex');
+    alter table postgresql.indexes_log alter column hash set not null;
+  end if;
+
+  create unique index if not exists indexes_unique on postgresql.indexes_log (database, catalog, schema, "table", name, hash, deleted);
+  create index if not exists indexes_observed_on on postgresql.indexes_log (database, catalog, schema, "table", name, hash, observed_on desc);
   create index if not exists indexes_log_table on postgresql.indexes_log ("table");
   create or replace view postgresql.indexes as
     with ordered_list as ( 
@@ -280,16 +302,23 @@ begin
     catalog varchar(1024) not null, 
     schema varchar(1024) not null, 
     "table" uuid references postgresql.tables_log("table") not null, 
-    row_amount_estimate int not null, 
-    index_size int not null, 
-    table_size int not null,
-    sequential_scans int not null,
+    row_amount_estimate bigint not null, 
+    index_size bigint not null, 
+    table_size bigint not null,
+    sequential_scans bigint not null,
     percent_of_times_index_used float not null,
     index_hit_rate float not null,
     table_hit_rate float not null,
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
+  -- migration
+  if not exists (select 1 from information_schema.columns where table_name='table_statistics_log' and column_name='row_amount_estimate' and data_type='bigint') then
+    alter table postgresql.table_statistics_log alter column row_amount_estimate set data type bigint;
+    alter talbe postgresql.table_statistics_log alter column index_size set data type bigint;
+    alter talbe postgresql.table_statistics_log alter column table_size set data type bigint;
+    alter talbe postgresql.table_statistics_log alter column sequential_scans set data type bigint;
+  end if;
   create unique index if not exists table_statistics_pkey_unique on postgresql.table_statistics_log (database, catalog, schema, "table", row_amount_estimate, sequential_scans, percent_of_times_index_used, index_hit_rate, table_hit_rate, deleted);
   create index if not exists table_statistics_log_table on postgresql.table_statistics_log ("table");
   create or replace view postgresql.table_statistics as

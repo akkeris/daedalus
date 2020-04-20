@@ -96,10 +96,10 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         tables.table_type = 'BASE TABLE'
     `, [])).rows.map((table) => pgpool.query(`
       insert into postgresql.tables_log 
-        ("table", database, catalog, schema, name, is_view, definition, deleted)
+        ("table", database, catalog, schema, name, is_view, definition, hash, deleted)
       values 
-        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
-      on conflict (database, catalog, schema, name, is_view, definition, deleted)
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6::text, 'sha1'), 'hex'), $7)
+      on conflict (database, catalog, schema, name, is_view, hash, deleted)
       do update set name = $4
       returning "table", database, catalog, schema, name
     `, [database.database, table.table_catalog, table.table_schema, table.table_name, false, '', false]))))
@@ -114,10 +114,10 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         views.table_schema not like 'pg_%'
     `, [])).rows.map((view) => pgpool.query(`
       insert into postgresql.tables_log 
-        ("table", database, catalog, schema, name, is_view, definition, deleted)
+        ("table", database, catalog, schema, name, is_view, definition, hash, deleted)
       values 
-        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
-      on conflict (database, catalog, schema, name, is_view, definition, deleted)
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6::text, 'sha1'), 'hex'), $7)
+      on conflict (database, catalog, schema, name, is_view, hash, deleted)
       do update set name = $4
       returning "table", database, catalog, schema, name
     `, [database.database, view.table_catalog, view.table_schema, view.table_name, true, view.view_definition || '', false]))))
@@ -150,10 +150,10 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         pg_indexes.schemaname <> 'information_schema' and pg_indexes.schemaname <> 'pg_catalog'
     `, [])).rows.map((index) => pgpool.query(`
       insert into postgresql.indexes_log 
-        ("index", "table", database, catalog, schema, name, definition, deleted)
+        ("index", "table", database, catalog, schema, name, definition, hash, deleted)
       values 
-        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
-      on conflict (database, catalog, schema, "table", name, definition, deleted) 
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6::text, 'sha1'), 'hex'), $7)
+      on conflict (database, catalog, schema, "table", name, hash, deleted) 
       do update set name = $5
       returning "index", "table", database, catalog, schema, name, definition
     `, [findTableOrViewId(tables, views, database.database, database.name, index.schemaname, index.tablename).table, database.database, database.name, index.schemaname, index.indexname, index.indexdef, false]))))
@@ -261,10 +261,10 @@ async function writeTablesViewsAndColumns(pgpool, database) {
     (await Promise.all((await client.query(`
       select
         pg_class.reltuples::bigint as rows,
-        pg_indexes_size(pg_class.oid) AS index_size,
-        pg_table_size(pg_class.oid) AS table_size,
+        pg_indexes_size(pg_class.oid)::bigint AS index_size,
+        pg_table_size(pg_class.oid)::bigint AS table_size,
         pg_class.relname as table_name,
-        pg_stat_user_tables.seq_scan,
+        pg_stat_user_tables.seq_scan::bigint,
         CASE pg_stat_user_tables.idx_scan WHEN 0 THEN 0::float ELSE (pg_stat_user_tables.idx_scan::float / (pg_stat_user_tables.seq_scan + pg_stat_user_tables.idx_scan)::float)::float END percent_of_times_index_used,
         pg_cache_hits.index_hit_rate,
         pg_cache_hits.table_hit_rate,
@@ -322,6 +322,8 @@ async function writeTablesViewsAndColumns(pgpool, database) {
     // TODO: Long running queries, Locks, Vacuum statistics, pg_settings?
     // TODO: Check for column statistics of some sort?
     // TODO: Index statistics? I can't imagine this exists but, constraint statistics?...
+    // TODO: Add blocking queries, long running queries? locks? outliers
+    //       (requires pg_stat_statments)?
 
     // Check for table deletion
     await Promise.all((await pgpool.query('select "table", database, catalog, schema, name, is_view, definition from postgresql.tables where database = $1', [database.database]))
@@ -330,10 +332,10 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         if (!findTableOrViewId(tables, views, database.database, tableOrView.catalog, tableOrView.schema, tableOrView.name)) { // eslint-disable-line max-len
           await pgpool.query(`
             insert into postgresql.tables_log 
-              ("table", database, catalog, schema, name, is_view, definition, deleted)
+              ("table", database, catalog, schema, name, is_view, definition, hash, deleted)
             values 
-              (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
-            on conflict (database, catalog, schema, name, is_view, definition, deleted)
+              (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6, 'sha1'), 'hex'), $7)
+            on conflict (database, catalog, schema, name, is_view, hash, deleted)
             do update set deleted = true`,
           [tableOrView.database, tableOrView.catalog, tableOrView.schema, tableOrView.name, tableOrView.is_view, tableOrView.definition, true]); // eslint-disable-line max-len
         }
@@ -362,10 +364,10 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         if (!findIndexId(indexes, database.database, index.catalog, index.schema, index.table, index.name)) { // eslint-disable-line max-len
           await pgpool.query(`
           insert into postgresql.indexes_log 
-            ("index", database, catalog, schema, "table", name, definition, deleted)
+            ("index", database, catalog, schema, "table", name, definition, hash, deleted)
           values 
-            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
-          on conflict (database, catalog, schema, "table", name, definition, deleted) 
+            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6, 'sha1'), 'hex'), $7)
+          on conflict (database, catalog, schema, "table", name, hash, deleted) 
           do update set deleted = true`,
           [database.database, index.catalog, index.schema, index.table, index.name, index.definition, true]); // eslint-disable-line max-len
         }

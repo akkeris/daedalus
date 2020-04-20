@@ -57,6 +57,15 @@ Values typically stored in annotations, environment variables (both for pods, de
 
 Note that using https with self-signed (insecure) certificates or authenticating with mutual TLS authentication with kubernetes is not supported.
 
+To generate a service account:
+
+```
+kubectl --context [context] -n default apply ./support/r8-roles.yaml
+export SECRET_NAME=`kubectl get serviceaccount/daedalus -n default -o=jsonpath='{.secrets[0].name}'`
+export KUBERNETES_TOKEN=`kubectl --context ds1 get secrets/$SECRET_NAME -o jsonpath='{.data.token}' -n default | base64 -D` 
+echo $KUBERNETES_TOKEN
+```
+
 ### Akkeris Plugin
 
 Daedalus can optionally crawl Akkeris for sites, apps, etc. To setup akkeris the following environment variables must be set. This will crawl all regions in akkeris.

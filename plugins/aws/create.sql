@@ -2,6 +2,7 @@ do $$
 begin
 
   create schema if not exists "aws";
+  create extension if not exists "uuid-ossp";
 
   create or replace function aws.calc_hash() returns trigger as $calc_hash$
     begin

@@ -44,7 +44,7 @@ async function run(pgpool) {
   }
   const get = axios.create({
     baseURL: process.env.AKKERIS_URL,
-    timeout: 15 * 1000,
+    timeout: 60 * 1000,
     headers: { authorization: `Bearer ${process.env.AKKERIS_TOKEN}` },
   });
 

@@ -123,14 +123,21 @@ async function run(pgpool) {
 
   debug('Getting addon attachments');
   const { data: addonAttachments } = await get('/addon-attachments');
-  await Promise.all(addonAttachments.map((item) => pgpool.query(`
-      insert into akkeris.addon_attachments_log (addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted)
-      values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, now(), false)
-      on conflict (addon_attachment, addon_log, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
-      do update set name = EXCLUDED.name
-      returning addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted
-    `,
-  [item.id, lookupAddonById(addonsLog, item.addon.id), lookupAppById(appsLog, item.app.id), lookupAddonServiceByPlanId(addonServicesLog, item.addon.plan.id), item.name, item]))); // eslint-disable-line max-len
+  await Promise.all(addonAttachments.map(async (item) => {
+    try {
+      return pgpool.query(`
+          insert into akkeris.addon_attachments_log (addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted)
+          values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, now(), false)
+          on conflict (addon_attachment, addon_log, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
+          do update set name = EXCLUDED.name
+          returning addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted
+        `,
+      [item.id, lookupAddonById(addonsLog, item.addon.id), lookupAppById(appsLog, item.app.id), lookupAddonServiceByPlanId(addonServicesLog, item.addon.plan.id), item.name, item]); // eslint-disable-line max-len
+    } catch (e) {
+      console.error(`Error: Cannot process addon-attachment ${item.id} because ${e.message}`); // eslint-disable-line no-console
+      return {};
+    }
+  }));
 
 
   debug('Checking for site deletions');

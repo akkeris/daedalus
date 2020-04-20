@@ -310,53 +310,54 @@ async function run(pgpool, bus) {
   const k8sCoreApi = kc.makeApiClient(k8s.CoreV1Api);
   const k8sAppsApi = kc.makeApiClient(k8s.AppsV1Api);
   const maxMemory = 1 * 1024 * 1024;
+  const labelSelector = process.env.KUBERNETES_LABEL_SELECTOR;
 
   // The order of these do matter.
   debug(`Refreshing config maps from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'config_map',
     await writeNamespacedObjs(pgpool, bus, 'config_map',
       k8sCoreApi.listConfigMapForAllNamespaces.bind(k8sCoreApi),
-      { limit: Math.floor(maxMemory / 4096) }));
+      { limit: Math.floor(maxMemory / 4096), labelSelector }));
   debug(`Refreshing deployments from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'deployment',
     await writeNamespacedObjs(pgpool, bus, 'deployment',
       k8sAppsApi.listDeploymentForAllNamespaces.bind(k8sAppsApi),
-      { limit: Math.floor(maxMemory / 4096) }));
+      { limit: Math.floor(maxMemory / 4096), labelSelector }));
   debug(`Refreshing replicasets from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'replicaset',
     await writeNamespacedObjs(pgpool, bus, 'replicaset',
       k8sAppsApi.listReplicaSetForAllNamespaces.bind(k8sAppsApi),
-      { limit: Math.floor(maxMemory / 4096) }));
+      { limit: Math.floor(maxMemory / 4096), labelSelector }));
   debug(`Refreshing services from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'service',
     await writeNamespacedObjs(pgpool, bus, 'service',
       k8sCoreApi.listServiceForAllNamespaces.bind(k8sCoreApi),
-      { limit: Math.floor(maxMemory / 4096) }));
+      { limit: Math.floor(maxMemory / 4096), labelSelector }));
   debug(`Refreshing nodes from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedObjs(pgpool, 'node',
     await writeObjs(pgpool, bus, 'node',
       k8sCoreApi.listNode.bind(k8sCoreApi),
-      { limit: Math.floor(maxMemory / 4096) }));
+      { limit: Math.floor(maxMemory / 4096), labelSelector }));
   debug(`Refreshing pods from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'pod',
     await writeNamespacedObjs(pgpool, bus, 'pod',
       k8sCoreApi.listPodForAllNamespaces.bind(k8sCoreApi),
-      { limit: Math.floor(maxMemory / 4096) }));
+      { limit: Math.floor(maxMemory / 4096), labelSelector }));
   debug(`Refreshing persistent volumes from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedObjs(pgpool, 'persistent_volume',
     await writeObjs(pgpool, bus, 'persistent_volume',
       k8sCoreApi.listPersistentVolume.bind(k8sCoreApi),
-      { limit: Math.floor(maxMemory / 2048) }));
+      { limit: Math.floor(maxMemory / 2048), labelSelector }));
   debug(`Refreshing persistent volume claims from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'persistent_volume_claim',
     await writeNamespacedObjs(pgpool, bus, 'persistent_volume_claim',
       k8sCoreApi.listPersistentVolumeClaimForAllNamespaces.bind(k8sCoreApi),
-      { limit: Math.floor(maxMemory / 2048) }));
+      { limit: Math.floor(maxMemory / 2048), labelSelector }));
   debug(`Refreshing events from ${process.env.KUBERNETES_CONTEXT}`);
   await writeDeletedNamespacedObjs(pgpool, 'event',
     await writeNamespacedObjs(pgpool, bus, 'event',
       k8sCoreApi.listEventForAllNamespaces.bind(k8sCoreApi),
-      { limit: Math.floor(maxMemory / 2048) }));
+      { limit: Math.floor(maxMemory / 2048), labelSelector }));
 
   // TODO: Job? DaemonSet? StatefulSet?
   // TODO: istio?

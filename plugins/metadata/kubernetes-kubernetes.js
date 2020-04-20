@@ -12,20 +12,24 @@ async function writeKubernetesPodToReplicaSets(pgpool, type, podRecords) {
   await Promise.all(podRecords.map(async (pod) => {
     if (pod.definition.metadata.ownerReferences) {
       await Promise.all(pod.definition.metadata.ownerReferences.map(async (ref) => {
-        if (ref.kind === 'ReplicaSet') {
-          const { rows: [{ replicaset, name, definition }] } = await pgpool.query('select replicaset, name, definition from kubernetes.replicasets where name = $1 and namespace = $2',
-            [ref.name, pod.definition.metadata.namespace]);
-          await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-            [pod.pod, pod.name, podType]);
-          await pgpool.query('insert into metadata.nodes (node, name, type, transient) values ($1, $2, $3, $4) on conflict (node) do update set transient = $4',
-            [replicaset, name, replicaSetType, definition.spec.replicas === 0]);
-          await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-            [replicaset, pod.pod]);
-        } else if (ref.kind === 'Job') { // TODO
-        } else if (ref.kind === 'DaemonSet') { // TODO
-        } else if (ref.kind === 'StatefulSet') { // TODO
-        } else {
-          console.warn(`Warning: unknown owner reference found on pod ${pod.definition.metadata.name}/${pod.definition.metadata.namespace}: ${JSON.stringify(ref, null, 2)}`); // eslint-disable-line no-console
+        try {
+          if (ref.kind === 'ReplicaSet') {
+            const { rows: [{ replicaset, name, definition }] } = await pgpool.query('select replicaset, name, definition from kubernetes.replicasets where name = $1 and namespace = $2',
+              [ref.name, pod.definition.metadata.namespace]);
+            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+              [pod.pod, pod.name, podType]);
+            await pgpool.query('insert into metadata.nodes (node, name, type, transient) values ($1, $2, $3, $4) on conflict (node) do update set transient = $4',
+              [replicaset, name, replicaSetType, definition.spec.replicas === 0]);
+            await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+              [replicaset, pod.pod]);
+          } else if (ref.kind === 'Job') { // TODO
+          } else if (ref.kind === 'DaemonSet') { // TODO
+          } else if (ref.kind === 'StatefulSet') { // TODO
+          } else {
+            console.warn(`Warning: unknown owner reference found on pod ${pod.definition.metadata.name}/${pod.definition.metadata.namespace}: ${JSON.stringify(ref, null, 2)}`); // eslint-disable-line no-console
+          }
+        } catch (e) {
+          console.error(`Error unable to add link for pod ${pod.pod} to replicaset ${`${ref.name}/${pod.definition.metadata.namespace}`}`); // eslint-disable-line max-len,no-console
         }
       }));
     }
@@ -46,17 +50,21 @@ async function writeKubernetesReplicaSetToDeployments(pgpool, type, replicaSetRe
   await Promise.all(replicaSetRecords.map(async (replicaSet) => {
     if (replicaSet.definition.metadata.ownerReferences) {
       await Promise.all(replicaSet.definition.metadata.ownerReferences.map(async (ref) => {
-        if (ref.kind === 'Deployment') {
-          const { rows: [{ deployment, name }] } = await pgpool.query('select deployment, name from kubernetes.deployments where name = $1 and namespace = $2',
-            [ref.name, replicaSet.definition.metadata.namespace]);
-          await pgpool.query('insert into metadata.nodes (node, name, type, transient) values ($1, $2, $3, $4) on conflict (node) do update set transient = $4',
-            [replicaSet.replicaset, replicaSet.name, replicaSetType, replicaSet.definition.spec.replicas === 0]); // eslint-disable-line max-len
-          await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-            [deployment, name, deploymentType]);
-          await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-            [deployment, replicaSet.replicaset]);
-        } else {
-          console.warn(`Warning: unknown owner reference found on replicaset ${replicaSet.definition.metadata.name}/${replicaSet.definition.metadata.namespace}: ${JSON.stringify(ref, null, 2)}`); // eslint-disable-line no-console
+        try {
+          if (ref.kind === 'Deployment') {
+            const { rows: [{ deployment, name }] } = await pgpool.query('select deployment, name from kubernetes.deployments where name = $1 and namespace = $2',
+              [ref.name, replicaSet.definition.metadata.namespace]);
+            await pgpool.query('insert into metadata.nodes (node, name, type, transient) values ($1, $2, $3, $4) on conflict (node) do update set transient = $4',
+              [replicaSet.replicaset, replicaSet.name, replicaSetType, replicaSet.definition.spec.replicas === 0]); // eslint-disable-line max-len
+            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+              [deployment, name, deploymentType]);
+            await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+              [deployment, replicaSet.replicaset]);
+          } else {
+            console.warn(`Warning: unknown owner reference found on replicaset ${replicaSet.definition.metadata.name}/${replicaSet.definition.metadata.namespace}: ${JSON.stringify(ref, null, 2)}`); // eslint-disable-line no-console
+          }
+        } catch (e) {
+          console.error(`Error unable to add link for replicaset ${replicaSet.replicaset} to deployment ${`${ref.name}/${replicaSet.definition.metadata.namespace}`}`); // eslint-disable-line max-len,no-console
         }
       }));
     }
@@ -80,14 +88,18 @@ async function writeKubernetesDeploymentToConfigMaps(pgpool, type, deployments) 
         if (container.envFrom) {
           await Promise.all(container.envFrom.map(async (envFrom) => {
             if (envFrom.configMapRef && envFrom.configMapRef.name) {
-              const { rows: [{ config_map, name }] } = await pgpool.query('select config_map, name from kubernetes.config_maps where name = $1 and namespace = $2', // eslint-disable-line camelcase
-                [envFrom.configMapRef.name, deployment.definition.metadata.namespace]);
-              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-                [deployment.deployment, deployment.name, deploymentType]);
-              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-                [config_map, name, configMapType]); // eslint-disable-line camelcase
-              await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [config_map, deployment.deployment]); // eslint-disable-line camelcase
+              try {
+                const { rows: [{ config_map, name }] } = await pgpool.query('select config_map, name from kubernetes.config_maps where name = $1 and namespace = $2', // eslint-disable-line camelcase
+                  [envFrom.configMapRef.name, deployment.definition.metadata.namespace]);
+                await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+                  [deployment.deployment, deployment.name, deploymentType]);
+                await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+                  [config_map, name, configMapType]); // eslint-disable-line camelcase
+                await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+                  [config_map, deployment.deployment]); // eslint-disable-line camelcase
+              } catch (e) {
+                console.error(`Error unable to add link for deployment ${deployment.deployment} to configmap ${envFrom.configMapRef.name}`); // eslint-disable-line max-len,no-console
+              }
             }
           }));
         }

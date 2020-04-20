@@ -444,7 +444,7 @@ async function run(pgpool) {
   if (process.env.POSTGRESQL !== 'true') {
     return;
   }
-  (await Promise.all((await pgpool.query(`
+  const databases = (await Promise.all((await pgpool.query(`
     select 
       databases.database, databases.name, databases.host, databases.port,
       roles.username, roles.password, roles.options
@@ -452,8 +452,11 @@ async function run(pgpool) {
       postgresql.databases 
       join postgresql.roles on roles.database = databases.database`, []))
     .rows
-    .map((database) => ({ ...database, password: security.decryptValue(process.env.SECRET, database.password).toString('utf8') }))
-    .map((database) => writeTablesViewsAndColumns(pgpool, database))));
+    .map((database) => ({ ...database, password: security.decryptValue(process.env.SECRET, database.password).toString('utf8') }))));
+
+  for (const database of databases) { // eslint-disable-line no-restricted-syntax
+    await writeTablesViewsAndColumns(pgpool, database); // eslint-disable-line no-await-in-loop
+  }
 }
 
 module.exports = {

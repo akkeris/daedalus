@@ -2,7 +2,7 @@ const {formatBytes} = require('../../../common/format.js');
 module.exports = (req, res, next, data) => res.send(`
   ${require('./header.html')(req)}
     <appkit-app>
-      ${require('./object-header.html')(req, data, 'Apps', 'fa-microchip', `/ui/akkeris/apps/${data.app}`, data.app, 'akkeris/apps')}
+      ${require('./object-header.html')(req, data, 'Apps', 'fa-microchip', `/ui/akkeris/apps/${data.app}`, data.name, 'akkeris/apps')}
       <div>
         <h2>${data.name}</h2>
       </div>

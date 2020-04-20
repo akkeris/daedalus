@@ -314,10 +314,11 @@ begin
   );
   -- migration
   if not exists (select 1 from information_schema.columns where table_name='table_statistics_log' and column_name='row_amount_estimate' and data_type='bigint') then
+    drop view postgresql.table_statistics;
     alter table postgresql.table_statistics_log alter column row_amount_estimate set data type bigint;
-    alter talbe postgresql.table_statistics_log alter column index_size set data type bigint;
-    alter talbe postgresql.table_statistics_log alter column table_size set data type bigint;
-    alter talbe postgresql.table_statistics_log alter column sequential_scans set data type bigint;
+    alter table postgresql.table_statistics_log alter column index_size set data type bigint;
+    alter table postgresql.table_statistics_log alter column table_size set data type bigint;
+    alter table postgresql.table_statistics_log alter column sequential_scans set data type bigint;
   end if;
   create unique index if not exists table_statistics_pkey_unique on postgresql.table_statistics_log (database, catalog, schema, "table", row_amount_estimate, sequential_scans, percent_of_times_index_used, index_hit_rate, table_hit_rate, deleted);
   create index if not exists table_statistics_log_table on postgresql.table_statistics_log ("table");

@@ -181,13 +181,20 @@ async function run(pgpool) {
   (await pgpool.query('select route_log, route, site, definition, observed_on from akkeris.routes'))
     .rows
     .filter((route) => !routes.map((x) => x.id).includes(route.route))
-    .map((route) => pgpool.query(`
-      insert into akkeris.routes_log (route_log, route, site_log, definition, observed_on, deleted)
-      values (uuid_generate_v4(), $1, $2, $3, now(), true)
-      on conflict (route, site_log, (definition->>'updated_at'), deleted)
-      do update set route = EXCLUDED.route
-      returning route_log, route, site_log, definition, observed_on, deleted
-    `, [route.route, lookupSiteById(sitesLog, route.site), route.definition]));
+    .map(async (route) => {
+      try {
+        return await pgpool.query(`
+          insert into akkeris.routes_log (route_log, route, site_log, definition, observed_on, deleted)
+          values (uuid_generate_v4(), $1, $2, $3, now(), true)
+          on conflict (route, site_log, (definition->>'updated_at'), deleted)
+          do update set route = EXCLUDED.route
+          returning route_log, route, site_log, definition, observed_on, deleted
+      `, [route.route, lookupSiteById(sitesLog, route.site), route.definition]);
+      } catch (e) {
+        debug(`Unable to insert ${route.route} with ${route.site} due to: ${e.message}`);
+        return {};
+      }
+    });
 
   debug('Checking for apps deletions');
   appsLog = appsLog.concat((await Promise.all((await pgpool.query('select app_log, app, name, space, definition, observed_on from akkeris.apps'))

@@ -191,7 +191,9 @@ async function run(pgpool) {
           returning route_log, route, site_log, definition, observed_on, deleted
       `, [route.route, lookupSiteById(sitesLog, route.site), route.definition]);
       } catch (e) {
-        debug(`Unable to insert ${route.route} with ${route.site} due to: ${e.message}`);
+        // TODO: this introduces a logical falicy, how do we detect whether a route is deleted if a
+        // site is deleted?...
+        debug(`Unable to insert route deletion ${route.route} with ${route.site} due to: ${e.message}`);
         return {};
       }
     });

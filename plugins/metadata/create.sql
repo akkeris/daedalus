@@ -190,8 +190,8 @@ begin
         case
           when precord.child = families.parent then parent.node = ANY(precord.path)  -- we were found as children of previous record, add our parent as a path
           when precord.parent = families.child then child.node = ANY(precord.path)  -- we were found as parents of a previous record, add our child as the path
-          when precord.child = families.child and precord.parent != families.parent then precord.child = ANY(precord.path)  -- we came through the parent of the previous record
-          when precord.parent = families.parent and precord.child != families.child then precord.parent = ANY(precord.path)  -- we came through a sibling of the previous record
+          when precord.child = families.child and precord.parent != families.parent then true -- we came through the parent of the previous record
+          when precord.parent = families.parent and precord.child != families.child then true  -- we came through a sibling of the previous record, block the record
         end as cycle,
         families.observed_on,
         row_number() over (partition by parent.name, parent_type.type, parent_type.icon, child.name, child_type.type, child_type.icon order by metadata.families.observed_on desc) as rn

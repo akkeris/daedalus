@@ -55,7 +55,7 @@ async function writePostgresqlFromConfigMaps(pgpool, type, configMapRecords) {
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
               [db.rows[0].database, role.rows[0].role]);
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-              [role.rows[0].role, configMap.config_map]);
+              [role.rows[0].role, configMap.config_map]); // TODO: switch these?
           } catch (e) {
             debug(`Error adding link from ${configMap.config_map} to postgresql role found inside, due to: ${e.message}`); // eslint-disable-line no-console
           }
@@ -215,7 +215,7 @@ async function writePostgresqlFromDeployments(pgpool, type, deploymentRecords) {
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
                 [db.rows[0].database, role.rows[0].role]);
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [role.rows[0].role, deployment.deployment]);
+                [role.rows[0].role, deployment.deployment]); // TODO: Switch these?
             } catch (e) {
               debug(`Error adding postgresql entry from deployment ${deployment.deployment} due to: ${e.message}`); // eslint-disable-line no-console
             }

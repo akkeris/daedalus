@@ -220,8 +220,16 @@ async function writeTablesViewsAndColumns(pgpool, database) {
     const foreignKeyConstraints = (await Promise.all(constraints.filter((x) => x.constraint_type === 'FOREIGN KEY').map((constraint) => {
       const fromTableUUID = findTableOrViewId(tables, views, database.database, constraint.from_catalog, constraint.from_schema, constraint.from_table_name).table; // eslint-disable-line max-len
       const fromColumnUUID = findColumnId(columns, database.database, constraint.from_catalog, constraint.from_schema, fromTableUUID, constraint.from_column_name).column; // eslint-disable-line max-len
-      const toTableUUID = findTableOrViewId(tables, views, database.database, constraint.to_catalog, constraint.to_schema, constraint.to_table_name).table; // eslint-disable-line max-len
-      const toColumnUUID = findColumnId(columns, database.database, constraint.to_catalog, constraint.to_schema, toTableUUID, constraint.to_column_name).column; // eslint-disable-line max-len
+      let toTableUUID = null;
+      let toColumnUUID = null;
+      if (!constraint.to_catalog && !constraint.to_schema && !constraint.to_table_name) {
+        // foreign keys to themselves (recursively) do not have to column references
+        toTableUUID = fromTableUUID;
+        toColumnUUID = fromColumnUUID;
+      } else {
+        toTableUUID = findTableOrViewId(tables, views, database.database, constraint.to_catalog, constraint.to_schema, constraint.to_table_name).table; // eslint-disable-line max-len
+        toColumnUUID = findColumnId(columns, database.database, constraint.to_catalog, constraint.to_schema, toTableUUID, constraint.to_column_name).column; // eslint-disable-line max-len
+      }
       assert(fromTableUUID, `The table UUID was not found for a foreign key constraint on catalog: ${constraint.from_catalog} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
       assert(fromColumnUUID, `The column UUID was not found for a foreign key constraint on catalog: ${constraint.from_catalog} schema: ${constraint.from_schema} table: ${constraint.from_table_name} ${constraint.from_column_name}`);
       assert(toTableUUID, `The table UUID was not found for a foreign key constraint on catalog: ${constraint.to_catalog} schema: ${constraint.to_schema} table: ${constraint.to_table_name}`);
@@ -430,9 +438,9 @@ async function writeTablesViewsAndColumns(pgpool, database) {
       // How do we do this, if the host is unavailalbe we shouldn't assume the db is unavailable,
       // if the password is changed, what should we do? if the database no longer exists should
       // we remove it?
-      console.log(`=== Error posgres://${database.username}@${database.host}:${database.port}/${database.name}`); // eslint-disable-line no-console
+      console.log(`=== Error postgres://${database.username}@${database.host}:${database.port}/${database.name}`); // eslint-disable-line no-console
       console.error(e); // eslint-disable-line no-console
-      console.log(`=== Error posgres://${database.username}@${database.host}:${database.port}/${database.name}`); // eslint-disable-line no-console
+      console.log(`=== Error postgres://${database.username}@${database.host}:${database.port}/${database.name}`); // eslint-disable-line no-console
     }
   } finally {
     debug(`Done writing tables, views and columns for posgres://${database.username}@${database.host}:${database.port}/${database.name} database...`); // eslint-disable-line max-len

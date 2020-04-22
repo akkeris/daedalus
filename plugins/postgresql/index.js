@@ -12,11 +12,11 @@ async function init(pgpool) {
 
 function findConstraintId(constraints, database, name, type, fromCatalog, fromSchema, fromTable, fromColumn, toCatalog, toSchema, toTable, toColumn) { // eslint-disable-line max-len
   return constraints.filter((constraint) => constraint.database === database
-    && constraint.from_catalog === fromCatalog
+    && database.name === fromCatalog
     && constraint.from_schema === fromSchema
     && constraint.from_table === fromTable
     && constraint.from_column === fromColumn
-    && constraint.to_catalog === toCatalog
+    && database.name === toCatalog
     && constraint.to_schema === toSchema
     && constraint.to_table === toTable
     && constraint.to_column === toColumn
@@ -63,10 +63,9 @@ function findTableOrViewId(tables, views, database, catalog, schema, name) {
 async function writeTablesViewsAndColumns(pgpool, database) {
   assert.ok(database, 'A database parameter was not provided!');
   if (!database.database || !database.port || !database.name) {
-    console.error(`  Error: Unable to process posgres://${database.username}@${database.host}:${database.port}/${database.name} as a required field was not provided.`); // eslint-disable-line no-console
+    debug(`Error: Unable to process posgres://${database.username}@${database.host}:${database.port}/${database.name} as a required field was not provided.`); // eslint-disable-line no-console
     return;
   }
-  debug(`Writing tables, views and columns for posgres://${database.username}@${database.host}:${database.port}/${database.name} database...`); // eslint-disable-line max-len
   /* CRITICAL SECTION
    * Be very careful modifying code below until the end of the critical section,
    * failing to test carefully could result in destructive actions. The code
@@ -92,7 +91,9 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         pg_catalog.pg_tables
       where 
         pg_tables.schemaname <> 'information_schema' and 
-        pg_tables.schemaname not like 'pg_%'
+        pg_tables.schemaname not like 'pg_%' and
+        pg_tables.schemaname <> 'pgagent' and
+        pg_tables.schemaname <> 'sys'
     `, [])).rows.map((table) => pgpool.query(`
       insert into postgresql.tables_log 
         ("table", database, catalog, schema, name, is_view, definition, hash, deleted)
@@ -110,7 +111,9 @@ async function writeTablesViewsAndColumns(pgpool, database) {
       from pg_catalog.pg_views
       where 
         pg_views.schemaname <> 'information_schema' and 
-        pg_views.schemaname not like 'pg_%'
+        pg_views.schemaname not like 'pg_%' and
+        pg_views.schemaname <> 'pgagent' and
+        pg_views.schemaname <> 'sys'
     `, [])).rows.map((view) => pgpool.query(`
       insert into postgresql.tables_log 
         ("table", database, catalog, schema, name, is_view, definition, hash, deleted)
@@ -123,12 +126,35 @@ async function writeTablesViewsAndColumns(pgpool, database) {
       .map((x) => x.rows).flat();
 
     const columns = (await Promise.all((await client.query(`
-      select 
-        table_catalog, table_schema, table_name, column_name, ordinal_position, column_default, is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable
-      from 
-        information_schema.columns
-      where 
-        columns.table_schema <> 'information_schema' and columns.table_schema <> 'pg_catalog'
+      select
+        pg_namespace.nspname as table_schema,
+        pg_class.relname as table_name,
+        pg_attribute.attname as column_name,
+        pg_attribute.attnum as ordinal_position,
+        coalesce(pg_attrdef.adsrc, '') as column_default,
+        pg_attribute.attnotnull as is_nullable,
+        pg_attribute.atttypid::regtype as data_type,
+        case when pg_attribute.atttypmod = -1 then 0 else pg_attribute.atttypmod - 4 end as character_maximum_length,
+        case when pg_attribute.atttypmod = -1 then 0 else (pg_attribute.atttypmod - 4) * 4 end as character_octet_length,
+        case when pg_attribute.attlen = -1 then 0 else (pg_attribute.attlen * 8) end as numeric_precision,
+        case when pg_attribute.attlen = -1 then 0 else 2 end as numeric_precision_radix,
+        0 as numeric_scale,
+        case when pg_type.typname = 'timestamptz' then pg_attribute.attlen else 0 end as datetime_precision,
+        case when pg_class.relkind = 'v' then true else false end is_updatable
+      from pg_attribute
+        join pg_class on pg_attribute.attrelid = pg_class.oid
+        join pg_namespace on pg_class.relnamespace = pg_namespace.oid
+        join pg_type on pg_attribute.atttypid = pg_type.oid
+        left join pg_attrdef on pg_attribute.attrelid = pg_attrdef.adrelid and pg_attrdef.adnum = pg_attribute.attnum
+      where
+        (pg_class.relkind = 'r' or pg_class.relkind = 'v') and
+        pg_attribute.attnum > 0 and
+        pg_namespace.nspname not like 'pg_%' and
+        pg_namespace.nspname <> 'information_schema' and
+        pg_namespace.nspname <> 'pgagent' and
+        pg_namespace.nspname <> 'sys'
+      and not attisdropped
+      order by attnum
     `, [])).rows.map(async (column) => pgpool.query(`
         insert into postgresql.columns_log 
           ("column", database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted)
@@ -137,16 +163,27 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         on conflict (database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted) 
         do update set name = $5
         returning "column", database, catalog, schema, "table", name
-        `, [database.database, column.table_catalog, column.table_schema, findTableOrViewId(tables, views, database.database, column.table_catalog, column.table_schema, column.table_name).table, column.column_name, column.ordinal_position, column.column_default || '', column.is_nullable, column.data_type, column.character_maximum_length || 0, column.character_octet_length || 0, column.numeric_precision || 0, column.numeric_precision_radix || 0, column.numeric_scale || 0, column.datetime_precision || 0, column.is_updatable || true, false]))))
+        `, [database.database, database.name, column.table_schema, findTableOrViewId(tables, views, database.database, database.name, column.table_schema, column.table_name).table, column.column_name, column.ordinal_position, column.column_default || '', column.is_nullable, column.data_type, column.character_maximum_length || 0, column.character_octet_length || 0, column.numeric_precision || 0, column.numeric_precision_radix || 0, column.numeric_scale || 0, column.datetime_precision || 0, column.is_updatable || true, false]))))
       .map((x) => x.rows).flat();
 
     const indexes = (await Promise.all((await client.query(`
-      select 
-        schemaname, tablename, indexname, tablespace, indexdef
-      from 
+      select
+        pg_indexes.schemaname,
+        pg_indexes.tablename,
+        pg_indexes.indexname,
+        pg_indexes.tablespace,
+        pg_indexes.indexdef
+      from
         pg_catalog.pg_indexes
-      where 
-        pg_indexes.schemaname <> 'information_schema' and pg_indexes.schemaname <> 'pg_catalog'
+          join pg_catalog.pg_tables on
+            pg_indexes.schemaname = pg_tables.schemaname and
+            pg_indexes.tablename = pg_tables.tablename and
+            pg_indexes.tablespace = pg_tables.tablespace
+      where
+        pg_indexes.schemaname <> 'information_schema' and
+        pg_indexes.schemaname <> 'pg_catalog' and
+        pg_indexes.schemaname <> 'pgagent' and
+        pg_indexes.schemaname <> 'sys'
     `, [])).rows.map(async (index) => pgpool.query(`
         insert into postgresql.indexes_log 
           ("index", "table", database, catalog, schema, name, definition, hash, deleted)
@@ -159,109 +196,100 @@ async function writeTablesViewsAndColumns(pgpool, database) {
       .map((x) => x.rows).flat();
 
     const constraints = (await client.query(`
-       with constraints as (
-        select 
-          constraint_catalog, constraint_schema, constraint_name, unique_constraint_catalog, unique_constraint_schema, unique_constraint_name, '' as "check_clause"
-        from information_schema.referential_constraints
-        union all
-        select 
-          constraint_catalog, constraint_schema, constraint_name, constraint_catalog as "unique_constraint_catalog", constraint_schema as "unique_constraint_schema", constraint_name as "unique_constraint_name", check_clause
-        from information_schema.check_constraints
-      )
       select
-        from_table.constraint_name,
-        from_table.constraint_type,
-        from_table.constraint_catalog as from_catalog,
-        from_table.constraint_schema as from_schema,
-        from_table.table_name as from_table_name,
-        coalesce(from_column_primary_key.column_name, from_column_foriegn_key.column_name) as from_column_name,
-        constraints.unique_constraint_catalog as to_catalog,
-        constraints.unique_constraint_schema as to_schema,
-        to_table.table_name as to_table_name,
-        to_column.column_name as to_column_name,
-        constraints.check_clause
-      from information_schema.table_constraints as from_table
-        left join constraints on constraints.constraint_catalog = from_table.constraint_catalog and from_table.constraint_schema = constraints.constraint_schema and from_table.constraint_name = constraints.constraint_name
-        left join information_schema.constraint_column_usage as from_column_primary_key on (
-          from_column_primary_key.constraint_catalog = from_table.constraint_catalog and
-          from_column_primary_key.constraint_schema = from_table.constraint_schema and
-          from_column_primary_key.constraint_name = from_table.constraint_name and
-          from_table.constraint_type = 'PRIMARY KEY'
-        )
-        left join information_schema.key_column_usage as from_column_foriegn_key on (
-          from_column_foriegn_key.constraint_catalog = from_table.constraint_catalog and
-          from_column_foriegn_key.constraint_schema = from_table.constraint_schema and
-          from_column_foriegn_key.constraint_name = from_table.constraint_name and
-          from_table.constraint_type = 'FOREIGN KEY'
-        )
-        left join information_schema.table_constraints as to_table on to_table.constraint_catalog = constraints.unique_constraint_catalog and to_table.constraint_schema = constraints.unique_constraint_schema and to_table.constraint_name = constraints.unique_constraint_name
-        left join information_schema.constraint_column_usage as to_column on to_column.constraint_catalog = constraints.unique_constraint_catalog and to_column.constraint_schema = constraints.unique_constraint_schema and to_column.constraint_name = constraints.unique_constraint_name
+        c.conname as constraint_name,
+        case 
+          when c.contype = 'p' then 'PRIMARY KEY'
+          when c.contype = 'f' then 'FORIEGN KEY'
+          when c.contype = 'c' then 'CHECK'
+        end as constraint_type,
+        sch.nspname as from_schema,
+        tbl.relname as from_table_name,
+        array_agg(col.attname order by u.attposition)::text[] as from_columns,
+        f_sch.nspname as to_schema,
+        f_tbl.relname as to_table_name,
+        array_agg(f_col.attname order by f_u.attposition)::text[] AS to_columns,
+        pg_get_constraintdef(c.oid) as definition
+      from pg_constraint c
+        left join lateral unnest(c.conkey) with ordinality as u(attnum, attposition) on true
+        left join lateral unnest(c.confkey) with ordinality as f_u(attnum, attposition) on f_u.attposition = u.attposition
+        join pg_class tbl on tbl.oid = c.conrelid
+        join pg_namespace sch on sch.oid = tbl.relnamespace
+        left join pg_attribute col on (col.attrelid = tbl.oid AND col.attnum = u.attnum)
+        left join pg_class f_tbl on f_tbl.oid = c.confrelid
+        left join pg_namespace f_sch on f_sch.oid = f_tbl.relnamespace
+        left join pg_attribute f_col on (f_col.attrelid = f_tbl.oid and f_col.attnum = f_u.attnum)
       where
-        from_table.constraint_schema not like 'pg_%' and from_table.constraint_schema <> 'information_schema'
+        tbl.relname not like 'edb$%' and
+        sch.nspname <> 'sys' and
+        sch.nspname <> 'pgagnet' and
+        sch.nspname not like 'pg_%' and
+        sch.nspname <> 'information_schema'
+      group by constraint_name, constraint_type, from_schema, from_table_name, definition, "to_schema", to_table_name
+      order by from_schema, from_table_name
     `, [])).rows;
 
-    const primaryKeyConstraints = (await Promise.all(constraints.filter((x) => x.constraint_type === 'PRIMARY KEY').map((constraint) => {
-      const tableUUID = findTableOrViewId(tables, views, database.database, constraint.from_catalog, constraint.from_schema, constraint.from_table_name).table; // eslint-disable-line max-len
-      assert(tableUUID, `The table UUID was not found for a primary key constraint on catalog: ${constraint.from_catalog} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
-      if (constraint.from_column_name) {
-        // bizarre postgresql issue where some primary keys don't show up ....
-        const columnUUID = findColumnId(columns, database.database, constraint.from_catalog, constraint.from_schema, tableUUID, constraint.from_column_name).column; // eslint-disable-line max-len
-        assert(columnUUID, `The column UUID was not found for a primary key constraint on catalog: ${constraint.from_catalog} schema: ${constraint.from_schema} table: ${constraint.from_table_name} ${constraint.from_column_name}`);
-        return pgpool.query(`
-          insert into postgresql.constraints_log 
-            ("constraint", database, name, type, from_catalog, from_schema, from_table, from_column, deleted)
-          values 
-            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8)
-          on conflict (database, name, "type", from_catalog, from_schema, from_table, from_column, deleted) where "type" = 'PRIMARY KEY'
-          do update set name = $2
-          returning "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, deleted
-        `, [database.database, constraint.constraint_name, constraint.constraint_type, constraint.from_catalog, constraint.from_schema, tableUUID, columnUUID, false]);
-      }
-      return { rows: [] };
+    const primaryKeyConstraints = (await Promise.all(constraints.filter((x) => x.constraint_type === 'PRIMARY KEY').map(async (constraint) => {
+      const tableUUID = findTableOrViewId(tables, views, database.database, database.name, constraint.from_schema, constraint.from_table_name).table; // eslint-disable-line max-len
+      assert(tableUUID, `The table UUID was not found for a primary key constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
+      const columnUUIDs = constraint.from_columns.map((x) => findColumnId(columns, database.database, database.name, constraint.from_schema, tableUUID, x).column); // eslint-disable-line max-len
+      assert(columnUUIDs.length > 0,
+        `The column UUID was not found for a primary key constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name} ${constraint.from_column_name}`);
+      return {
+        rows: (await Promise.all(columnUUIDs.map((columnUUID) => pgpool.query(`
+            insert into postgresql.constraints_log 
+              ("constraint", database, name, type, from_catalog, from_schema, from_table, from_column, deleted)
+            values 
+              (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8)
+            on conflict (database, name, "type", from_catalog, from_schema, from_table, from_column, deleted) where "type" = 'PRIMARY KEY'
+            do update set name = $2
+            returning "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, deleted
+          `, [database.database, constraint.constraint_name, constraint.constraint_type, database.name, constraint.from_schema, tableUUID, columnUUID, false])))).map((x) => x.rows).flat(),
+      };
     }))).map((x) => x.rows).flat();
 
-    const foreignKeyConstraints = (await Promise.all(constraints.filter((x) => x.constraint_type === 'FOREIGN KEY').map((constraint) => {
-      const fromTableUUID = findTableOrViewId(tables, views, database.database, constraint.from_catalog, constraint.from_schema, constraint.from_table_name).table; // eslint-disable-line max-len
-      const fromColumnUUID = findColumnId(columns, database.database, constraint.from_catalog, constraint.from_schema, fromTableUUID, constraint.from_column_name).column; // eslint-disable-line max-len
-      if (!constraint.to_column_name || constraint.to_table_name) {
-        debug(`Warning: unable find foreign key reference, the foreign tables column name or table name was null. database: ${database.database} table: ${fromTableUUID} column: ${fromColumnUUID}`);
-        return { rows: [] };
-      }
-      const toTableUUID = findTableOrViewId(tables, views, database.database, constraint.to_catalog, constraint.to_schema, constraint.to_table_name).table; // eslint-disable-line max-len
-      const toColumnUUID = findColumnId(columns, database.database, constraint.to_catalog, constraint.to_schema, toTableUUID, constraint.to_column_name).column; // eslint-disable-line max-len
-      assert(fromTableUUID, `The table UUID was not found for a foreign key constraint on catalog: ${constraint.from_catalog} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
-      assert(fromColumnUUID, `The column UUID was not found for a foreign key constraint on catalog: ${constraint.from_catalog} schema: ${constraint.from_schema} table: ${constraint.from_table_name} ${constraint.from_column_name}`);
-      assert(toTableUUID, `The table UUID was not found for a foreign key constraint on catalog: ${constraint.to_catalog} schema: ${constraint.to_schema} table: ${constraint.to_table_name}`);
-      assert(toColumnUUID, `The column UUID was not found for a foreign key constraint on catalog: ${constraint.to_catalog} schema: ${constraint.to_schema} table: ${constraint.to_table_name} ${constraint.to_column_name}`);
-      return pgpool.query(`
-        insert into postgresql.constraints_log 
-          ("constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted)
-        values 
-          (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        on conflict (database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted) where "type" = 'FORIEGN KEY'
-        do update set name = $2
-        returning "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted
-      `, [database.database, constraint.constraint_name, constraint.constraint_type, constraint.from_catalog, constraint.from_schema, fromTableUUID, fromColumnUUID, constraint.to_catalog, constraint.to_schema, toTableUUID, toColumnUUID, false]);
+    const foreignKeyConstraints = (await Promise.all(constraints.filter((x) => x.constraint_type === 'FOREIGN KEY').map(async (constraint) => {
+      const fromTableUUID = findTableOrViewId(tables, views, database.database, database.name, constraint.from_schema, constraint.from_table_name).table; // eslint-disable-line max-len
+      const fromColumnUUIDs = constraint.from_columns.map((x) => findColumnId(columns, database.database, database.name, constraint.from_schema, fromTableUUID, x).column); // eslint-disable-line max-len
+      const toTableUUID = findTableOrViewId(tables, views, database.database, database.name, constraint.to_schema, constraint.to_table_name).table; // eslint-disable-line max-len
+      const toColumnUUIDs = constraint.to_columns.map((x) => findColumnId(columns, database.database, database.name, constraint.to_schema, toTableUUID, x).column); // eslint-disable-line max-len
+      assert(fromTableUUID, `The table UUID was not found for a foreign key constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
+      assert(fromColumnUUIDs.length > 0, `The column UUID was not found for a foreign key constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
+      assert(toTableUUID, `The table UUID was not found for a foreign key constraint on catalog: ${database.name} schema: ${constraint.to_schema} table: ${constraint.to_table_name}`);
+      assert(toColumnUUIDs.length > 0, `The column UUID was not found for a foreign key constraint on catalog: ${database.name} schema: ${constraint.to_schema} table: ${constraint.to_table_name}`);
+      assert(fromColumnUUIDs.length === toColumnUUIDs.length,
+        `There wasnt the same from and to columns in the foreign key constraint on catalog: ${database.name} schema: ${constraint.to_schema} table: ${constraint.to_table_name}`);
+      return {
+        rows: (await Promise.all(fromColumnUUIDs.map((fromColumnUUID, index) => {
+          const toColumnUUID = toColumnUUIDs[index];
+          return pgpool.query(`
+            insert into postgresql.constraints_log 
+              ("constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted)
+            values 
+              (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            on conflict (database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted) where "type" = 'FORIEGN KEY'
+            do update set name = $2
+            returning "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted
+          `, [database.database, constraint.constraint_name, constraint.constraint_type, database.name, constraint.from_schema, fromTableUUID, fromColumnUUID, database.name, constraint.to_schema, toTableUUID, toColumnUUID, false]);
+        }))).map((x) => x.rows).flat(),
+      };
     }))).map((x) => x.rows).flat();
 
-    const checkConstraints = (await Promise.all(constraints.filter((x) => x.constraint_type === 'CHECK').map((constraint) => {
-      const tableUUID = findTableOrViewId(tables, views, database.database, constraint.from_catalog, constraint.from_schema, constraint.from_table_name).table; // eslint-disable-line max-len
-      let columnUUID = findColumnId(columns, database, constraint.from_catalog, constraint.from_schema, tableUUID, constraint.from_column_name); // eslint-disable-line max-len
-      if (columnUUID) {
-        columnUUID = columnUUID.column;
-      } else {
-        columnUUID = null;
-      }
-      assert(tableUUID, `The table UUID was not found for a check constraint on catalog: ${constraint.from_catalog} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
-      return pgpool.query(`
-        insert into postgresql.constraints_log 
-          ("constraint", database, name, type, from_catalog, from_schema, from_table, from_column, check_clause, deleted)
-        values 
-          (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
-        on conflict (database, name, type, from_catalog, from_schema, from_table, check_clause, deleted) where "type" = 'CHECK'
-        do update set name = $2
-        returning "constraint", database, name, type, from_catalog, from_schema, from_table, check_clause, deleted
-      `, [database.database, constraint.constraint_name, constraint.constraint_type, constraint.from_catalog, constraint.from_schema, tableUUID, columnUUID, constraint.check_clause, false]);
+    const checkConstraints = (await Promise.all(constraints.filter((x) => x.constraint_type === 'CHECK').map(async (constraint) => {
+      const tableUUID = findTableOrViewId(tables, views, database.database, database.name, constraint.from_schema, constraint.from_table_name).table; // eslint-disable-line max-len
+      const columnUUIDs = constraint.from_columns.map((x) => findColumnId(columns, database.database, database.name, constraint.from_schema, tableUUID, x).column); // eslint-disable-line max-len
+      assert(tableUUID, `The table UUID was not found for a check constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
+      return {
+        rows: (await Promise.all(columnUUIDs.map((columnUUID) => pgpool.query(`
+            insert into postgresql.constraints_log 
+              ("constraint", database, name, type, from_catalog, from_schema, from_table, from_column, check_clause, deleted)
+            values 
+              (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
+            on conflict (database, name, type, from_catalog, from_schema, from_table, check_clause, deleted) where "type" = 'CHECK'
+            do update set name = $2
+            returning "constraint", database, name, type, from_catalog, from_schema, from_table, check_clause, deleted
+          `, [database.database, constraint.constraint_name, constraint.constraint_type, database.name, constraint.from_schema, tableUUID, columnUUID, constraint.check_clause, false])))).map((x) => x.rows).flat(),
+      };
     }))).map((x) => x.rows).flat();
 
     // Table Estimates
@@ -331,6 +359,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
     // TODO: Index statistics? I can't imagine this exists but, constraint statistics?...
     // TODO: Add blocking queries, long running queries? locks? outliers
     //       (requires pg_stat_statments)?
+    // TODO: snapshot pg_catalog.pg_available_extensions
 
     // Check for table deletion
     await Promise.all((await pgpool.query('select "table", database, catalog, schema, name, is_view, definition from postgresql.tables where database = $1', [database.database]))
@@ -384,7 +413,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
     await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column from postgresql.constraints where database = $1 and type = \'PRIMARY KEY\'', [database.database]))
       .rows
       .map(async (constraint) => {
-        if (!findConstraintId(primaryKeyConstraints, database.database, constraint.name, constraint.type, constraint.from_catalog, constraint.from_schema, constraint.from_table, constraint.from_column)) { // eslint-disable-line max-len
+        if (!findConstraintId(primaryKeyConstraints, database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column)) { // eslint-disable-line max-len
           await pgpool.query(`
           insert into postgresql.constraints_log 
             ("constraint", database, name, "type", from_catalog, from_schema, from_table, from_column, deleted)
@@ -392,7 +421,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
             (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8)
           on conflict (database, name, "type", from_catalog, from_schema, from_table, from_column, deleted) where "type" = 'PRIMARY KEY'
           do update set deleted = true`,
-          [database.database, constraint.name, constraint.type, constraint.from_catalog, constraint.from_schema, constraint.from_table, constraint.from_column, true]); // eslint-disable-line max-len
+          [database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, true]); // eslint-disable-line max-len
         }
       }));
 
@@ -400,7 +429,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
     await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column from postgresql.constraints where database = $1 and type = \'FOREIGN KEY\'', [database.database]))
       .rows
       .map(async (constraint) => {
-        if (!findConstraintId(foreignKeyConstraints, database.database, constraint.name, constraint.type, constraint.from_catalog, constraint.from_schema, constraint.from_table, constraint.from_column, constraint.to_catalog, constraint.to_schema, constraint.to_table, constraint.to_column)) { // eslint-disable-line max-len
+        if (!findConstraintId(foreignKeyConstraints, database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, database.name, constraint.to_schema, constraint.to_table, constraint.to_column)) { // eslint-disable-line max-len
           await pgpool.query(`
           insert into postgresql.constraints_log 
             ("constraint", database, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted) 
@@ -408,7 +437,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
             (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
           on conflict (database, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted) where "type" = 'FOREIGN KEY'
           do update set deleted = true`,
-          [database.database, constraint.name, constraint.type, constraint.from_catalog, constraint.from_schema, constraint.from_table, constraint.from_column, constraint.to_catalog, constraint.to_schema, constraint.to_table, constraint.to_column, true]); // eslint-disable-line max-len
+          [database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, database.name, constraint.to_schema, constraint.to_table, constraint.to_column, true]); // eslint-disable-line max-len
         }
       }));
 
@@ -416,7 +445,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
     await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, check_clause from postgresql.constraints where database = $1 and type = \'CHECK\'', [database.database]))
       .rows
       .map(async (constraint) => {
-        if (!findConstraintId(checkConstraints, database.database, constraint.name, constraint.type, constraint.from_catalog, constraint.from_schema, constraint.from_table, constraint.from_column, constraint.to_catalog, constraint.to_schema, constraint.to_table, constraint.to_column)) { // eslint-disable-line max-len
+        if (!findConstraintId(checkConstraints, database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, database.name, constraint.to_schema, constraint.to_table, constraint.to_column)) { // eslint-disable-line max-len
           await pgpool.query(`
           insert into postgresql.constraints_log 
             ("constraint", database, name, "type", from_catalog, from_schema, from_table, from_column, check_clause, deleted) 
@@ -424,12 +453,18 @@ async function writeTablesViewsAndColumns(pgpool, database) {
             (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
           on conflict (database, name, "type", from_catalog, from_schema, from_table, check_clause, deleted) where "type" = 'CHECK'
           do update set deleted = true`,
-          [database.database, constraint.name, constraint.type, constraint.from_catalog, constraint.from_schema, constraint.from_table, constraint.from_column, constraint.check_clause, true]); // eslint-disable-line max-len
+          [database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, constraint.check_clause, true]); // eslint-disable-line max-len
         }
       }));
   } catch (e) {
     if (e.message.includes('password authentication failed')) {
-      console.error(`  Error: ${e.message}`); // eslint-disable-line no-console
+      debug(`Error examining database uuid ${database.database} as the authentication failed.`); // eslint-disable-line no-console
+    } else if (e.message.includes('getaddrinfo ENOTFOUND')) {
+      debug(`Error examining database uuid ${database.database} as the host could not be found.`); // eslint-disable-line no-console
+    } else if (e.message.includes('connect ETIMEDOUT')) {
+      debug(`Error examining database uuid ${database.database} the host timed out while trying to connect.`); // eslint-disable-line no-console
+    } else if (e.message.includes('no pg_hba.conf entry for host')) {
+      debug(`Error examining database uuid ${database.database} the host actively refused our connection by pg_hba.conf policy.`); // eslint-disable-line no-console
     } else {
       // This could get here because of a timeout
       //
@@ -437,12 +472,9 @@ async function writeTablesViewsAndColumns(pgpool, database) {
       // How do we do this, if the host is unavailalbe we shouldn't assume the db is unavailable,
       // if the password is changed, what should we do? if the database no longer exists should
       // we remove it?
-      console.log(`=== Error postgres://${database.username}@${database.host}:${database.port}/${database.name}`); // eslint-disable-line no-console
-      console.error(e); // eslint-disable-line no-console
-      console.log(`=== Error postgres://${database.username}@${database.host}:${database.port}/${database.name}`); // eslint-disable-line no-console
+      debug(`Error examining database uuid ${database.database}: ${e.stack}`); // eslint-disable-line no-console
     }
   } finally {
-    debug(`Done writing tables, views and columns for posgres://${database.username}@${database.host}:${database.port}/${database.name} database...`); // eslint-disable-line max-len
     await client.end();
   }
   /* /END critical section */
@@ -463,9 +495,17 @@ async function run(pgpool) {
     .rows
     .map((database) => ({ ...database, password: security.decryptValue(process.env.SECRET, database.password).toString('utf8') }))));
 
-  for (const database of databases) { // eslint-disable-line no-restricted-syntax
-    await writeTablesViewsAndColumns(pgpool, database); // eslint-disable-line no-await-in-loop
+  for (let i = 0; i < databases.length; i += 10) { // eslint-disable-line no-restricted-syntax
+    debug(`Examining databases ${Math.round((i / databases.length) * 10000) / 100}% finished.`);
+    const pool = [];
+    for (let j = 0; j < 10; j++) { // eslint-disable-line no-plusplus
+      if (databases[i + j]) {
+        pool.push(writeTablesViewsAndColumns(pgpool, databases[i + j]));
+      }
+    }
+    await Promise.all(pool); // eslint-disable-line no-await-in-loop
   }
+  debug('Examining databases 100% finished.');
 }
 
 module.exports = {

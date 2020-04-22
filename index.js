@@ -21,7 +21,7 @@ assert.ok(process.env.HASH_SECRET,
 assert.ok(process.env.HASH_SECRET !== process.env.SECRET,
   'Do not set the HASH_SECRET to the same value as SECRET.');
 
-const pgpool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const pgpool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 40 });
 const plugins = fs.readdirSync('./plugins')
   .sort((a, b) => (a < b ? -1 : 1))
   .filter((p) => !path.basename(p).startsWith('.'))

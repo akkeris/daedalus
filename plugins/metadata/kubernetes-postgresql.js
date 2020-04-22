@@ -23,7 +23,7 @@ async function writePostgresqlFromConfigMaps(pgpool, type, configMapRecords) {
               values (uuid_generate_v4(), $1, $2, $3, $4)
               on conflict (name, host, port, deleted) 
               do update set name = $1 
-              returning database, name`,
+              returning database, host, name`,
             [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
             assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
             assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
@@ -46,12 +46,12 @@ async function writePostgresqlFromConfigMaps(pgpool, type, configMapRecords) {
             db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
 
             assert.ok(databaseType, 'databaseType was undefined.');
-            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-              [configMap.config_map, configMap.name, configMapType]);
-            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name=$2',
+              [configMap.config_map, `${configMap.definition.metadata.namespace}/${configMap.name}`, configMapType]);
+            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name=$2',
               [role.rows[0].role, role.rows[0].username, roleType]);
-            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-              [db.rows[0].database, db.rows[0].name, databaseType]);
+            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name=$2',
+              [db.rows[0].database, `${db.rows[0].host}:${db.rows[0].port}/${db.rows[0].name}`, databaseType]);
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
               [db.rows[0].database, role.rows[0].role]);
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
@@ -127,7 +127,7 @@ async function writePostgresqlFromPods(pgpool, type, podRecords) {
                 values (uuid_generate_v4(), $1, $2, $3, $4)
                 on conflict (name, host, port, deleted) 
                 do update set name = $1 
-                returning database, name`,
+                returning database, name, host, port`,
               [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
               assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
               assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
@@ -149,11 +149,11 @@ async function writePostgresqlFromPods(pgpool, type, podRecords) {
               assert.ok(db.rows[0].database, 'db.rows[0].database was undefined.');
               db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
               assert.ok(databaseType, 'databaseType was undefined.');
-              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-                [pod.pod, pod.name, podType]);
-              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-                [db.rows[0].database, db.rows[0].name, databaseType]);
-              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
+              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
+                [pod.pod, `${pod.definition.metadata.namespace}/${pod.name}`, podType]);
+              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
+                [db.rows[0].database, `${db.rows[0].host}:${db.rows[0].port}/${db.rows[0].name}`, databaseType]);
+              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
                 [role.rows[0].role, role.rows[0].username, roleType]);
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
                 [db.rows[0].database, role.rows[0].role]);
@@ -206,10 +206,10 @@ async function writePostgresqlFromDeployments(pgpool, type, deploymentRecords) {
               assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
               db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
               assert.ok(databaseType, 'databaseType was undefined.');
-              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-                [deployment.deployment, deployment.name, deploymentType]);
-              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-                [db.rows[0].database, db.rows[0].name, databaseType]);
+              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
+                [deployment.deployment, `${deployment.definition.metadata.namespace}/${deployment.name}`, deploymentType]);
+              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
+                [db.rows[0].database, `${db.rows[0].host}:${db.rows[0].port}/${db.rows[0].name}`, databaseType]);
               await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
                 [role.rows[0].role, role.rows[0].username, roleType]);
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',

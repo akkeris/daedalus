@@ -16,8 +16,8 @@ async function writeKubernetesPodToReplicaSets(pgpool, type, podRecords) {
           if (ref.kind === 'ReplicaSet') {
             const { rows: [{ replicaset, name, definition }] } = await pgpool.query('select replicaset, name, definition from kubernetes.replicasets where name = $1 and namespace = $2',
               [ref.name, pod.definition.metadata.namespace]);
-            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-              [pod.pod, pod.name, podType]);
+            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
+              [pod.pod, `${pod.definition.metadata.namespace}/${pod.name}`, podType]);
             await pgpool.query('insert into metadata.nodes (node, name, type, transient) values ($1, $2, $3, $4) on conflict (node) do update set transient = $4',
               [replicaset, name, replicaSetType, definition.spec.replicas === 0]);
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
@@ -54,10 +54,10 @@ async function writeKubernetesReplicaSetToDeployments(pgpool, type, replicaSetRe
           if (ref.kind === 'Deployment') {
             const { rows: [{ deployment, name }] } = await pgpool.query('select deployment, name from kubernetes.deployments where name = $1 and namespace = $2',
               [ref.name, replicaSet.definition.metadata.namespace]);
-            await pgpool.query('insert into metadata.nodes (node, name, type, transient) values ($1, $2, $3, $4) on conflict (node) do update set transient = $4',
-              [replicaSet.replicaset, replicaSet.name, replicaSetType, replicaSet.definition.spec.replicas === 0]); // eslint-disable-line max-len
-            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-              [deployment, name, deploymentType]);
+            await pgpool.query('insert into metadata.nodes (node, name, type, transient) values ($1, $2, $3, $4) on conflict (node) do update set transient = $4, name = $2',
+              [replicaSet.replicaset, `${replicaSet.definition.metadata.namespace}/${replicaSet.name}`, replicaSetType, replicaSet.definition.spec.replicas === 0]); // eslint-disable-line max-len
+            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
+              [deployment, `${replicaSet.definition.metadata.namespace}/${name}`, deploymentType]);
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
               [deployment, replicaSet.replicaset]);
           } else {
@@ -91,10 +91,10 @@ async function writeKubernetesDeploymentToConfigMaps(pgpool, type, deployments) 
               try {
                 const { rows: [{ config_map, name }] } = await pgpool.query('select config_map, name from kubernetes.config_maps where name = $1 and namespace = $2', // eslint-disable-line camelcase
                   [envFrom.configMapRef.name, deployment.definition.metadata.namespace]);
-                await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-                  [deployment.deployment, deployment.name, deploymentType]);
-                await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-                  [config_map, name, configMapType]); // eslint-disable-line camelcase
+                await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
+                  [deployment.deployment, `${deployment.definition.metadata.namespace}/${deployment.name}`, deploymentType]);
+                await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
+                  [config_map, `${deployment.definition.metadata.namespace}/${name}`, configMapType]); // eslint-disable-line camelcase
                 await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
                   [config_map, deployment.deployment]); // eslint-disable-line camelcase
               } catch (e) {

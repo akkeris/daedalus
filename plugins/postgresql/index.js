@@ -62,26 +62,26 @@ function findTableOrViewId(tables, views, database, catalog, schema, name) {
 
 async function writeTablesViewsAndColumns(pgpool, database) {
   assert.ok(database, 'A database parameter was not provided!');
-  if (!database.database || !database.port || !database.name) {
-    debug(`Error: Unable to process posgres://${database.username}@${database.host}:${database.port}/${database.name} as a required field was not provided.`); // eslint-disable-line no-console
-    return;
-  }
-  /* CRITICAL SECTION
-   * Be very careful modifying code below until the end of the critical section,
-   * failing to test carefully could result in destructive actions. The code
-   * below must elegantly disconnect from the postgres instance during an error.
-   * Failing to do so would cause connection leaks.
-   */
+  assert.ok(database.database, 'A database uuid was not provided!');
+
   const client = new pg.Client({
     user: database.username,
     password: database.password,
     host: database.host,
     database: database.name,
-    port: database.port,
+    port: database.port || 5432,
     statement_timeout: 15000,
     query_timeout: 15000,
   });
+
   try {
+    assert.ok(database.name, 'A database name was not provided!');
+    /* CRITICAL SECTION
+     * Be very careful modifying code below until the end of the critical section,
+     * failing to test carefully could result in destructive actions. The code
+     * below must elegantly disconnect from the postgres instance during an error.
+     * Failing to do so would cause connection leaks.
+     */
     await client.connect();
 
     const tables = (await Promise.all((await client.query(`
@@ -458,16 +458,21 @@ async function writeTablesViewsAndColumns(pgpool, database) {
       }));
   } catch (e) {
     if (e.message.includes('password authentication failed')) {
-      debug(`Error examining database uuid ${database.database} as the authentication failed.`); // eslint-disable-line no-console
+      await pgpool.query('insert into postgresql.errors("error", database, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database, "type", message) do update set observed_on = now()',
+        [database.database, 'authentication-failed', e.message]);
     } else if (e.message.includes('getaddrinfo ENOTFOUND')) {
-      debug(`Error examining database uuid ${database.database} as the host could not be found.`); // eslint-disable-line no-console
+      await pgpool.query('insert into postgresql.errors("error", database, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database, "type", message) do update set observed_on = now()',
+        [database.database, 'host-not-found', e.message]);
     } else if (e.message.includes('connect ETIMEDOUT')) {
-      debug(`Error examining database uuid ${database.database} the host timed out while trying to connect.`); // eslint-disable-line no-console
+      await pgpool.query('insert into postgresql.errors("error", database, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database, "type", message) do update set observed_on = now()',
+        [database.database, 'connection-timeout', e.message]);
     } else if (e.message.includes('no pg_hba.conf entry for host')) {
-      debug(`Error examining database uuid ${database.database} the host actively refused our connection by pg_hba.conf policy.`); // eslint-disable-line no-console
+      await pgpool.query('insert into postgresql.errors("error", database, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database, "type", message) do update set observed_on = now()',
+        [database.database, 'forbidden-by-pg-hba-conf-policy', e.message]);
+    } else if (e.message.includes('A database name was not provided')) {
+      await pgpool.query('insert into postgresql.errors("error", database, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database, "type", message) do update set observed_on = now()',
+        [database.database, 'database-name-missing', e.message]);
     } else {
-      // This could get here because of a timeout
-      //
       // TODO: Check for db deletion?
       // How do we do this, if the host is unavailalbe we shouldn't assume the db is unavailable,
       // if the password is changed, what should we do? if the database no longer exists should

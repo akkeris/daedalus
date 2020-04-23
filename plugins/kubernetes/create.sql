@@ -75,7 +75,7 @@ begin
       observed_on,
       deleted,
       row_number() over (partition by name, namespace, context order by observed_on desc) as rn
-    from kubernetes.pods_log) 
+    from kubernetes.pods_log)
     select pod, name, namespace, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
   create table if not exists kubernetes.config_maps_log (

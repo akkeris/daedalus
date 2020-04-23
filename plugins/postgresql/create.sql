@@ -16,6 +16,15 @@ begin
     deleted boolean not null default false
   );
 
+  create table if not exists postgresql.errors (
+    error uuid not null primary key, 
+    database uuid not null references postgresql.databases_log("database"),
+    "type" varchar(128) not null,
+    message varchar(128) not null,
+    observed_on timestamp with time zone default now()
+  );
+  create unique index if not exists error_message on postgresql.errors (database, "type", message);
+
   create unique index if not exists databases_unique on postgresql.databases_log (name, host, port, deleted);
   create index if not exists databases_observed_on on postgresql.databases_log (name, host, port, observed_on desc);
   create or replace view postgresql.databases as

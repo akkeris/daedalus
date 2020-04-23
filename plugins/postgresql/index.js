@@ -60,10 +60,14 @@ function findTableOrViewId(tables, views, database, catalog, schema, name) {
 // TODO: Listen for changes via triggers and channels?
 // https://www.postgresql.org/docs/9.1/sql-notify.html
 
-async function writeTablesViewsAndColumns(pgpool, database) {
+async function writeTablesViewsAndColumns(pgpool, bus, database) {
   assert.ok(database, 'A database parameter was not provided!');
   assert.ok(database.database, 'A database uuid was not provided!');
-
+  if (!database.name) {
+    await pgpool.query('insert into postgresql.errors("error", database, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database, "type", message) do update set observed_on = now()',
+      [database.database, 'database-name-missing', 'The database name was not defined.']);
+    return;
+  }
   const client = new pg.Client({
     user: database.username,
     password: database.password,
@@ -73,9 +77,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
     statement_timeout: 15000,
     query_timeout: 15000,
   });
-
   try {
-    assert.ok(database.name, 'A database name was not provided!');
     /* CRITICAL SECTION
      * Be very careful modifying code below until the end of the critical section,
      * failing to test carefully could result in destructive actions. The code
@@ -458,20 +460,13 @@ async function writeTablesViewsAndColumns(pgpool, database) {
       }));
   } catch (e) {
     if (e.message.includes('password authentication failed')) {
-      await pgpool.query('insert into postgresql.errors("error", database, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database, "type", message) do update set observed_on = now()',
-        [database.database, 'authentication-failed', e.message]);
+      bus.emit('postgresql.error', [database.database, 'authentication-failed', e.message]);
     } else if (e.message.includes('getaddrinfo ENOTFOUND')) {
-      await pgpool.query('insert into postgresql.errors("error", database, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database, "type", message) do update set observed_on = now()',
-        [database.database, 'host-not-found', e.message]);
+      bus.emit('postgresql.error', [database.database, 'host-not-found', e.message]);
     } else if (e.message.includes('connect ETIMEDOUT')) {
-      await pgpool.query('insert into postgresql.errors("error", database, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database, "type", message) do update set observed_on = now()',
-        [database.database, 'connection-timeout', e.message]);
+      bus.emit('postgresql.error', [database.database, 'connection-timeout', e.message]);
     } else if (e.message.includes('no pg_hba.conf entry for host')) {
-      await pgpool.query('insert into postgresql.errors("error", database, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database, "type", message) do update set observed_on = now()',
-        [database.database, 'forbidden-by-pg-hba-conf-policy', e.message]);
-    } else if (e.message.includes('A database name was not provided')) {
-      await pgpool.query('insert into postgresql.errors("error", database, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database, "type", message) do update set observed_on = now()',
-        [database.database, 'database-name-missing', e.message]);
+      bus.emit('postgresql.error', [database.database, 'forbidden-by-pg-hba-conf-policy', e.message]);
     } else {
       // TODO: Check for db deletion?
       // How do we do this, if the host is unavailalbe we shouldn't assume the db is unavailable,
@@ -485,7 +480,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
   /* /END critical section */
 }
 
-async function run(pgpool) {
+async function run(pgpool, bus) {
   if (process.env.POSTGRESQL !== 'true') {
     return;
   }
@@ -505,7 +500,7 @@ async function run(pgpool) {
     const pool = [];
     for (let j = 0; j < 10; j++) { // eslint-disable-line no-plusplus
       if (databases[i + j]) {
-        pool.push(writeTablesViewsAndColumns(pgpool, databases[i + j]));
+        pool.push(writeTablesViewsAndColumns(pgpool, bus, databases[i + j]));
       }
     }
     await Promise.all(pool); // eslint-disable-line no-await-in-loop

@@ -181,7 +181,8 @@ begin
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
-  create unique index if not exists routes_unique on akkeris.routes_log (route, site_log, app_log, (definition->>'updated_at'), deleted);
+  drop index if exists akkeris.routes_unique;
+  create unique index if not exists routes_unique_app on akkeris.routes_log (route, site_log, app_log, (definition->>'updated_at'), deleted);
   create index if not exists routes_log_site_log on akkeris.routes_log (site_log);
   create index if not exists routes_log_app_log on akkeris.routes_log (app_log);
   create or replace view akkeris.routes as

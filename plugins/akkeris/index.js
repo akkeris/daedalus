@@ -140,11 +140,32 @@ async function run(pgpool) {
   }));
 
 
+  debug('Checking for routes deletions');
+  (await pgpool.query('select route_log, route, site, app, source_path, target_path, definition, observed_on from akkeris.routes'))
+    .rows
+    .filter((route) => !routes.map((x) => x.id).includes(route.route))
+    .map(async (route) => {
+      try {
+        return await pgpool.query(`
+          insert into akkeris.routes_log (route_log, route, site_log, app_log, definition, source_path, target_path, observed_on, deleted)
+          values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, now(), true)
+          on conflict (route, site_log, app_log, (definition->>'updated_at'), deleted)
+          do update set route = EXCLUDED.route
+          returning route_log, route, site_log, app_log, definition, observed_on, deleted
+      `, [route.route, lookupSiteById(sitesLog, route.site), lookupAppById(appsLog, route.app), route.definition, route.source_path, route.target_path]);
+      } catch (e) {
+        // TODO: this introduces a logical falicy, how do we detect whether a route is deleted if a
+        // site is deleted?...
+        debug(`Unable to insert route deletion ${route.route} with ${route.site} due to: ${e.message}`);
+        return {};
+      }
+    });
+
   debug('Checking for site deletions');
   sitesLog = sitesLog.concat((await Promise.all((await pgpool.query('select site_log, site, name, definition, observed_on from akkeris.sites'))
     .rows
     .filter((site) => !sites.map((x) => x.id).includes(site.site))
-    .map((site) => pgpool.query(`
+    .map(async (site) => pgpool.query(`
       insert into akkeris.sites_log (site_log, site, name, definition, observed_on, deleted)
       values (uuid_generate_v4(), $1, $2, $3, now(), true)
       on conflict (site, name, (definition->>'updated_at'), deleted)
@@ -176,27 +197,6 @@ async function run(pgpool) {
       do update set name = EXCLUDED.name
       returning space_log, space, name, definition, observed_on, deleted
     `, [space.space, space.name, space.definition])))).map((x) => x.rows).flat());
-
-  debug('Checking for routes deletions');
-  (await pgpool.query('select route_log, route, site, definition, observed_on from akkeris.routes'))
-    .rows
-    .filter((route) => !routes.map((x) => x.id).includes(route.route))
-    .map(async (route) => {
-      try {
-        return await pgpool.query(`
-          insert into akkeris.routes_log (route_log, route, site_log, definition, observed_on, deleted)
-          values (uuid_generate_v4(), $1, $2, $3, now(), true)
-          on conflict (route, site_log, (definition->>'updated_at'), deleted)
-          do update set route = EXCLUDED.route
-          returning route_log, route, site_log, definition, observed_on, deleted
-      `, [route.route, lookupSiteById(sitesLog, route.site), route.definition]);
-      } catch (e) {
-        // TODO: this introduces a logical falicy, how do we detect whether a route is deleted if a
-        // site is deleted?...
-        debug(`Unable to insert route deletion ${route.route} with ${route.site} due to: ${e.message}`);
-        return {};
-      }
-    });
 
   debug('Checking for apps deletions');
   appsLog = appsLog.concat((await Promise.all((await pgpool.query('select app_log, app, name, space, definition, observed_on from akkeris.apps'))

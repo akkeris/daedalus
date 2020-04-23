@@ -5,6 +5,7 @@
  */
 
 .hljs {
+  font-family: 'Inconsolata', monospace;
   display: block;
   background: white;
   padding: 0.5em;

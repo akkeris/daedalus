@@ -8,6 +8,11 @@ Daedalus is a knowledge system intended for collecting an examining resources on
 
 > This is currently in discovery and may change considerably.
 
+## Requires
+
+* Postgresql 11
+* Node 14
+
 ## Supported Systems
 
 * Kubernetes

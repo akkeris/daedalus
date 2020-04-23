@@ -1,3 +1,6 @@
+function createUrlWithQueryParams(req, key, value) {
+  return `?${key}=${value}&${Object.keys(req.query).filter((x) => x !== key).map((x) => `${x}=${req.query[x]}`).join('&')}`
+}
 module.exports = (req, res, next, data) => res.send(`
   ${require('./header.html')()}
     <appkit-app>
@@ -8,6 +11,27 @@ module.exports = (req, res, next, data) => res.send(`
               Home
           </li>
         </ul>
+        <button class="passive sort-filter">
+          Sort
+          <i class="fa fa-sort" aria-hidden="true"></i>
+        </button>
+        <x-dropdown target=".sort-filter">
+          <nav>
+            <ul>
+              <li>
+                <a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'name')}">Name</a>
+              </li>
+              <li>
+                <a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'type')}">Type</a>
+              </li>
+              <li>
+                <a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'observed_on')}">Observed On</a>
+              </li>
+              <!-- TODO: <li>
+                <a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'labels')}">Labels</a>
+              </li> -->
+          </nav>
+        </x-dropdown>
       </nav-breadcrumb>
       <div class="table-list">
       ${data.rows.map((row) => `

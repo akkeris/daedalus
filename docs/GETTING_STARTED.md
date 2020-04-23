@@ -11,6 +11,7 @@ Daedalus can be deployed with a docker image from [https://hub.docker.com/r/akke
  *  `HASH_SECRET` - This is the secret key used in the hmac process to create a hash, it should be different from `SECRET`.
  *  `ENVS_BLACKLIST` - Optional - This is a comma sepearted list of substrings that if found as the key or value will be redacted when stored. Defaults to `PASS,KEY,SECRET,PRIVATE,TOKEN,SALT,AUTH,HASH`.
  *  `PORT` - Set this to the value of the port to listen to for the web process (used by either the UI or GraphQL), if this is not set it defaults to port `9000`, note if the graphql or ui plugin are both disabled a port is not opened.
+ *  `SKIP_MAINTENANCE` - This prevents daedalus from preforming database re-indexing and other maintenance tasks every 24 hours.
 
 ### UI Plugin
 
@@ -33,6 +34,12 @@ GraphQL API can be configured and turned on independently (infact you can start 
  *  `GRAPHQL_POSTGRAPHILE_OPTIONS` - Sets options for the GraphQL API (https://www.graphile.org/postgraphile/usage-library/#recommended-options)
 
 Because session information is stored in the `public` schema we exclude it from analysis by default.
+
+### Metadata Plugin
+
+The metadata plugin is generally required if you want to use the UI or GraphQL, it analyzes incoming objects from various other plugins and creates link relationships between them. 
+
+*  `METADATA` - Set this to `true` to enable examining systems for links (highly recommended).
 
 ### Postgresql Plugin
 

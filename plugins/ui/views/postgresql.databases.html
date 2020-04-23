@@ -13,12 +13,12 @@ module.exports = (req, res, next, data) => res.send(`
           <dt>Size</dt>
           <dd>
             ${formatBytes(data.tableStatistics.reduce((acc, x) => 
-              (x.index_size + x.table_size + acc), 0))}
+              (parseInt(x.index_size, 10) + parseInt(x.table_size, 10) + acc), 0))}
           </dd>
           <dt>Data Size</dt>
           <dd>
             ${formatBytes(data.tableStatistics.reduce((acc, x) => 
-              (x.table_size + acc), 0))}
+              (parseInt(x.table_size, 10) + acc), 0))}
           </dd>
           <dt>Connections</dt>
           <dd>
@@ -55,7 +55,7 @@ module.exports = (req, res, next, data) => res.send(`
           <div>${data.tableStatistics.filter((x) => x.table === table.table).map((ts) => `
             <dl class="facts">
               <dt>Rows</dt><dd>${ts.row_amount_estimate}</dd>
-              <dt>Size</dt><dd>${formatBytes(ts.table_size + ts.index_size)}</dd>
+              <dt>Size</dt><dd>${formatBytes(parseInt(ts.table_size, 10) + parseInt(ts.index_size, 10))}</dd>
               <dt>Stats</dt>
               <dd>
                 <a href="#" class="info-button info-button-${table.schema}-${table.name}">
@@ -80,12 +80,12 @@ module.exports = (req, res, next, data) => res.send(`
       <div name="roles" class="tab-panel list"> ${data.roles.map((role) => `
         <div class="list-item">
           <div><i class="fa fa-user" aria-hidden="true"></i> ${role.username}</div>
-          <div>postgres://${role.username}@${data.host}:${data.port}/${data.name}</div>
+          <div class="pre-inline">postgres://${data.name}</div>
         </div> `).join("")}
       </div>
       <div name="settings" class="tab-panel list"> ${Object.keys(data.config).map((key) => `
         <div class="list-item">
-          <div><pre class="inline half"><code class="nohighlight">${key}=${data.config[key].value}</code></pre></div>
+          <div class="pre-inline">${key}=${data.config[key].value}</div>
           <div>${data.config[key].description}</div>
         </div> `).join("")}
       </div>

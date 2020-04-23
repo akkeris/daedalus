@@ -1,7 +1,7 @@
 const { postgraphile } = require('postgraphile');
 const debug = require('debug')('daedalus:graphql');
 
-async function run() { debug('Running graphql'); } // eslint-disable-line no-empty-function
+async function run() {} // eslint-disable-line no-empty-function
 
 async function init(pgpool, bus, app) {
   debug('Initializing graphql...');

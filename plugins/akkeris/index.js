@@ -38,10 +38,10 @@ function lookupAddonById(addons, id) {
 }
 
 async function run(pgpool) {
-  debug('Running akkeris plugin...');
   if (!process.env.AKKERIS_URL || !process.env.AKKERIS_TOKEN) {
     return;
   }
+  debug('Running akkeris plugin...');
   const get = axios.create({
     baseURL: process.env.AKKERIS_URL,
     timeout: 60 * 1000,

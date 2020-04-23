@@ -71,11 +71,13 @@ class SideMenu extends HTMLElement {
 
       nav-sidemenu > ul {
         margin:0;
-        padding:1rem 0 0 0;
+        padding:0 0 0 0;
       }
 
       nav-sidemenu > ul > li {
         list-style: none;
+        background-color: var(--divider-background-color);
+        border-bottom: 1px solid var(--divider-color);
       }
 
       nav-sidemenu > ul > li > a:hover {
@@ -87,7 +89,7 @@ class SideMenu extends HTMLElement {
         padding:0.75em 2em;
         display:inline-block;
         width:100%;
-        color:var(--font-text-color);
+        color: var(--highlight-link-color);
         font-family:var(--font-text-family);
         font-size:var(--font-text-button-size);
         text-decoration:none;

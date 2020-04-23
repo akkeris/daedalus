@@ -481,10 +481,10 @@ async function writeTablesViewsAndColumns(pgpool, database) {
 }
 
 async function run(pgpool) {
-  debug('Running postgresql plugin...');
   if (process.env.POSTGRESQL !== 'true') {
     return;
   }
+  debug('Running postgresql plugin...');
   const databases = (await Promise.all((await pgpool.query(`
     select 
       databases.database, databases.name, databases.host, databases.port,
@@ -506,6 +506,12 @@ async function run(pgpool) {
     await Promise.all(pool); // eslint-disable-line no-await-in-loop
   }
   debug('Examining databases 100% finished.');
+  debug('Beginning re-index...');
+  await pgpool.query('reindex index postgresql.constraints_observed_on');
+  await pgpool.query('reindex index postgresql.indexes_observed_on');
+  await pgpool.query('reindex index postgresql.columns_observed_on');
+  await pgpool.query('reindex index postgresql.tables_observed_on');
+  debug('Re-index finished...');
 }
 
 module.exports = {

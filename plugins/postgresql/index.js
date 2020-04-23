@@ -131,7 +131,7 @@ async function writeTablesViewsAndColumns(pgpool, database) {
         pg_class.relname as table_name,
         pg_attribute.attname as column_name,
         pg_attribute.attnum as ordinal_position,
-        coalesce(pg_attrdef.adsrc, '') as column_default,
+        coalesce(pg_get_expr(pg_attrdef.adbin, pg_attrdef.adrelid), '') as column_default,
         pg_attribute.attnotnull as is_nullable,
         pg_attribute.atttypid::regtype as data_type,
         case when pg_attribute.atttypmod = -1 then 0 else pg_attribute.atttypmod - 4 end as character_maximum_length,

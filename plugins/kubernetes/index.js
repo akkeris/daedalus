@@ -287,10 +287,10 @@ async function writeDeletedObjs(pgpool, type, items) {
 }
 
 async function run(pgpool, bus) {
-  debug('Running kubernetes plugin');
   if (!process.env.KUBERNETES_CONTEXT) {
     return;
   }
+  debug('Running kubernetes plugin');
   const kc = new k8s.KubeConfig();
   if (process.env.KUBERNETES_TOKEN && process.env.KUBERNETES_API_URL) {
     await loadFromKubeEnvironment(kc);

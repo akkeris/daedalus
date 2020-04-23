@@ -254,7 +254,9 @@ begin
   create index if not exists constraints_log_to_column on postgresql.constraints_log (to_column);
   create index if not exists constraints_log_from_table on postgresql.constraints_log (from_table);
   create index if not exists constraints_log_to_table on postgresql.constraints_log (to_table);
-  create index if not exists constraints_observed_on on postgresql.constraints_log (database, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, observed_on desc);
+  create index if not exists constraints_log_type_database on postgresql.constraints_log (type, database);
+  create index if not exists constraints_observed_on on postgresql.constraints_log (database, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, check_clause, observed_on desc nulls last);
+
   create or replace view postgresql.constraints as
     with ordered_list as ( 
       select

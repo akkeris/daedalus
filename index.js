@@ -75,6 +75,17 @@ async function run() {
   setTimeout(run, 1000 * 60 * 5);
 }
 
+async function maintenance() {
+  if (process.env.SKIP_MAINTENANCE) {
+    return;
+  }
+  debug('Running database maintenance tasks...');
+  await pgpool.query(`reindex database ${(new URL(process.env.DATABASE_URL)).pathname.replace('/', '')}`); // eslint-disable-line max-len
+  // TODO: Upgrade to postgres 12 and change this to concurrently.
+  debug('Running database maintenance tasks... done');
+  setTimeout(maintenance, 1000 * 60 * 60 * 24);
+}
+
 function fatal(e) {
   if (pgpool) {
     console.error(e); // eslint-disable-line no-console
@@ -89,6 +100,7 @@ if (require.main === module) {
   process.on('uncaughtException', fatal);
   process.on('unhandledRejection', fatal);
   init().then(run);
+  setTimeout(maintenance, 1000 * 60 * 60 * 24);
 }
 
 module.exports = {

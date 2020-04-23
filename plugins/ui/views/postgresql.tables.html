@@ -15,12 +15,12 @@ module.exports = (req, res, next, data) => res.send(`
           <dt>Size</dt>
           <dd>
             ${formatBytes(data.tableStatistics.reduce((acc, x) => 
-              (x.index_size + x.table_size + acc), 0))}
+              (parseInt(x.index_size, 10) + parseInt(x.table_size, 10) + acc), 0))}
           </dd>
           <dt>Data Size</dt>
           <dd>
             ${formatBytes(data.tableStatistics.reduce((acc, x) => 
-              (x.table_size + acc), 0))}
+              (parseInt(x.table_size, 10) + acc), 0))}
           </dd>
           <dt>Scanned</dt>
           <dd>${new Date(data.observed_on).toLocaleString()}</dd>

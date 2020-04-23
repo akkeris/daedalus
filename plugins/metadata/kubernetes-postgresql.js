@@ -23,7 +23,7 @@ async function writePostgresqlFromConfigMaps(pgpool, type, configMapRecords) {
               values (uuid_generate_v4(), $1, $2, $3, $4)
               on conflict (name, host, port, deleted) 
               do update set name = $1 
-              returning database, host, name`,
+              returning database, host, port, name`,
             [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
             assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
             assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
@@ -191,7 +191,7 @@ async function writePostgresqlFromDeployments(pgpool, type, deploymentRecords) {
                 values (uuid_generate_v4(), $1, $2, $3, $4)
                 on conflict (name, host, port, deleted) 
                 do update set name = $1 
-                returning database, name`,
+                returning database, name, host, port`,
               [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
               assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
               assert.ok(db.rows[0].database, 'Database was not set on return after insertion');

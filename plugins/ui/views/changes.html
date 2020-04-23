@@ -3,10 +3,7 @@ const {getDateDiff} = require('../../../common/format.js');
 module.exports = (req, data) => `
         ${data.changes.map((x) => `
         <div class="list-item">
-          <div>
-            <i class="fa fa-${x['$icon']}" aria-hidden="true"></i> 
-            <pre class="inline"><code class="nohighlight">${x.name}</code></pre>
-          </div>
+          <div class="pre-inline"><i class="fa fa-${x['$icon']}" aria-hidden="true"></i> ${x.name}</div>
           <div>
             ${x["$type"]} 
             ${x.deleted === true ? 'deleted' : 'added'} • ${getDateDiff(x.observed_on)}

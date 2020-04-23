@@ -7,12 +7,18 @@ const aa = require('./akkeris-akkeris.js');
 const pp = require('./postgresql-postgresql.js');
 
 async function run(pgpool, bus) {
+  if (process.env.METADATA !== 'true') {
+    return;
+  }
   debug('Running metadata plugin...');
   await kp.run(pgpool, bus);
   await kk.run(pgpool, bus);
   await ka.run(pgpool, bus);
   await aa.run(pgpool, bus);
   await pp.run(pgpool, bus);
+  await pgpool.query('reindex index metadata.metadata_families_parent');
+  await pgpool.query('reindex index metadata.metadata_families_child');
+  await pgpool.query('reindex index metadata.families_node_idx');
 }
 
 // todo: akkeris apps -> akkeris apps (based on configuration)

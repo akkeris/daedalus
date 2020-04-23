@@ -30,7 +30,7 @@ body {
   --body-background:linear-gradient(to right, rgb(174,58,152) 0%, rgb(206,57,98) 100%);
   --subtle-fading-background:linear-gradient(to bottom, rgba(65, 130, 196, 0.00) 0% , rgba(65, 130, 196, 0.04) 100%);
   --subtle-background-color:rgb(247, 248, 251);
-  --font-main-family:ProximaNova, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --font-main-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   --font-main-color:rgb(51, 51, 51);
   --font-text-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   --font-text-color:rgb(100, 100, 100);
@@ -53,6 +53,7 @@ body {
   --divider-background-color:rgb(248, 248, 248);
   --border-radius-containers:5px;
   --border-radius:3px;
+  --subtle-box-shadow:0 1px 2px rgba(153,153,153,.3);
   --subtle-text-shadow:0 1px 0 rgba(255,255,255,.8);
 }
 
@@ -77,6 +78,24 @@ button {
   padding: 0.5em 0.75em;
   font-size:var(--font-text-button-size);
   line-height: 1em;
+}
+
+button.passive {
+  border: 0;
+  color: var(--highlight-link-color);
+  font-weight:normal;
+  background-color:transparent;
+}
+
+button.passive:hover {
+  background-image:none;
+  background-color: var(--divider-background-color);
+  box-shadow: var(--subtle-box-shadow);
+}
+
+button > i {
+  margin-left:0.25rem;
+  opacity:0.8;
 }
 
 button.primary {
@@ -402,22 +421,21 @@ ul.panel > li {
   padding-right:0 !important;
 }
 .list-item {
-  font-size:var(--font-text-small-size);
-  flex-grow:1;
-  display:flex;
-  margin-top:0;
-  margin-bottom:0;
-  border-bottom:1px solid rgb(238, 241, 246);
-  padding:0.75rem calc(50% - 512px) 0.75rem calc(50% - 512px);
-  align-items:center;
+  font-size: var(--font-text-small-size);
+  flex-grow: 1;
+  display: flex;
+  margin-top: 0;
+  margin-bottom: 0;
+  border-bottom: 1px solid rgb(238, 241, 246);
+  padding: 0.75rem calc(50% - 512px) 0.75rem calc(50% - 512px);
+  align-items :center;
+  justify-content: space-between;
 }
 .list-item:hover {
   background-color:rgb(251, 251, 253);
 }
 .list-item > div {
-  /*display:flex;*/
   height:1.5rem;
-  flex-grow:1;
 } 
 .table-list-item > div.icon {
   max-width:25px;
@@ -448,7 +466,7 @@ ul.panel > li {
   color:var(--highlight-link-color);
 }
 .list-item > div.uno {
-  width:25px;
+  width:100%;
   text-align:left;
   display:flex;
 }
@@ -557,6 +575,13 @@ pre.inline {
 pre.inline.half {
   max-width:50%;
   overflow-x:scroll;
+}
+/* For those not using code but just needing a code like highlight */
+.pre-inline {
+  font-family: 'Inconsolata', monospace;
+  background-color:var(--subtle-background-color);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--border-radius-containers);
 }
 @media only screen and (max-width: 768px) {
   pre.inline {

@@ -92,13 +92,13 @@ module.exports = (req, res, next, data) => res.send(`
           <div class="uno">
             <dl class="facts" style="margin-left:2rem;">
               <dt>CPU Limit</dt>
-              <dd>${container.resources.limits.cpu}</dd>
+              <dd>${container.resources.limits.cpu || 'No Quota'}</dd>
               <dt>Memory Limit</dt>
-              <dd>${container.resources.limits.memory}</dd>
+              <dd>${container.resources.limits.memory || 'No Quota'}</dd>
               <dt>CPU Requests</dt>
-              <dd>${container.resources.requests.cpu}</dd>
+              <dd>${container.resources.requests.cpu || 'No Quota'}</dd>
               <dt>Memory Requests</dt>
-              <dd>${container.resources.requests.memory}</dd>
+              <dd>${container.resources.requests.memory || 'No Quota'}</dd>
             </dl>
           </div>
         </div>

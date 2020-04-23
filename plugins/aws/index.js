@@ -376,6 +376,9 @@ async function runElastiCache(pgpool) {
   }));
 }
 async function run(pgpool) {
+  if (!process.env.AWS_RDS_REGIONS && !process.env.AWS_ELASTICACHE_REGIONS) {
+    return;
+  }
   debug('Running aws plugin...');
   await new Promise((res) => setTimeout(res, 30 * 1000));
   await runRds(pgpool);

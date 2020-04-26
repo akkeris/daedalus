@@ -2,7 +2,7 @@ const debug = require('debug')('daedalus:metadata');
 const assert = require('assert');
 const security = require('../../common/security.js');
 
-async function writePostgresqlFromConfigMaps(pgpool, type, configMapRecords) {
+async function writePostgresqlFromConfigMaps(pgpool, bus, type, configMapRecords) {
   if (type !== 'sync') {
     return;
   }
@@ -57,7 +57,11 @@ async function writePostgresqlFromConfigMaps(pgpool, type, configMapRecords) {
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
               [role.rows[0].role, configMap.config_map]); // TODO: switch these?
           } catch (e) {
-            debug(`Error adding link from ${configMap.config_map} to postgresql role found inside, due to: ${e.message}`); // eslint-disable-line no-console
+            if (e.message.includes('Invalid URL')) {
+              bus.emit('kubernetes.config_map.error', [configMap.config_map, 'bad-postgresql-url-error', e.message]);
+            } else {
+              debug(`Error adding link from ${configMap.config_map} to postgresql role found inside, due to: ${e.message}`); // eslint-disable-line no-console
+            }
           }
         }
       }), []);
@@ -67,7 +71,7 @@ async function writePostgresqlFromConfigMaps(pgpool, type, configMapRecords) {
   await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select role from postgresql.roles)', [roleType]);
 }
 
-async function writePostgresqlFromReplicaSets(pgpool, type, replicaSetRecords) {
+async function writePostgresqlFromReplicaSets(pgpool, bus, type, replicaSetRecords) {
   if (type !== 'sync') {
     return;
   }
@@ -98,14 +102,18 @@ async function writePostgresqlFromReplicaSets(pgpool, type, replicaSetRecords) {
               assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
               assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
             } catch (e) {
-              debug(`Error adding postgresql entry from replicaset ${replicaSet.replicaset} due to: ${e.message}`); // eslint-disable-line no-console
+              if (e.message.includes('Invalid URL')) {
+                bus.emit('kubernetes.replicaset.error', [replicaSet.replicaset, 'bad-postgresql-url-error', e.message]);
+              } else {
+                debug(`Error adding postgresql entry from replicaset ${replicaSet.replicaset} due to: ${e.message}`); // eslint-disable-line no-console
+              }
             }
           }
         }), []));
   }));
 }
 
-async function writePostgresqlFromPods(pgpool, type, podRecords) {
+async function writePostgresqlFromPods(pgpool, bus, type, podRecords) {
   if (type !== 'sync') {
     return;
   }
@@ -160,7 +168,11 @@ async function writePostgresqlFromPods(pgpool, type, podRecords) {
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
                 [role.rows[0].role, pod.pod]);
             } catch (e) {
-              debug(`Error adding postgresql entry from pod ${pod.pod} due to: ${e.message}`); // eslint-disable-line no-console
+              if (e.message.includes('Invalid URL')) {
+                bus.emit('kubernetes.pod.error', [pod.pod, 'bad-postgresql-url-error', e.message]);
+              } else {
+                debug(`Error adding postgresql entry from pod ${pod.pod} due to: ${e.message}`); // eslint-disable-line no-console
+              }
             }
           }
         }), []));
@@ -169,7 +181,7 @@ async function writePostgresqlFromPods(pgpool, type, podRecords) {
   await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select database from postgresql.databases)', [databaseType]);
 }
 
-async function writePostgresqlFromDeployments(pgpool, type, deploymentRecords) {
+async function writePostgresqlFromDeployments(pgpool, bus, type, deploymentRecords) {
   if (type !== 'sync') {
     return;
   }
@@ -217,7 +229,11 @@ async function writePostgresqlFromDeployments(pgpool, type, deploymentRecords) {
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
                 [role.rows[0].role, deployment.deployment]); // TODO: Switch these?
             } catch (e) {
-              debug(`Error adding postgresql entry from deployment ${deployment.deployment} due to: ${e.message}`); // eslint-disable-line no-console
+              if (e.message.includes('Invalid URL')) {
+                bus.emit('kubernetes.deployment.error', [deployment.deployment, 'bad-postgresql-url-error', e.message]);
+              } else {
+                debug(`Error adding postgresql entry from deployment ${deployment.deployment} due to: ${e.message}`); // eslint-disable-line no-console
+              }
             }
           }
         }), []));
@@ -227,10 +243,10 @@ async function writePostgresqlFromDeployments(pgpool, type, deploymentRecords) {
 }
 
 async function init(pgpool, bus) {
-  bus.on('kubernetes.pod', writePostgresqlFromPods.bind(null, pgpool));
-  bus.on('kubernetes.config_map', writePostgresqlFromConfigMaps.bind(null, pgpool));
-  bus.on('kubernetes.deployment', writePostgresqlFromDeployments.bind(null, pgpool));
-  bus.on('kubernetes.replicaset', writePostgresqlFromReplicaSets.bind(null, pgpool));
+  bus.on('kubernetes.pod', writePostgresqlFromPods.bind(null, pgpool, bus));
+  bus.on('kubernetes.config_map', writePostgresqlFromConfigMaps.bind(null, pgpool, bus));
+  bus.on('kubernetes.deployment', writePostgresqlFromDeployments.bind(null, pgpool, bus));
+  bus.on('kubernetes.replicaset', writePostgresqlFromReplicaSets.bind(null, pgpool, bus));
 }
 
 async function run(pgpool) { // eslint-disable-line no-unused-vars

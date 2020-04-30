@@ -1,0 +1,13 @@
+FROM node:12
+RUN mkdir -p /usr/src/app
+WORKDIR /usr/src/app
+COPY package*.json /usr/src/app/
+COPY instantclient_19_6/* /lib/
+RUN apt-get update --yes
+RUN apt-get install libaio1 libaio-dev
+RUN ldconfig -n /lib
+RUN npm install
+RUN npm install oracledb
+COPY . /usr/src/app/
+EXPOSE 9000
+CMD [ "npm", "start" ]

@@ -8,8 +8,15 @@ async function init(pgpool, bus, app) {
   if (process.env.GRAPHQL_API !== 'true') {
     return;
   }
+  const defaultPlugins = require('graphile-build-pg'); // eslint-disable-line import/no-extraneous-dependencies,global-require
+  // https://www.graphile.org/postgraphile/usage-library/#api-postgraphilepgconfig-schemaname-options
   let postgrahileOptions = {
-    watchPg: true, graphiql: true, enhanceGraphiql: true, dynamicJson: true, ignoreIndexes: false,
+    watchPg: true,
+    graphiql: true,
+    enhanceGraphiql: true,
+    dynamicJson: true,
+    ignoreIndexes: false,
+    skipPlugins: [defaultPlugins.PgNodeAliasPostGraphile],
   };
   if (process.env.GRAPHQL_POSTGRAPHILE_OPTIONS) {
     postgrahileOptions = JSON.parse(process.env.GRAPHQL_POSTGRAPHILE_OPTIONS);

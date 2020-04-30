@@ -29,8 +29,10 @@
     "body-parser": "^1.19.0",
     "connect-pg-simple": "^6.1.0",
     "debug": "^4.1.1",
+    "diff": "^4.0.2",
     "express": "^4.17.1",
     "express-session": "^1.17.0",
+    "oracledb": "^4.2.0",
     "pg": "^7.18.2",
     "postgraphile": "^4.6.0",
     "request": "^2.88.2"

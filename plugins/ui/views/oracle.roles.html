@@ -2,23 +2,15 @@ const {formatBytes} = require('../../../common/format.js');
 module.exports = (req, res, next, data) => res.send(`
   ${require('./header.html')(req)}
     <appkit-app>
-      ${require('./object-header.html')(req, data, 'Deployments', 'fa-rocket', `/ui/kubernetes/deployments/${data.deployment}`, data.deployment, 'kubernetes/deployments')}
+      ${require('./object-header.html')(req, data, 'Roles', 'fa-user', `/ui/oracle/roles/${data.role}`, data.role, 'oracle/roles')}
       <div>
-        <h2>${data.human_name}</h2>
+        <h2>${data.human_name}<sub>${data.human_name !== data.name ? `(${data.name})` : ``}</sub></h2>
         ${data.annotations && data.annotations.description ? `
         <p class="description">${data.annotations.description}</p>
         ` : ''}
         <dl class="facts">
-          ${data.definition && data.definition.spec ? `
-          <dt>Replicas</dt>
-          <dd>${data.definition.spec.replicas}</dd>
-          <dt>Namespace</dt>
-          <dd>${data.definition.metadata.namespace}</dd>
-          <dt>UID</dt>
-          <dd>${data.definition.metadata.uid}</dd>
-          ` : ''}
-          <dt>Context</dt>
-          <dd>${data.context}</dd>
+          <dt>Host</dt>
+          <dd>${data.databases[0].host}</dd>
           <dt>Scanned</dt>
           <dd>${new Date(data.observed_on).toLocaleString()}</dd>
         </dl>
@@ -27,20 +19,16 @@ module.exports = (req, res, next, data) => res.send(`
         <x-tab><a href="#metadata">Metadata</a></x-tab>
         <x-tab><a href="#changes">Changes</a></x-tab>
         <x-tab><a href="#used_by">Used By</a></x-tab>
-        <x-tab><a href="#definition">Definition</a></x-tab>
       </x-tabs>
       <div name="metadata" class="tab-panel list">
-        ${require('./labels.html')(req, data, `/ui/kubernetes/deployments/${data.deployment}`)}
-        ${require('./annotations.html')(req, data, `/ui/kubernetes/deployments/${data.deployment}`)}
+        ${require('./labels.html')(req, data, `/ui/oracle/roles/${data.role}`)}
+        ${require('./annotations.html')(req, data, `/ui/oracle/roles/${data.role}`)}
       </div>
       <div name="changes" class="tab-panel list">
         ${require('./changes.html')(req, data)}
       </div>
       <div name="used_by" class="list tab-panel"> 
         ${require('./used_by.html')(req, data)}
-      </div>
-      <div name="definition" class="tab-panel">
-        <pre><code class="hljs json">${JSON.stringify(data.definition, null, 2)}</code></pre>
       </div>
     </appkit-app>
   ${require('./footer.html')(req, res)}

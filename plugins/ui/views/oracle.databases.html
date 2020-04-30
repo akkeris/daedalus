@@ -2,7 +2,7 @@ const {formatBytes} = require('../../../common/format.js');
 module.exports = (req, res, next, data) => res.send(`
   ${require('./header.html')(req)}
     <appkit-app>
-      ${require('./object-header.html')(req, data, 'Databases', 'fa-database', `/ui/postgresql/databases/${data.database}`, data.database, 'postgresql/databases')}
+      ${require('./object-header.html')(req, data, 'Databases', 'fa-database', `/ui/oracle/databases/${data.database}`, data.database, 'oracle/databases')}
       <div>
         <h2>${data.human_name}<sub>${data.human_name !== data.name ? `(${data.name})` : ``}</sub></h2>
         ${data.annotations && data.annotations.description ? `
@@ -42,8 +42,8 @@ module.exports = (req, res, next, data) => res.send(`
         <x-tab><a href="#settings">Settings</a></x-tab>
       </x-tabs>
       <div name="metadata" class="tab-panel list">
-        ${require('./labels.html')(req, data, `/ui/postgresql/databases/${data.database}`)}
-        ${require('./annotations.html')(req, data, `/ui/postgresql/databases/${data.database}`)}
+        ${require('./labels.html')(req, data, `/ui/oracle/databases/${data.database}`)}
+        ${require('./annotations.html')(req, data, `/ui/oracle/databases/${data.database}`)}
       </div>
       <div name="changes" class="tab-panel list">
         ${require('./changes.html')(req, data)}
@@ -54,7 +54,7 @@ module.exports = (req, res, next, data) => res.send(`
       <div name="tables" class="list tab-panel">
         ${data.tables.filter((x) => !x.is_view).map((table) => `
         <div class="list-item">
-          <div><a href="/ui/postgresql/tables/${table.table}">${table.schema}.${table.name}</a></div>
+          <div><a href="/ui/oracle/tables/${table.table}">${table.schema}.${table.name}</a></div>
           <div>${data.tableStatistics.filter((x) => x.table === table.table).map((ts) => `
             <dl class="facts">
               <dt>Rows</dt><dd>${ts.row_amount_estimate}</dd>
@@ -67,8 +67,9 @@ module.exports = (req, res, next, data) => res.send(`
                 <x-dropdown class="right" target=".info-button-${table.schema}-${table.name}">
                   <nav>
                     <ul class="facts">
-                      <li>Scans • ${ts.sequential_scans}</li>
-                      <li>Index Used • ${(ts.percent_of_times_index_used * 100).toFixed(2)}%</li>
+                      <li>Blocks • ${ts.blocks}</li>
+                      <li>Empty Blocks • ${ts.empty_blocks}%</li>
+                      <li>Average Row Length • ${ts.avg_row_length}</li>
                       <li>Index Hit Rate  • ${(ts.index_hit_rate * 100).toFixed(2)}%</li>
                       <li>Table (Heap) Hit Rate • ${(ts.table_hit_rate * 100).toFixed(2)}%</li>
                     </ul>
@@ -83,13 +84,13 @@ module.exports = (req, res, next, data) => res.send(`
       <div name="roles" class="tab-panel list"> ${data.roles.map((role) => `
         <div class="list-item">
           <div><i class="fa fa-user" aria-hidden="true"></i> ${role.username}</div>
-          <div class="pre-inline">postgres://${data.name}</div>
+          <div class="pre-inline">oracle://${data.name}</div>
         </div> `).join("")}
       </div>
       <div name="settings" class="tab-panel list"> ${Object.keys(data.config).map((key) => `
         <div class="list-item">
-          <div class="pre-inline">${key}=${data.config[key].value}</div>
-          <div>${data.config[key].description}</div>
+          <div class="pre-inline">${key}</div>
+          <div class="pre-inline">${data.config[key]}</div>
         </div> `).join("")}
       </div>
     </appkit-app>

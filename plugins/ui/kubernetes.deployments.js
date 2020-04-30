@@ -28,19 +28,36 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
         metadata.find_node_relatives($1)
     `, [req.params.kubernetes_deployment_id]);
 
+    // TODO: Flip this to use the actual uid from kube.
     const { rows: changes } = await pgpool.query(`
-      select 
-        'definition' as "$type",
-        'cube' as "$icon",
-        deployments_log.deployment as id,
-        deployments_log.deleted,
-        deployments_log.observed_on,
-        (deployments_log.namespace || '/' || deployments_log.name) as name
-      from 
-        kubernetes.deployments_log 
-      where
-        deployments_log.deployment = $1
-    `, [req.params.kubernetes_deployment_id]);
+      with a as (
+        select
+          'definition' as "$type",
+          'cube' as "$icon",
+          deployments_log.deployment as id,
+          deployments_log.deleted,
+          deployments_log.definition,
+          deployments_log.observed_on,
+          (deployments_log.namespace || '/' || deployments_log.name) as name,
+          row_number() over (partition by deployments_log.namespace, deployments_log.name, deployments_log.context order by deployments_log.observed_on) as number
+        from
+          kubernetes.deployments_log
+        where
+          deployments_log.namespace = $1 and deployments_log.name = $2 and deployments_log.context = $3
+      )
+      select
+        a."$type",
+        a."$icon",
+        a.id,
+        a.definition,
+        a.deleted,
+        a.observed_on,
+        a.name,
+        b.definition as old_definition
+      from a
+        left join a as b on a.number = (b.number + 1)
+      order by a.observed_on desc
+    `, [req.params.kubernetes_deployment.namespace, req.params.kubernetes_deployment.name, req.params.kubernetes_deployment.context]);
 
     const data = {
       ...metadata[0],

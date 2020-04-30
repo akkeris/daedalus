@@ -2,9 +2,12 @@ const {formatBytes} = require('../../../common/format.js');
 module.exports = (req, res, next, data) => res.send(`
   ${require('./header.html')(req)}
     <appkit-app>
-      ${require('./object-header.html')(req, data, 'Columns', 'fa-columns', `/ui/postgresql/columns/${data.column}`, data.column, 'postgresql/columns')}
+      ${require('./object-header.html')(req, data, 'Columns', 'fa-columns', `/ui/oracle/columns/${data.column}`, data.column, 'oracle/columns')}
       <div>
         <h2>${data.human_name}<sub>${data.human_name !== data.name ? `(${data.name})` : ``}</sub></h2>
+        ${data.annotations && data.annotations.description ? `
+        <p class="description">${data.annotations.description}</p>
+        ` : ''}
         ${data.annotations && data.annotations.description ? `
         <p class="description">${data.annotations.description}</p>
         ` : ''}
@@ -21,8 +24,8 @@ module.exports = (req, res, next, data) => res.send(`
         <x-tab><a href="#definition">Definition</a></x-tab>
       </x-tabs>
       <div name="metadata" class="tab-panel list">
-        ${require('./labels.html')(req, data, `/ui/postgresql/columns/${data.column}`)}
-        ${require('./annotations.html')(req, data, `/ui/postgresql/columns/${data.column}`)}
+        ${require('./labels.html')(req, data, `/ui/oracle/columns/${data.column}`)}
+        ${require('./annotations.html')(req, data, `/ui/oracle/columns/${data.column}`)}
       </div>
       <div name="changes" class="tab-panel list">
         ${require('./changes.html')(req, data)}
@@ -34,38 +37,24 @@ module.exports = (req, res, next, data) => res.send(`
       <div name="statistics" class="tab-panel list">
         <div class="list-item">
           <div>Distinct Values</div>
-          <div class="pre-inline">${data.statistics.n_distinct < 0 ? (data.statistics.n_distinct*-1*100).toFixed(2) + '%' : data.statistics.n_distinct}</div>
+          <div class="pre-inline">${data.statistics.num_distinct}</div>
         </div>
         <div class="list-item">
-          <div>Percent Null</div>
-          <div class="pre-inline">${(data.statistics.null_frac * 100).toFixed(2) + '%'}</div>
+          <div>Number Null</div>
+          <div class="pre-inline">${data.statistics.num_nulls}</div>
         </div>
         <div class="list-item">
           <div>Average Size</div>
-          <div class="pre-inline">${formatBytes(data.statistics.avg_width)}</div>
+          <div class="pre-inline">${formatBytes(data.statistics.avg_col_len)}</div>
         </div>
-        ${data.statistics.histogram_bounds ? `
         <div class="list-item">
           <div>Min Value</div>
-          <div class="pre-inline">${data.statistics.histogram_bounds[0]}</div>
+          <div class="pre-inline">${data.statistics.low_value}</div>
         </div>
         <div class="list-item">
           <div>Max Value</div>
-          <div class="pre-inline">${data.statistics.histogram_bounds[data.statistics.histogram_bounds.length - 1]}</div>
+          <div class="pre-inline">${data.statistics.high_value}</div>
         </div>
-        ` : ''}
-        ${data.statistics.most_common_vals ? `
-        <div class="list-item section">
-          Histogram
-        </div>
-        ${data.statistics.most_common_vals.map((x, i) => `
-        <div class="list-item">
-          <div class="percentage" style="background-image:linear-gradient(to right, var(--highlight-link-color), var(--highlight-link-color) ${(data.statistics.most_common_freqs[i] * 100).toFixed(2) + '%'}, rgba(0,0,0,0) ${(data.statistics.most_common_freqs[i] * 100).toFixed(2) + '%'});">
-            ${x} (${(data.statistics.most_common_freqs[i] * 100).toFixed(2) + '%'})
-          </div>
-        </div>
-        `).join('')}
-        ` : ''}
       </div>
       ` : ''}
       <div name="definition" class="tab-panel">

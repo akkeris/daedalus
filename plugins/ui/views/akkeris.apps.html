@@ -5,6 +5,9 @@ module.exports = (req, res, next, data) => res.send(`
       ${require('./object-header.html')(req, data, 'Apps', 'fa-microchip', `/ui/akkeris/apps/${data.app}`, data.name, 'akkeris/apps')}
       <div>
         <h2>${data.name}</h2>
+        ${data.annotations && data.annotations.description ? `
+        <p class="description">${data.annotations.description}</p>
+        ` : ''}
       </div>
       <x-tabs>
         <x-tab><a href="#metadata">Metadata</a></x-tab>
@@ -12,8 +15,8 @@ module.exports = (req, res, next, data) => res.send(`
         <x-tab><a href="#used_by">Used By</a></x-tab>
       </x-tabs>
       <div name="metadata" class="tab-panel list">
-        ${require('./labels.html')(req, data)}
-        ${require('./annotations.html')(req, data)}
+        ${require('./labels.html')(req, data, `/ui/akkeris/apps/${data.app}`)}
+        ${require('./annotations.html')(req, data, `/ui/akkeris/apps/${data.app}`)}
       </div>
       <div name="changes" class="tab-panel list">
         ${require('./changes.html')(req, data)}

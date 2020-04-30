@@ -5,6 +5,8 @@ const kk = require('./kubernetes-kubernetes.js');
 const ka = require('./kubernetes-akkeris.js');
 const aa = require('./akkeris-akkeris.js');
 const pp = require('./postgresql-postgresql.js');
+const ko = require('./kubernetes-oracle.js');
+const oo = require('./oracle-oracle.js');
 
 async function run(pgpool, bus) {
   if (process.env.METADATA !== 'true') {
@@ -16,6 +18,8 @@ async function run(pgpool, bus) {
   await ka.run(pgpool, bus);
   await aa.run(pgpool, bus);
   await pp.run(pgpool, bus);
+  await ko.run(pgpool, bus);
+  await oo.run(pgpool, bus);
   await pgpool.query('reindex index metadata.metadata_families_parent');
   await pgpool.query('reindex index metadata.metadata_families_child');
   await pgpool.query('reindex index metadata.families_node_idx');
@@ -36,6 +40,8 @@ async function init(pgpool, bus) {
   await ka.init(pgpool, bus);
   await aa.init(pgpool, bus);
   await pp.init(pgpool, bus);
+  await ko.init(pgpool, bus);
+  await oo.init(pgpool, bus);
   debug('Initializing metadata plugin... done');
 }
 

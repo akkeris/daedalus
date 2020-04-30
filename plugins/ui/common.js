@@ -1,3 +1,5 @@
+const diff = require('diff');
+
 async function grab(include, req, res, next, data) {
   try {
     require(include)(req, res, next, data); // eslint-disable-line global-require,import/no-dynamic-require,max-len
@@ -20,8 +22,8 @@ async function cursors(req) {
   let filter = '';
   const params = [];
   if (req.query.type) {
-    sql += ' where type=$1';
-    filter += ' where type=$1';
+    sql += ' where type like $1';
+    filter += ' where type like $1';
     params.push(req.query.type);
   }
   if (req.query.labels) {
@@ -58,6 +60,13 @@ async function cursors(req) {
     size,
     filter,
   };
+}
+
+function diffJSON(a, b) {
+  return diff.diffLines(JSON.stringify(a, null, 2), JSON.stringify(b, null, 2))
+    .filter((p) => p.added || p.removed)
+    .map((p) => `<span style="color:${p.added ? 'green' : (p.removed ? 'red' : 'inherit')}">${p.value}</span>`) // eslint-disable-line no-nested-ternary
+    .join('');
 }
 
 async function addExpressAnnotationsAndLabelRoutes(pgpool, app, typeName, param) {
@@ -116,4 +125,5 @@ module.exports = {
   grab,
   cursors,
   addExpressAnnotationsAndLabelRoutes,
+  diffJSON,
 };

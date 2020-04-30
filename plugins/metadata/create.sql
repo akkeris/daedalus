@@ -12,6 +12,10 @@ begin
   insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'postgresql/tables', 'postgresql.tables.svg') on conflict (name, icon) do nothing;
   insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'postgresql/columns', 'postgresql.columns.svg') on conflict (name, icon) do nothing;
   insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'postgresql/roles', 'postgresql.roles.svg') on conflict (name, icon) do nothing;
+  insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'oracle/databases', 'oracle.databases.svg') on conflict (name, icon) do nothing;
+  insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'oracle/tables', 'oracle.tables.svg') on conflict (name, icon) do nothing;
+  insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'oracle/columns', 'oracle.columns.svg') on conflict (name, icon) do nothing;
+  insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'oracle/roles', 'oracle.roles.svg') on conflict (name, icon) do nothing;
   insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'kubernetes/config_maps', 'kubernetes.config_maps.svg') on conflict (name, icon) do nothing;
   insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'kubernetes/deployments', 'kubernetes.deployments.svg') on conflict (name, icon) do nothing;
   insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'kubernetes/replicasets', 'kubernetes.replicasets.svg') on conflict (name, icon) do nothing;
@@ -71,8 +75,8 @@ begin
       nodes.definition,
       nodes.status,
       nodes.observed_on,
-      ('{' || string_agg('"' || metadata.labels.name || '":"' ||  metadata.labels.value || '"', ',') || '}')::jsonb as labels,
-      ('{' || string_agg('"' || metadata.annotations.name || '":"' ||  metadata.annotations.value || '"', ',') || '}')::jsonb as annotations
+      ('{' || string_agg(to_json(metadata.labels.name) || ':' ||  to_json(metadata.labels.value), ',') || '}')::jsonb as labels,
+      ('{' || string_agg(to_json(metadata.annotations.name) || ':' ||  to_json(metadata.annotations.value), ',') || '}')::jsonb as annotations
     from
       metadata.nodes
       join metadata.node_types on nodes.type = node_types.type
@@ -97,8 +101,8 @@ begin
       nodes.definition,
       nodes.status,
       nodes.observed_on,
-      ('{' || string_agg('"' || metadata.labels.name || '":"' ||  metadata.labels.value || '"', ',') || '}')::jsonb as labels,
-      ('{' || string_agg('"' || metadata.annotations.name || '":"' ||  metadata.annotations.value || '"', ',') || '}')::jsonb as annotations
+      ('{' || string_agg(to_json(metadata.labels.name) || ':' ||  to_json(metadata.labels.value), ',') || '}')::jsonb as labels,
+      ('{' || string_agg(to_json(metadata.annotations.name) || ':' ||  to_json(metadata.annotations.value), ',') || '}')::jsonb as annotations
     from
       metadata.nodes
       join metadata.node_types on nodes.type = node_types.type

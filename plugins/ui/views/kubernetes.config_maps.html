@@ -5,6 +5,9 @@ module.exports = (req, res, next, data) => res.send(`
       ${require('./object-header.html')(req, data, 'Config Maps', 'fa-map', `/ui/kubernetes/config_maps/${data.config_map}`, data.config_map, 'kubernetes/config_maps')}
       <div>
         <h2>${data.human_name}</h2>
+        ${data.annotations && data.annotations.description ? `
+        <p class="description">${data.annotations.description}</p>
+        ` : ''}
         <dl class="facts">
           ${data.definition && data.definition.spec ? `
           <dt>Namespace</dt>

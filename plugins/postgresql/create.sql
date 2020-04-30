@@ -24,6 +24,7 @@ begin
     observed_on timestamp with time zone default now()
   );
   create unique index if not exists error_message on postgresql.errors (database, "type", message);
+  comment on table "postgresql"."errors" IS E'@name postgresqlErrors';
 
   create unique index if not exists databases_unique on postgresql.databases_log (name, host, port, deleted);
   create index if not exists databases_observed_on on postgresql.databases_log (name, host, port, observed_on desc);
@@ -39,7 +40,8 @@ begin
       row_number() over (partition by name, host, port order by observed_on desc) as rn
     from postgresql.databases_log)
     select database, name, host, port, config, observed_on from ordered_list where rn=1 and deleted = false;
-
+  comment on view "postgresql"."databases" IS E'@name postgresqlDatabases';
+  comment on table "postgresql"."databases_log" IS E'@name postgresqlDatabasesLog';
 
   create table if not exists postgresql.roles_log (
     role uuid not null primary key,
@@ -65,7 +67,8 @@ begin
       row_number() over (partition by roles_log.database, roles_log.username, (roles_log.password->>'hash') order by roles_log.observed_on desc) as rn
     from postgresql.roles_log join postgresql.databases_log on roles_log.database = databases_log.database)
     select role, database, username, password, options, observed_on from ordered_list where rn=1 and roles_deleted = false and databases_deleted = false;
-
+  comment on view "postgresql"."roles" IS E'@name postgresqlRoles';
+  comment on table "postgresql"."roles_log" IS E'@name postgresqlRolesLog';
 
   create table if not exists postgresql.tables_log (
     "table" uuid not null primary key,
@@ -106,6 +109,8 @@ begin
       row_number() over (partition by tables_log.database, tables_log.catalog, tables_log.schema, tables_log.name, tables_log.is_view, tables_log.definition order by tables_log.observed_on desc) as rn
     from postgresql.tables_log join postgresql.databases_log on tables_log.database = databases_log.database)
     select "table", database, catalog, schema, name, is_view, definition, observed_on from ordered_list where rn=1 and tables_deleted = false and databases_deleted = false;
+    comment on view "postgresql"."tables" IS E'@name postgresqlTables';
+    comment on table "postgresql"."tables_log" IS E'@name postgresqlTablesLog';
 
     create or replace view postgresql.table_changes as
       select 
@@ -131,6 +136,7 @@ begin
         ) a 
       where 
         a.rn > 1;
+  comment on view "postgresql"."table_changes" IS E'@name postgresqlTableChanges';
 
   create table if not exists postgresql.columns_log (
     "column" uuid not null primary key,
@@ -186,7 +192,8 @@ begin
         join postgresql.databases_log on columns_log.database = databases_log.database
     )
     select "column", database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, observed_on from ordered_list where rn=1 and databases_deleted = false and tables_deleted = false and columns_deleted = false;
-
+  comment on view "postgresql"."columns" is E'@name postgresqlColumns';
+  comment on table "postgresql"."columns_log" IS E'@name postgresqlColumnsLogs';
 
   create table if not exists postgresql.indexes_log (
     "index" uuid not null primary key,
@@ -235,7 +242,8 @@ begin
     select "index", database, catalog, schema, "table", name, definition, observed_on 
     from ordered_list 
     where rn=1 and indexes_deleted = false and tables_deleted = false and databases_deleted = false;
-
+  comment on view "postgresql"."indexes" IS E'@name postgresqlIndexes';
+  comment on table "postgresql"."indexes_log" IS E'@name postgresqlIndexesLog';
 
   create table if not exists postgresql.constraints_log (
     "constraint" uuid not null primary key,
@@ -306,6 +314,66 @@ begin
       (to_columns_deleted = false or to_columns_deleted is null) and
       (from_columns_deleted = false or from_columns_deleted is null) and
       databases_deleted = false;
+  comment on view "postgresql"."constraints" IS E'@name postgresqlConstraints';
+  comment on table "postgresql"."constraints_log" IS E'@name postgresqlConstraintsLog';
+
+  create table if not exists postgresql.column_statistics_log (
+    "column_statistic" uuid not null primary key, 
+    database uuid references postgresql.databases_log("database") not null,
+    catalog varchar(1024) not null, 
+    schema varchar(1024) not null, 
+    "table" uuid references postgresql.tables_log("table") not null, 
+    "column" uuid references postgresql.columns_log("column") not null,
+    inherited boolean not null,
+    null_frac real not null,
+    avg_width integer not null,
+    n_distinct real not null,
+    most_common_vals text[],
+    most_common_freqs real[], 
+    histogram_bounds text[],
+    correlation real,
+    most_common_elems text[],
+    most_common_elem_freqs text[],
+    elem_count_histogram real[],
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+  comment on table "postgresql"."column_statistics_log" IS E'@name postgresqlColumnStatisticsLog';
+  create unique index if not exists column_statistics_pkey_unique on postgresql.column_statistics_log (database, catalog, schema, "table", "column", inherited, null_frac, avg_width, n_distinct, deleted);
+  create index if not exists column_statistics_log_table on postgresql.column_statistics_log ("table");
+  create index if not exists column_statistics_log_column on postgresql.column_statistics_log ("column");
+  create or replace view postgresql.column_statistics as
+    with ordered_list as ( 
+      select
+        column_statistics_log.column_statistic,
+        column_statistics_log.database,
+        column_statistics_log.catalog,
+        column_statistics_log.schema,
+        column_statistics_log.table,
+        column_statistics_log.column,
+        column_statistics_log.inherited,
+        column_statistics_log.null_frac,
+        column_statistics_log.avg_width,
+        column_statistics_log.n_distinct,
+        column_statistics_log.most_common_vals,
+        column_statistics_log.most_common_freqs,
+        column_statistics_log.histogram_bounds,
+        column_statistics_log.correlation,
+        column_statistics_log.most_common_elems,
+        column_statistics_log.most_common_elem_freqs,
+        column_statistics_log.elem_count_histogram,
+        column_statistics_log.observed_on,
+        column_statistics_log.deleted as rows_deleted,
+        tables_log.deleted as tables_deleted,
+        columns_log.deleted as columns_deleted,
+        row_number() over (partition by column_statistics_log.database, column_statistics_log.catalog, column_statistics_log.schema, column_statistics_log.table, column_statistics_log.column order by column_statistics_log.observed_on desc) as rn
+      from postgresql.column_statistics_log
+        join postgresql.tables_log on column_statistics_log.table = tables_log.table
+        join postgresql.columns_log on column_statistics_log.column = columns_log.column) 
+    select "column_statistic", database, catalog, schema, "table", "column", inherited, null_frac, avg_width, n_distinct, most_common_vals, most_common_freqs, histogram_bounds, correlation, most_common_elems, most_common_elem_freqs, elem_count_histogram, observed_on 
+    from ordered_list 
+    where rn=1 and rows_deleted = false and tables_deleted = false and columns_deleted = false;
+  comment on view "postgresql"."column_statistics" IS E'@name postgresqlColumnStatistics';
 
   create table if not exists postgresql.table_statistics_log (
     "table_statistic" uuid not null primary key, 
@@ -357,6 +425,8 @@ begin
     select "table_statistic", database, catalog, schema, "table", row_amount_estimate, sequential_scans, percent_of_times_index_used, index_size, table_size, index_hit_rate, table_hit_rate, observed_on 
     from ordered_list 
     where rn=1 and rows_deleted = false and tables_deleted = false;
+  comment on view "postgresql"."table_statistics" IS E'@name postgresqlTableStatistics';
+  comment on table "postgresql"."table_statistics_log" IS E'@name postgresqlTableStatisticsLog';
 
 
   create table if not exists postgresql.database_statistics_log (
@@ -388,6 +458,8 @@ begin
     from ordered_list 
     where rn=1 and database_statistic_deleted = false;
 
+  comment on view "postgresql"."database_statistics" IS E'@name postgresqlDatabaseStatistics';
+  comment on table "postgresql"."database_statistics_log" IS E'@name postgresqlDatabaseStatisticsLog';
   
 end
 $$;

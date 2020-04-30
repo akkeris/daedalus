@@ -5,6 +5,9 @@ module.exports = (req, res, next, data) => res.send(`
       ${require('./object-header.html')(req, data, 'Roles', 'fa-user', `/ui/postgresql/roles/${data.role}`, data.role, 'postgresql/roles')}
       <div>
         <h2>${data.human_name}<sub>${data.human_name !== data.name ? `(${data.name})` : ``}</sub></h2>
+        ${data.annotations && data.annotations.description ? `
+        <p class="description">${data.annotations.description}</p>
+        ` : ''}
         <dl class="facts">
           <dt>Host</dt>
           <dd>${data.databases[0].host}</dd>

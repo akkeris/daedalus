@@ -29,18 +29,34 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
     `, [req.params.kubernetes_config_map_id]);
 
     const { rows: changes } = await pgpool.query(`
-      select 
-        'definition' as "$type",
-        'cube' as "$icon",
-        config_maps_log.config_map as id,
-        config_maps_log.deleted,
-        config_maps_log.observed_on,
-        (config_maps_log.namespace || '/' || config_maps_log.name) as name
-      from 
-        kubernetes.config_maps_log 
-      where
-        config_maps_log.config_map = $1
-    `, [req.params.kubernetes_config_map_id]);
+      with a as (
+        select
+          'definition' as "$type",
+          'cube' as "$icon",
+          config_maps_log.config_map as id,
+          config_maps_log.deleted,
+          config_maps_log.definition,
+          config_maps_log.observed_on,
+          (config_maps_log.namespace || '/' || config_maps_log.name) as name,
+          row_number() over (partition by config_maps_log.namespace, config_maps_log.name, config_maps_log.context order by config_maps_log.observed_on) as number
+        from
+          kubernetes.config_maps_log
+        where
+          config_maps_log.namespace = $1 and config_maps_log.name = $2 and config_maps_log.context = $3
+      )
+      select
+        a."$type",
+        a."$icon",
+        a.id,
+        a.definition,
+        a.deleted,
+        a.observed_on,
+        a.name,
+        b.definition as old_definition
+      from a
+        left join a as b on a.number = (b.number + 1)
+      order by a.observed_on desc
+    `, [req.params.kubernetes_config_map.namespace, req.params.kubernetes_config_map.name, req.params.kubernetes_config_map.context]);
 
     const data = {
       ...metadata[0],

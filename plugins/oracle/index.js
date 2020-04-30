@@ -1,13 +1,12 @@
 const assert = require('assert');
-const pg = require('pg');
 const fs = require('fs');
-const debug = require('debug')('daedalus:postgresql');
+const debug = require('debug')('daedalus:oracle');
 const security = require('../../common/security.js');
 
 async function init(pgpool) {
-  debug('Initializing postgresql plugin...');
-  await pgpool.query(fs.readFileSync('./plugins/postgresql/create.sql').toString());
-  debug('Initializing postgresql plugin... done');
+  debug('Initializing oracle plugin...');
+  await pgpool.query(fs.readFileSync('./plugins/oracle/create.sql').toString());
+  debug('Initializing oracle plugin... done');
 }
 
 function findConstraintId(constraints, database, name, type, fromCatalog, fromSchema, fromTable, fromColumn, toCatalog, toSchema, toTable, toColumn) { // eslint-disable-line max-len
@@ -58,25 +57,24 @@ function findTableOrViewId(tables, views, database, catalog, schema, name) {
 // e.g. change the port of a database to 1 from 5432 then back 5432, breaks.
 
 // TODO: Listen for changes via triggers and channels?
-// https://www.postgresql.org/docs/9.1/sql-notify.html
+// https://www.oracle.org/docs/9.1/sql-notify.html
 
 async function writeTablesViewsAndColumns(pgpool, bus, database) {
   assert.ok(database, 'A database parameter was not provided!');
   assert.ok(database.database, 'A database uuid was not provided!');
   if (!database.name) {
-    await pgpool.query('insert into postgresql.errors("error", database, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database, "type", message) do update set observed_on = now()',
+    await pgpool.query('insert into oracle.errors("error", database, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database, "type", message) do update set observed_on = now()',
       [database.database, 'database-name-missing', 'The database name was not defined.']);
     return;
   }
-  const client = new pg.Client({
-    user: database.username,
-    password: database.password,
-    host: database.host,
-    database: database.name,
-    port: database.port || 5432,
-    statement_timeout: 15000,
-    query_timeout: 15000,
-  });
+  if (database.host.includes('prod') || database.host.includes('prd') || database.name.includes('prd') || database.name.includes('prod')) {
+    debug(`Not scanning ${database.host} as its probably a production database.`);
+    return;
+  }
+  const oracledb = require('oracledb'); // eslint-disable-line global-require
+  oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
+  let client = null;
+
   try {
     /* CRITICAL SECTION
      * Be very careful modifying code below until the end of the critical section,
@@ -84,152 +82,144 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
      * below must elegantly disconnect from the postgres instance during an error.
      * Failing to do so would cause connection leaks.
      */
-    await client.connect();
-
-    const tables = (await Promise.all((await client.query(`
+    client = await oracledb.getConnection({
+      user: database.username,
+      password: database.password,
+      connectString: `${database.host}/${database.name}`,
+    });
+    const tables = (await Promise.all((await client.execute(`
       select 
-        schemaname, tablename
+        distinct 
+          sys_context('USERENV', 'CURRENT_SCHEMA') as schemaname, 
+          table_name as tablename
+          --,cast(substr(dbms_metadata.get_ddl('TABLE', table_name), 0, 4000) as varchar2(4000)) as definition
       from 
-        pg_catalog.pg_tables
-      where 
-        pg_tables.schemaname <> 'information_schema' and 
-        pg_tables.schemaname not like 'pg_%' and
-        pg_tables.schemaname <> 'pgagent' and
-        pg_tables.schemaname <> 'sys'
+        sys.user_tables
     `, [])).rows.map((table) => pgpool.query(`
-      insert into postgresql.tables_log 
+      insert into oracle.tables_log 
         ("table", database, catalog, schema, name, is_view, definition, hash, deleted)
       values 
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6::text, 'sha1'), 'hex'), $7)
       on conflict (database, catalog, schema, name, is_view, hash, deleted)
       do update set name = $4
       returning "table", database, catalog, schema, name
-    `, [database.database, database.name, table.schemaname, table.tablename, false, '', false]))))
+    `, [database.database, database.name, table.SCHEMANAME, table.TABLENAME, false, '', false]))))
       .map((x) => x.rows).flat();
 
-    const views = (await Promise.all((await client.query(`
-      select
-        schemaname, viewname, definition
-      from pg_catalog.pg_views
-      where 
-        pg_views.schemaname <> 'information_schema' and 
-        pg_views.schemaname not like 'pg_%' and
-        pg_views.schemaname <> 'pgagent' and
-        pg_views.schemaname <> 'sys'
+    const views = (await Promise.all((await client.execute(`
+      select 
+        sys_context('USERENV', 'CURRENT_SCHEMA') as schemaname, 
+        view_name as viewname, 
+        dbms_metadata.get_ddl('VIEW', view_name) as definition
+      from 
+        sys.user_views
     `, [])).rows.map((view) => pgpool.query(`
-      insert into postgresql.tables_log 
+      insert into oracle.tables_log 
         ("table", database, catalog, schema, name, is_view, definition, hash, deleted)
       values 
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6::text, 'sha1'), 'hex'), $7)
       on conflict (database, catalog, schema, name, is_view, hash, deleted)
       do update set name = $4
       returning "table", database, catalog, schema, name
-    `, [database.database, database.name, view.schemaname, view.viewname, true, view.definition || '', false]))))
+    `, [database.database, database.name, view.SCHEMANAME, view.VIEWNAME, true, view.DEFINITION || '', false]))))
       .map((x) => x.rows).flat();
 
-    const columns = (await Promise.all((await client.query(`
+    const columns = (await Promise.all((await client.execute(`
       select
-        pg_namespace.nspname as table_schema,
-        pg_class.relname as table_name,
-        pg_attribute.attname as column_name,
-        pg_attribute.attnum as ordinal_position,
-        coalesce(pg_get_expr(pg_attrdef.adbin, pg_attrdef.adrelid), '') as column_default,
-        pg_attribute.attnotnull as is_nullable,
-        pg_attribute.atttypid::regtype as data_type,
-        case when pg_attribute.atttypmod = -1 then 0 else pg_attribute.atttypmod - 4 end as character_maximum_length,
-        case when pg_attribute.atttypmod = -1 then 0 else (pg_attribute.atttypmod - 4) * 4 end as character_octet_length,
-        case when pg_attribute.attlen = -1 then 0 else (pg_attribute.attlen * 8) end as numeric_precision,
-        case when pg_attribute.attlen = -1 then 0 else 2 end as numeric_precision_radix,
-        0 as numeric_scale,
-        case when pg_type.typname = 'timestamptz' then pg_attribute.attlen else 0 end as datetime_precision,
-        case when pg_class.relkind = 'v' then true else false end is_updatable
-      from pg_attribute
-        join pg_class on pg_attribute.attrelid = pg_class.oid
-        join pg_namespace on pg_class.relnamespace = pg_namespace.oid
-        join pg_type on pg_attribute.atttypid = pg_type.oid
-        left join pg_attrdef on pg_attribute.attrelid = pg_attrdef.adrelid and pg_attrdef.adnum = pg_attribute.attnum
-      where
-        (pg_class.relkind = 'r' or pg_class.relkind = 'v') and
-        pg_attribute.attnum > 0 and
-        pg_namespace.nspname not like 'pg_%' and
-        pg_namespace.nspname <> 'information_schema' and
-        pg_namespace.nspname <> 'pgagent' and
-        pg_namespace.nspname <> 'sys'
-      and not attisdropped
-      order by attnum
+        sys_context('USERENV', 'CURRENT_SCHEMA') as table_schema,
+        table_name,
+        column_name,
+        column_id as ordinal_position,
+        data_default as column_default,
+        nullable as is_nullable,
+        data_type,
+        char_length as character_maximum_length,
+        data_length as character_octet_length,
+        data_precision as numeric_precision,
+        10 as numeric_precision_radix,
+        data_scale as numeric_scale,
+        8 as datetime_precision,
+        1 as is_updatable
+      from
+        sys.user_tab_columns
     `, [])).rows.map(async (column) => pgpool.query(`
-        insert into postgresql.columns_log 
+        insert into oracle.columns_log 
           ("column", database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted)
         values 
           (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         on conflict (database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted) 
         do update set name = $5
         returning "column", database, catalog, schema, "table", name
-        `, [database.database, database.name, column.table_schema, findTableOrViewId(tables, views, database.database, database.name, column.table_schema, column.table_name).table, column.column_name, column.ordinal_position, column.column_default || '', column.is_nullable, column.data_type, column.character_maximum_length || 0, column.character_octet_length || 0, column.numeric_precision || 0, column.numeric_precision_radix || 0, column.numeric_scale || 0, column.datetime_precision || 0, column.is_updatable || true, false]))))
+        `, [database.database, database.name, column.TABLE_SCHEMA, findTableOrViewId(tables, views, database.database, database.name, column.TABLE_SCHEMA, column.TABLE_NAME).table, column.COLUMN_NAME, column.ORDINAL_POSITION, column.COLUMN_DEFAULT || '', column.IS_NULLABLE, column.DATA_TYPE, column.CHARACTER_MAXIMUM_LENGTH || 0, column.CHARACTER_OCTET_LENGTH || 0, column.NUMERIC_PRECISION || 0, column.NUMERIC_PRECISION_RADIX || 0, column.NUMERIC_SCALE || 0, column.DATETIME_PRECISION || 0, column.IS_UPDATABLE || true, false]))))
       .map((x) => x.rows).flat();
 
-    const indexes = (await Promise.all((await client.query(`
+    const indexes = (await Promise.all((await client.execute(`
       select
-        pg_indexes.schemaname,
-        pg_indexes.tablename,
-        pg_indexes.indexname,
-        pg_indexes.tablespace,
-        pg_indexes.indexdef
+        sys_context('USERENV', 'CURRENT_SCHEMA') as schemaname,
+        table_name as tablename,
+        index_name as indexname,
+        tablespace_name as tablespace,
+        dbms_metadata.get_ddl('INDEX', index_name) as indexdef
       from
-        pg_catalog.pg_indexes
-          join pg_catalog.pg_tables on
-            pg_indexes.schemaname = pg_tables.schemaname and
-            pg_indexes.tablename = pg_tables.tablename and
-            pg_indexes.tablespace = pg_tables.tablespace
-      where
-        pg_indexes.schemaname <> 'information_schema' and
-        pg_indexes.schemaname <> 'pg_catalog' and
-        pg_indexes.schemaname <> 'pgagent' and
-        pg_indexes.schemaname <> 'sys'
+        sys.user_indexes
     `, [])).rows.map(async (index) => pgpool.query(`
-        insert into postgresql.indexes_log 
+        insert into oracle.indexes_log 
           ("index", "table", database, catalog, schema, name, definition, hash, deleted)
         values 
           (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6::text, 'sha1'), 'hex'), $7)
         on conflict (database, catalog, schema, "table", name, hash, deleted) 
         do update set name = $5
         returning "index", "table", database, catalog, schema, name, definition
-      `, [findTableOrViewId(tables, views, database.database, database.name, index.schemaname, index.tablename).table, database.database, database.name, index.schemaname, index.indexname, index.indexdef, false]))))
+      `, [findTableOrViewId(tables, views, database.database, database.name, index.SCHEMANAME, index.TABLENAME).table, database.database, database.name, index.SCHEMANAME, index.INDEXNAME, index.INDEXDEF, false]))))
       .map((x) => x.rows).flat();
 
-    const constraints = (await client.query(`
-      select
-        c.conname as constraint_name,
-        case 
-          when c.contype = 'p' then 'PRIMARY KEY'
-          when c.contype = 'f' then 'FORIEGN KEY'
-          when c.contype = 'c' then 'CHECK'
+    const constraints = (await client.execute(`
+      select 
+        f.constraint_name,
+        case
+          when f.constraint_type = 'P' then 'PRIMARY KEY'
+          when f.constraint_type = 'R' then 'FOREIGN KEY'
+          when f.constraint_type = 'C' then 'CHECK'
         end as constraint_type,
-        sch.nspname as from_schema,
-        tbl.relname as from_table_name,
-        array_agg(col.attname order by u.attposition)::text[] as from_columns,
-        f_sch.nspname as to_schema,
-        f_tbl.relname as to_table_name,
-        array_agg(f_col.attname order by f_u.attposition)::text[] AS to_columns,
-        pg_get_constraintdef(c.oid) as definition
-      from pg_constraint c
-        left join lateral unnest(c.conkey) with ordinality as u(attnum, attposition) on true
-        left join lateral unnest(c.confkey) with ordinality as f_u(attnum, attposition) on f_u.attposition = u.attposition
-        join pg_class tbl on tbl.oid = c.conrelid
-        join pg_namespace sch on sch.oid = tbl.relnamespace
-        left join pg_attribute col on (col.attrelid = tbl.oid AND col.attnum = u.attnum)
-        left join pg_class f_tbl on f_tbl.oid = c.confrelid
-        left join pg_namespace f_sch on f_sch.oid = f_tbl.relnamespace
-        left join pg_attribute f_col on (f_col.attrelid = f_tbl.oid and f_col.attnum = f_u.attnum)
+        f.owner as from_schema,
+        f.table_name as from_table_name,
+        listagg(fc.column_name, ',') within group (order by fc.position) as from_columns,
+        t.owner as to_schema,
+        t.table_name as to_table_name,
+        listagg(tc.column_name, ',') within group (order by tc.position) as to_columns,
+        case
+          when f.constraint_type = 'P' then ''
+          when f.constraint_type = 'R' then cast(dbms_metadata.get_ddl('REF_CONSTRAINT', f.constraint_name, f.owner) as varchar(1024))
+          when f.constraint_type = 'C' then cast(dbms_metadata.get_ddl('CONSTRAINT', f.constraint_name, f.owner) as varchar(1024))
+        end as definition
+      from 
+        user_constraints f
+        left join all_cons_columns fc on
+          f.constraint_name = fc.constraint_name and
+          f.owner = fc.owner and
+          f.table_name = fc.table_name
+        left join all_constraints t on 
+          f.r_constraint_name = t.constraint_name and 
+          f.r_owner = t.owner and 
+          f.constraint_type = 'R'
+        left join all_cons_columns tc on
+          t.constraint_name = tc.constraint_name and
+          t.owner = tc.owner and
+          t.table_name = tc.table_name
       where
-        tbl.relname not like 'edb$%' and
-        sch.nspname <> 'sys' and
-        sch.nspname <> 'pgagent' and
-        sch.nspname not like 'pg_%' and
-        sch.nspname <> 'information_schema'
-      group by constraint_name, constraint_type, from_schema, from_table_name, definition, "to_schema", to_table_name
-      order by from_schema, from_table_name
-    `, [])).rows;
+        f.constraint_type in ('P', 'R', 'C') and 
+        f.constraint_name not like '%/%' and
+        f.constraint_name not like '%$%'
+      group by
+        f.constraint_name,
+        f.constraint_type,
+        f.owner,
+        f.table_name,
+        t.owner,
+        t.table_name
+    `, [])).rows.map((x) => ({
+      constraint_name: x.CONSTRAINT_NAME, constraint_type: x.CONSTRAINT_TYPE, from_schema: x.FROM_SCHEMA, from_table_name: x.FROM_TABLE_NAME, from_columns: (x.FROM_COLUMNS || '').split(','), to_schema: x.TO_SCHEMA, to_table_name: x.TO_TABLE_NAME, to_columns: (x.TO_COLUMNS || '').split(','), definition: x.DEFINITION,
+    }));
 
     const primaryKeyConstraints = (await Promise.all(constraints.filter((x) => x.constraint_type === 'PRIMARY KEY').map(async (constraint) => {
       const tableUUID = findTableOrViewId(tables, views, database.database, database.name, constraint.from_schema, constraint.from_table_name).table; // eslint-disable-line max-len
@@ -239,7 +229,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         `The column UUID was not found for a primary key constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name} ${constraint.from_column_name}`);
       return {
         rows: (await Promise.all(columnUUIDs.map((columnUUID) => pgpool.query(`
-            insert into postgresql.constraints_log 
+            insert into oracle.constraints_log 
               ("constraint", database, name, type, from_catalog, from_schema, from_table, from_column, deleted)
             values 
               (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8)
@@ -265,7 +255,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         rows: (await Promise.all(fromColumnUUIDs.map((fromColumnUUID, index) => {
           const toColumnUUID = toColumnUUIDs[index];
           return pgpool.query(`
-            insert into postgresql.constraints_log 
+            insert into oracle.constraints_log 
               ("constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted)
             values 
               (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -283,7 +273,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       assert(tableUUID, `The table UUID was not found for a check constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
       return {
         rows: (await Promise.all(columnUUIDs.map((columnUUID) => pgpool.query(`
-            insert into postgresql.constraints_log 
+            insert into oracle.constraints_log 
               ("constraint", database, name, type, from_catalog, from_schema, from_table, from_column, check_clause, deleted)
             values 
               (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -295,107 +285,94 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
     }))).map((x) => x.rows).flat();
 
     // Column Statistics
-    (await Promise.all((await client.query(`
-      select
-        schemaname as schema,
-        tablename as table_name,
-        attname as column_name,
-        inherited,
-        null_frac,
-        avg_width,
-        n_distinct,
-        array_to_string(most_common_vals, '|,|::') as most_common_vals,
-        most_common_freqs,
-        array_to_string(histogram_bounds, '|,|::') as histogram_bounds,
-        correlation,
-        array_to_string(most_common_elems, '|,|::') as most_common_elems,
-        array_to_string(most_common_elem_freqs, '|,|::') as most_common_elem_freqs
-      from 
-        pg_stats
-      where
-        schemaname not like 'pg_%' and
-        schemaname not like 'pgagent' and
-        schemaname <> 'information_schema' and
-        schemaname <> 'sys' and
-        tablename not like '%edb$%' and
-        attname <> 'expr' --ignore indexes
+    (await Promise.all((await client.execute(`
+      select 
+        sys_context('USERENV', 'CURRENT_SCHEMA') as "SCHEMA",
+        table_name,
+        column_name,
+        num_distinct,
+        low_value,
+        high_value,
+        density,
+        num_nulls,
+        num_buckets,
+        sample_size,
+        avg_col_len
+      from
+        user_tab_col_statistics where column_name not like 'SYS_%$'
     `, [])).rows.map((estimate) => { // eslint-disable-line array-callback-return,consistent-return
       try {
-        const tableUUID = findTableOrViewId(tables, views, database.database, database.name, estimate.schema, estimate.table_name).table; // eslint-disable-line max-len
-        const columnUUID = findColumnId(columns, database.database, database.name, estimate.schema, tableUUID, estimate.column_name).column; // eslint-disable-line max-len
+        const tableUUID = findTableOrViewId(tables, views, database.database, database.name, estimate.SCHEMA, estimate.TABLE_NAME).table; // eslint-disable-line max-len
+        const columnUUID = findColumnId(columns, database.database, database.name, estimate.SCHEMA, tableUUID, estimate.COLUMN_NAME).column; // eslint-disable-line max-len
         return pgpool.query(`
-          insert into postgresql.column_statistics_log 
-            ("column_statistic", database, catalog, schema, "table", "column", inherited, null_frac, avg_width, n_distinct, most_common_vals, most_common_freqs, histogram_bounds, correlation, most_common_elems, most_common_elem_freqs, deleted)
-          values
-            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-          on conflict do nothing
-        `, [database.database, database.name, estimate.schema, tableUUID, columnUUID, estimate.inherited, estimate.null_frac, estimate.avg_width, estimate.n_distinct, estimate.most_common_vals ? estimate.most_common_vals.split('|,|::') : null, estimate.most_common_freqs, estimate.histogram_bounds ? estimate.histogram_bounds.split('|,|::') : null, estimate.correlation, estimate.most_common_elems ? estimate.most_common_elems.split(',') : null, estimate.most_common_elem_freqs ? estimate.most_common_elem_freqs.split('|,|::') : null, false]);
+        insert into oracle.column_statistics_log 
+          ("column_statistic", database, catalog, schema, "table", "column", num_distinct, low_value, high_value, density, num_nulls, num_buckets, sample_size, avg_col_len, deleted)
+        values
+          (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        on conflict do nothing
+      `, [database.database, database.name, estimate.SCHEMA, tableUUID, columnUUID, estimate.NUM_DISTINCT || 0, estimate.LOW_VALUE ? estimate.LOW_VALUE.toString('hex') : '', estimate.HIGH_VALUE ? estimate.HIGH_VALUE.toString('hex') : '', estimate.DENSITY || 0, estimate.NUM_NULLS || 0, estimate.NUM_BUCKETS || 0, estimate.SAMPLE_SIZE || 0, estimate.AVG_COL_LEN || 0, false]);
       } catch (e) {
-        debug(`Failed to import column statistc for ${database.database} and %o due to ${e.message}`, estimate);
+        debug(`Cannot find column while inserting column statistics for ${database.database} %o`, estimate);
       }
     })));
 
     // Table Statistics
-    (await Promise.all((await client.query(`
-      select
-        pg_class.reltuples::bigint as rows,
-        pg_indexes_size(pg_class.oid)::bigint AS index_size,
-        pg_table_size(pg_class.oid)::bigint AS table_size,
-        pg_class.relname as table_name,
-        pg_stat_user_tables.seq_scan::bigint,
-        CASE pg_stat_user_tables.idx_scan WHEN 0 THEN 0::float ELSE (pg_stat_user_tables.idx_scan::float / (pg_stat_user_tables.seq_scan + pg_stat_user_tables.idx_scan)::float)::float END percent_of_times_index_used,
-        pg_cache_hits.index_hit_rate,
-        pg_cache_hits.table_hit_rate,
-        pg_namespace.nspname as schema
-      from pg_class
-        join pg_stat_user_tables on pg_class.oid = pg_stat_user_tables.relid
-        join (
-          select
-            pg_statio_user_indexes.relid,
-            sum(pg_statio_user_indexes.idx_blks_hit) / nullif(sum(pg_statio_user_indexes.idx_blks_hit + pg_statio_user_indexes.idx_blks_read),0) AS index_hit_rate,
-            sum(pg_statio_user_tables.heap_blks_hit) / nullif(sum(pg_statio_user_tables.heap_blks_hit) + sum(pg_statio_user_tables.heap_blks_read),0) AS table_hit_rate
-            from pg_statio_user_indexes join pg_statio_user_tables on pg_statio_user_tables.relid = pg_statio_user_indexes.relid
-            group by pg_statio_user_indexes.relid
-        ) as pg_cache_hits on pg_class.oid = pg_cache_hits.relid
-        join pg_namespace on
-          pg_class.relnamespace = pg_namespace.oid and
-          pg_class.reltype <> 0 and
-          pg_class.relkind = 'r' and
-          pg_namespace.nspname not like 'pg_%' and
-          pg_namespace.nspname <> 'information_schema'
+    (await Promise.all((await client.execute(`
+      select 
+        sys_context('USERENV', 'CURRENT_SCHEMA') as "SCHEMA", 
+        user_tables.table_name, 
+        user_tables.num_rows as "ROWS",
+        sum(user_tab_statistics.blocks) as "BLOCKS",
+        sum(user_tab_statistics.empty_blocks) as "EMPTY_BLOCKS",
+        avg(user_tab_statistics.avg_row_len) as "AVG_ROW_LEN",
+        sum(user_segments.bytes) as "TABLE_SIZE",
+        sum(user_segments_indexes.bytes) as "INDEX_SIZE",
+        avg(coalesce(user_ind_statistics.avg_cache_hit_ratio, 0)) as "INDEX_HIT_RATE",
+        avg(coalesce(user_tab_statistics.avg_cache_hit_ratio, 0)) as "TABLE_HIT_RATE"
+      from 
+        sys.user_tables
+        left join sys.user_segments on user_segments.segment_type = 'TABLE' and user_segments.segment_name = user_tables.table_name
+        left join sys.user_indexes on user_indexes.table_name = user_tables.table_name and user_indexes.tablespace_name = user_tables.tablespace_name
+        left join sys.user_segments user_segments_indexes on user_segments_indexes.segment_type = 'INDEX' and user_segments_indexes.segment_name = user_indexes.index_name
+        left join user_ind_statistics on user_ind_statistics.table_name = user_indexes.table_name and user_ind_statistics.index_name = user_indexes.index_name
+        left join user_tab_statistics on user_tab_statistics.table_name = user_tables.table_name
+      group by
+        sys_context('USERENV', 'CURRENT_SCHEMA'),
+        user_tables.table_name,
+        user_tables.num_rows
     `, [])).rows.map((estimate) => pgpool.query(`
-      insert into postgresql.table_statistics_log 
-        ("table_statistic", database, catalog, schema, "table", row_amount_estimate, index_size, table_size, sequential_scans, percent_of_times_index_used, index_hit_rate, table_hit_rate, deleted)
+      insert into oracle.table_statistics_log 
+        ("table_statistic", database, catalog, schema, "table", row_amount_estimate, index_size, table_size, blocks, empty_blocks, avg_row_length, index_hit_rate, table_hit_rate, deleted)
       values
-        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       on conflict do nothing
-    `, [database.database, database.name, estimate.schema, findTableOrViewId(tables, views, database.database, database.name, estimate.schema, estimate.table_name).table, estimate.rows, estimate.index_size, estimate.table_size, estimate.seq_scan, estimate.percent_of_times_index_used, estimate.index_hit_rate || 0, estimate.table_hit_rate || 0, false]))));
+    `, [database.database, database.name, estimate.SCHEMA, findTableOrViewId(tables, views, database.database, database.name, estimate.SCHEMA, estimate.TABLE_NAME).table, estimate.ROWS || 0, estimate.INDEX_SIZE || 0, estimate.TABLE_SIZE || 0, estimate.BLOCKS || 0, estimate.EMPTY_BLOCKS || 0, estimate.AVG_ROW_LEN || 0, estimate.INDEX_HIT_RATE || 0, estimate.TABLE_HIT_RATE || 0, false]))));
 
     // Database Connection Statistics
-    (await Promise.all((await client.query(`
+    (await Promise.all((await client.execute(`
       select 
-        max_connections, 
-        used_connections, 
-        reserved_connections, 
-        max_connections - used_connections - reserved_connections as available_connections 
-      from 
-        (select (count(*) - 1) used_connections from pg_stat_activity where datname = $1) a, 
-        (select setting::int reserved_connections from pg_settings where name=$$superuser_reserved_connections$$) b, 
-        (select setting::int max_connections from pg_settings where name=$$max_connections$$) c
-    `, [database.name])).rows.map((estimate) => pgpool.query(`
-      insert into postgresql.database_statistics_log
+        10000 as max_connections, 
+        count(*) as used_connections, 
+        0 as reserved_connections, 
+        10000 - count(*) as available_connections 
+      from v$session_connect_info
+    `, [])).rows.map((estimate) => pgpool.query(`
+      insert into oracle.database_statistics_log
         ("database_statistic", database, max_connections, used_connections, reserved_connections, available_connections, deleted)
       values
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6)
       on conflict do nothing
-    `, [database.database, estimate.max_connections, estimate.used_connections, estimate.reserved_connections, estimate.available_connections, false]))));
+    `, [database.database, estimate.MAX_CONNECTIONS, estimate.USED_CONNECTIONS, estimate.RESERVED_CONNECTIONS, estimate.AVAILABLE_CONNECTIONS, false]))));
 
     // TODO: This is not tracking changes to the config, it should.
     //       Probably should be its own log table.
-    const config = (await client.query('show all')).rows.reduce((acc, x) => ({ ...acc, [x.name]: { value: x.setting, description: x.description } }), {});
-    await pgpool.query('update postgresql.databases_log set config = $2 where database = $1',
-      [database.database, config]);
-
+    try {
+      const config = (await client.execute('select * from v$database', [])).rows[0];
+      await pgpool.query('update oracle.databases_log set config = $2 where database = $1',
+        [database.database, config]);
+    } catch (e) {
+      // do nothing if it fails to pull, some users may not have access to this.
+    }
     // TODO: User defined data types, Foreign data wrappers, foreign tables, foreign servers
     // TODO: Long running queries, Locks, Vacuum statistics, pg_settings?
     // TODO: Check for column statistics of some sort?
@@ -405,12 +382,12 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
     // TODO: snapshot pg_catalog.pg_available_extensions
 
     // Check for table deletion
-    await Promise.all((await pgpool.query('select "table", database, catalog, schema, name, is_view, definition from postgresql.tables where database = $1', [database.database]))
+    await Promise.all((await pgpool.query('select "table", database, catalog, schema, name, is_view, definition from oracle.tables where database = $1', [database.database]))
       .rows
       .map(async (tableOrView) => {
         if (!findTableOrViewId(tables, views, database.database, tableOrView.catalog, tableOrView.schema, tableOrView.name)) { // eslint-disable-line max-len
           await pgpool.query(`
-            insert into postgresql.tables_log 
+            insert into oracle.tables_log 
               ("table", database, catalog, schema, name, is_view, definition, hash, deleted)
             values 
               (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6, 'sha1'), 'hex'), $7)
@@ -421,12 +398,12 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       }));
 
     // Check for column deletion
-    await Promise.all((await pgpool.query('select "column", database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable from postgresql.columns where database = $1', [database.database]))
+    await Promise.all((await pgpool.query('select "column", database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable from oracle.columns where database = $1', [database.database]))
       .rows
       .map(async (column) => {
         if (!findColumnId(columns, database.database, column.catalog, column.schema, column.table, column.name)) { // eslint-disable-line max-len
           await pgpool.query(`
-          insert into postgresql.columns_log 
+          insert into oracle.columns_log 
             ("column", database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted)
           values 
             (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
@@ -437,12 +414,12 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       }));
 
     // Check for index deletion
-    await Promise.all((await pgpool.query('select "index", database, catalog, schema, "table", name, definition from postgresql.indexes where database = $1', [database.database]))
+    await Promise.all((await pgpool.query('select "index", database, catalog, schema, "table", name, definition from oracle.indexes where database = $1', [database.database]))
       .rows
       .map(async (index) => {
         if (!findIndexId(indexes, database.database, index.catalog, index.schema, index.table, index.name)) { // eslint-disable-line max-len
           await pgpool.query(`
-          insert into postgresql.indexes_log 
+          insert into oracle.indexes_log 
             ("index", database, catalog, schema, "table", name, definition, hash, deleted)
           values 
             (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6, 'sha1'), 'hex'), $7)
@@ -453,12 +430,12 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       }));
 
     // Check for primary key deletion
-    await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column from postgresql.constraints where database = $1 and type = \'PRIMARY KEY\'', [database.database]))
+    await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column from oracle.constraints where database = $1 and type = \'PRIMARY KEY\'', [database.database]))
       .rows
       .map(async (constraint) => {
         if (!findConstraintId(primaryKeyConstraints, database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column)) { // eslint-disable-line max-len
           await pgpool.query(`
-          insert into postgresql.constraints_log 
+          insert into oracle.constraints_log 
             ("constraint", database, name, "type", from_catalog, from_schema, from_table, from_column, deleted)
           values 
             (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8)
@@ -469,12 +446,12 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       }));
 
     // Check for foreign key deletion
-    await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column from postgresql.constraints where database = $1 and type = \'FOREIGN KEY\'', [database.database]))
+    await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column from oracle.constraints where database = $1 and type = \'FOREIGN KEY\'', [database.database]))
       .rows
       .map(async (constraint) => {
         if (!findConstraintId(foreignKeyConstraints, database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, database.name, constraint.to_schema, constraint.to_table, constraint.to_column)) { // eslint-disable-line max-len
           await pgpool.query(`
-          insert into postgresql.constraints_log 
+          insert into oracle.constraints_log 
             ("constraint", database, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted) 
           values 
             (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -485,12 +462,12 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       }));
 
     // Check for check constraint deletion
-    await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, check_clause from postgresql.constraints where database = $1 and type = \'CHECK\'', [database.database]))
+    await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, check_clause from oracle.constraints where database = $1 and type = \'CHECK\'', [database.database]))
       .rows
       .map(async (constraint) => {
         if (!findConstraintId(checkConstraints, database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, database.name, constraint.to_schema, constraint.to_table, constraint.to_column)) { // eslint-disable-line max-len
           await pgpool.query(`
-          insert into postgresql.constraints_log 
+          insert into oracle.constraints_log 
             ("constraint", database, name, "type", from_catalog, from_schema, from_table, from_column, check_clause, deleted) 
           values 
             (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -501,13 +478,13 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       }));
   } catch (e) {
     if (e.message.includes('password authentication failed')) {
-      bus.emit('postgresql.error', [database.database, 'authentication-failed', e.message]);
+      bus.emit('oracle.error', [database.database, 'authentication-failed', e.message]);
     } else if (e.message.includes('getaddrinfo ENOTFOUND')) {
-      bus.emit('postgresql.error', [database.database, 'host-not-found', e.message]);
+      bus.emit('oracle.error', [database.database, 'host-not-found', e.message]);
     } else if (e.message.includes('connect ETIMEDOUT')) {
-      bus.emit('postgresql.error', [database.database, 'connection-timeout', e.message]);
+      bus.emit('oracle.error', [database.database, 'connection-timeout', e.message]);
     } else if (e.message.includes('no pg_hba.conf entry for host')) {
-      bus.emit('postgresql.error', [database.database, 'forbidden-by-pg-hba-conf-policy', e.message]);
+      bus.emit('oracle.error', [database.database, 'forbidden-by-pg-hba-conf-policy', e.message]);
     } else {
       // TODO: Check for db deletion?
       // How do we do this, if the host is unavailalbe we shouldn't assume the db is unavailable,
@@ -516,23 +493,25 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       debug(`Error examining database uuid ${database.database}: ${e.stack}`); // eslint-disable-line no-console
     }
   } finally {
-    await client.end();
+    if (client) {
+      await client.close();
+    }
   }
   /* /END critical section */
 }
 
 async function run(pgpool, bus) {
-  if (process.env.POSTGRESQL !== 'true') {
+  if (process.env.ORACLE !== 'true') {
     return;
   }
-  debug('Running postgresql plugin...');
+  debug('Running oracle plugin...');
   const databases = (await Promise.all((await pgpool.query(`
     select 
       databases.database, databases.name, databases.host, databases.port,
       roles.username, roles.password, roles.options
     from 
-      postgresql.databases 
-      join postgresql.roles on roles.database = databases.database`, []))
+      oracle.databases 
+      join oracle.roles on roles.database = databases.database`, []))
     .rows
     .map((database) => ({ ...database, password: security.decryptValue(process.env.SECRET, database.password).toString('utf8') }))));
 
@@ -548,10 +527,10 @@ async function run(pgpool, bus) {
   }
   debug('Examining databases 100% finished.');
   debug('Beginning re-index...');
-  await pgpool.query('reindex index postgresql.constraints_observed_on');
-  await pgpool.query('reindex index postgresql.indexes_observed_on');
-  await pgpool.query('reindex index postgresql.columns_observed_on');
-  await pgpool.query('reindex index postgresql.tables_observed_on');
+  await pgpool.query('reindex index oracle.constraints_observed_on');
+  await pgpool.query('reindex index oracle.indexes_observed_on');
+  await pgpool.query('reindex index oracle.columns_observed_on');
+  await pgpool.query('reindex index oracle.tables_observed_on');
   debug('Re-index finished...');
 }
 

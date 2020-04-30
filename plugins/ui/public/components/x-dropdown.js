@@ -47,6 +47,7 @@ class DropDown extends HTMLElement {
     return `
       x-dropdown {
         position:relative;
+        outline:none;
       }
 
       x-dropdown > * {

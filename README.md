@@ -15,10 +15,11 @@ Daedalus is a knowledge system intended for collecting an examining resources on
 
 ## Supported Systems
 
-* Kubernetes
-* PostgreSQL
 * Akkeris
 * AWS (RDS and ElastiCache)
+* Kubernetes
+* Oracle
+* PostgreSQL
 
 ## Getting Started
 

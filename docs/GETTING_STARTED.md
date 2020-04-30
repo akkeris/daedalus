@@ -45,6 +45,19 @@ The metadata plugin is generally required if you want to use the UI or GraphQL, 
 
  *  `POSTRESQL` - Set this value to `true` to enable scanning postgres databases for schema changes and statistics.
 
+### Oracle Plugin
+
+ *  `ORACLE` - Set this value to `true` to enable scanning oracle databases for schema changes and statistics.
+
+ To use the oracle plugin you'll need to generate your own Dockerfile image due to licensing restrictions on oracle drivers. 
+
+ 1. To generate an oracle image clone this repo down `git clone https://github.com/akkeris/daedalus`.
+ 2. Download the `Basic Package (ZIP)` 19.6.X binaries from https://www.oracle.com/database/technologies/instant-client/linux-x86-64-downloads.html
+ 3. Unzip and place the unzipped directories at the root of the cloned repo
+ 4. Run `docker build -t [what tag youd like] . -f ./Dockerfile.oracle`
+
+ For more information see https://oracle.github.io/node-oracledb/doc/api.html#getstarted
+
 ### Kubernetes Plugin
 
 To listen to one or more kubernetes clusters, deploy daedalus to multiple clusters. Configuring kubernetes can be done multiple ways:

@@ -5,6 +5,9 @@ module.exports = (req, res, next, data) => res.send(`
       ${require('./object-header.html')(req, data, 'Pods', 'fa-server', `/ui/kubernetes/pods/${data.pod}`, data.pod, 'kubernetes/pods')}
       <div>
         <h2>${data.human_name}</h2>
+        ${data.annotations && data.annotations.description ? `
+        <p class="description">${data.annotations.description}</p>
+        ` : ''}
         <dl class="facts">
           ${data.definition && data.definition.spec ? `
           <dt>Containers</dt>

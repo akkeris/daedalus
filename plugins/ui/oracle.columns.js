@@ -1,21 +1,21 @@
 const { grab, addExpressAnnotationsAndLabelRoutes } = require('./common.js');
 
 module.exports = async function addExpressRoutes(pgpool, bus, app) {
-  app.param('postgresql_column_id', async (req, res, next) => {
-    const { rows: columns } = await pgpool.query('select * from postgresql.columns where ("column"::varchar(128) = $1 or name::varchar(128) = $1)', [req.params.postgresql_column_id]);
+  app.param('oracle_column_id', async (req, res, next) => {
+    const { rows: columns } = await pgpool.query('select * from oracle.columns where ("column"::varchar(128) = $1 or name::varchar(128) = $1)', [req.params.oracle_column_id]);
     if (columns.length !== 1) {
-      delete req.params.postgresql_column_id;
+      delete req.params.oracle_column_id;
       res.sendStatus(404);
       return;
     }
-    req.params.postgresql_column = columns[0]; // eslint-disable-line prefer-destructuring
-    req.params.postgresql_column_id = columns[0].column;
+    req.params.oracle_column = columns[0]; // eslint-disable-line prefer-destructuring
+    req.params.oracle_column_id = columns[0].column;
     next();
   });
-  app.get('/ui/postgresql/columns/:postgresql_column_id', async (req, res, next) => {
-    const { rows: metadata } = await pgpool.query('select * from metadata.objects where node = $1', [req.params.postgresql_column_id]);
-    const { rows: columns } = await pgpool.query('select * from postgresql.columns where "column" = $1', [req.params.postgresql_column_id]);
-    const { rows: constraints } = await pgpool.query('select * from postgresql.constraints where from_column = $1 or to_column = $1', [req.params.postgresql_column_id]);
+  app.get('/ui/oracle/columns/:oracle_column_id', async (req, res, next) => {
+    const { rows: metadata } = await pgpool.query('select * from metadata.objects where node = $1', [req.params.oracle_column_id]);
+    const { rows: columns } = await pgpool.query('select * from oracle.columns where "column" = $1', [req.params.oracle_column_id]);
+    const { rows: constraints } = await pgpool.query('select * from oracle.constraints where from_column = $1 or to_column = $1', [req.params.oracle_column_id]);
 
     const { rows: columnChanges } = await pgpool.query(`
       select
@@ -41,12 +41,12 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
         columns_log.deleted,
         row_number() over (partition by columns_log.database, columns_log.catalog, columns_log.schema, columns_log.table, columns_log.name order by columns_log.observed_on desc) as rn
       from
-        postgresql.columns_log join postgresql.tables_log on columns_log.table = tables_log.table
+        oracle.columns_log join oracle.tables_log on columns_log.table = tables_log.table
       where
         columns_log.column = $1
       order by
         columns_log.observed_on desc
-    `, [req.params.postgresql_column_id]);
+    `, [req.params.oracle_column_id]);
 
     const { rows: constraintChanges } = await pgpool.query(`
       select
@@ -68,13 +68,13 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
         deleted,
         row_number() over (partition by database, from_catalog, from_schema, from_table, name order by observed_on desc) as rn
       from
-        postgresql.constraints_log
+        oracle.constraints_log
       where
         from_column = $1 or to_column = $1 and
         check_clause not like '%IS NOT NULL%'
       order by
         observed_on desc
-    `, [req.params.postgresql_column_id]);
+    `, [req.params.oracle_column_id]);
 
     const { rows: usedBy } = await pgpool.query(`
       select 
@@ -88,26 +88,16 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
         parent_icon as "$owner_icon"
       from 
         metadata.find_node_relatives($1)
-    `, [req.params.postgresql_column_id]);
+    `, [req.params.oracle_column_id]);
 
     const { rows: [statistics] } = await pgpool.query(`
       select
-        inherited,
-        null_frac,
-        avg_width,
-        n_distinct,
-        most_common_vals,
-        most_common_freqs,
-        histogram_bounds,
-        correlation,
-        most_common_elems,
-        most_common_elem_freqs,
-        elem_count_histogram
+        *
       from
-        postgresql.column_statistics
+        oracle.column_statistics
       where
         "column" = $1
-    `, [req.params.postgresql_column_id]);
+    `, [req.params.oracle_column_id]);
 
     let changes = columnChanges.map((x) => ({ ...x, $type: 'column' }))
       .concat(constraintChanges.map((x) => ({ ...x, $type: 'constraint' })))
@@ -118,7 +108,7 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
     changes = changes.slice(0, changes.length > 200 ? 200 : changes.length);
 
     const data = {
-      ...req.params.postgresql_column,
+      ...req.params.oracle_column,
       ...metadata[0],
       columns,
       constraints,
@@ -129,7 +119,7 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
       statistics,
     };
 
-    grab('./views/postgresql.columns.html', req, res, next, data);
+    grab('./views/oracle.columns.html', req, res, next, data);
   });
-  await addExpressAnnotationsAndLabelRoutes(pgpool, app, 'postgresql/columns', 'postgresql_column_id');
+  await addExpressAnnotationsAndLabelRoutes(pgpool, app, 'oracle/columns', 'oracle_column_id');
 };

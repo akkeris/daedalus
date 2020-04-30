@@ -2,7 +2,7 @@ const {formatBytes} = require('../../../common/format.js');
 module.exports = (req, res, next, data) => res.send(`
   ${require('./header.html')(req)}
     <appkit-app>
-      ${require('./object-header.html')(req, data, 'Tables', 'fa-table', `/ui/postgresql/tables/${data.table}`, data.table, 'postgresql/tables')}
+      ${require('./object-header.html')(req, data, 'Tables', 'fa-table', `/ui/oracle/tables/${data.table}`, data.table, 'oracle/tables')}
       <div>
         <h2>${data.human_name}<sub>${data.human_name !== data.name ? `(${data.name})` : ``}</sub></h2>
         ${data.annotations && data.annotations.description ? `
@@ -37,8 +37,8 @@ module.exports = (req, res, next, data) => res.send(`
         <x-tab><a href="#definition">Definition</a></x-tab>
       </x-tabs>
       <div name="metadata" class="tab-panel list">
-        ${require('./labels.html')(req, data, `/ui/postgresql/tables/${data.table}`)}
-        ${require('./annotations.html')(req, data, `/ui/postgresql/tables/${data.table}`)}
+        ${require('./labels.html')(req, data, `/ui/oracle/tables/${data.table}`)}
+        ${require('./annotations.html')(req, data, `/ui/oracle/tables/${data.table}`)}
       </div>
       <div name="changes" class="tab-panel list">
         ${require('./changes.html')(req, data)}
@@ -49,7 +49,7 @@ module.exports = (req, res, next, data) => res.send(`
       <div name="columns" class="list tab-panel">
         ${data.columns.sort((x, y) => x.position > y.position ? 1 : -1 ).map((column) => `
         <div class="list-item">
-          <div><a href="/ui/postgresql/columns/${column.column}">${column.name}</a></div>
+          <div><a href="/ui/oracle/columns/${column.column}">${column.name}</a></div>
           <div>
             <dl class="facts">
               <dt>type</dt><dd>${column.data_type}</dd>

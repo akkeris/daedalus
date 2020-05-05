@@ -10,7 +10,6 @@ assert.ok(process.env.TEST_DATABASE_URL, 'The TEST_DATABASE_URL postgres:// conn
 const pgpool = new pg.Pool({ connectionString: process.env.TEST_DATABASE_URL, max: 40 });
 const connString = new URL(process.env.TEST_DATABASE_URL);
 const bus = new EventEmitter();
-const secret = 'ABCDEFABCDEFABCDEFABCDEF';
 
 before(async () => { // eslint-disable-line no-undef
   await pgpool.query('drop schema if exists postgresql cascade');
@@ -30,8 +29,8 @@ describe('postgresql', async () => { // eslint-disable-line no-undef
     const { rows: [{ database }] } = await pgpool.query('insert into postgresql.databases_log (database, name, host, port, observed_on, deleted) values (uuid_generate_v4(), $1, $2, $3, now(), false) returning database',
       [connString.pathname.substring(1), connString.hostname, connString.port]);
     await pgpool.query('insert into postgresql.roles_log (role, database, username, password, options, observed_on, deleted) values (uuid_generate_v4(), $1, $2, $3, $4, now(), false)',
-      [database, connString.username, security.encryptValue(secret, connString.password), connString.search.replace(/\?/, '')]);
-    await postgresql.exec(pgpool, bus, secret);
+      [database, connString.username, security.encryptValue('ABCDEFABCDEFABCDEFABCDEF', connString.password), connString.search.replace(/\?/, '')]);
+    await postgresql.exec(pgpool, bus, 'ABCDEFABCDEFABCDEFABCDEF');
     bus.off('postgresql.error', testFailed);
     databaseUUID = database;
   });

@@ -10,16 +10,12 @@ async function init(pgpool) {
   debug('Initializing postgresql plugin... done');
 }
 
-function findConstraintId(constraints, database, name, type, fromCatalog, fromSchema, fromTable, fromColumn, toCatalog, toSchema, toTable, toColumn) { // eslint-disable-line max-len
-  return constraints.filter((constraint) => constraint.database === database
+function findConstraintId(constraints, database, name, type, fromCatalog, fromSchema, fromTable, fromColumn) { // eslint-disable-line max-len
+  return constraints.filter((constraint) => constraint.database === database.database
     && database.name === fromCatalog
     && constraint.from_schema === fromSchema
     && constraint.from_table === fromTable
     && constraint.from_column === fromColumn
-    && database.name === toCatalog
-    && constraint.to_schema === toSchema
-    && constraint.to_table === toTable
-    && constraint.to_column === toColumn
     && constraint.type === type
     && constraint.name === name)[0];
 }
@@ -180,7 +176,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
           join pg_catalog.pg_tables on
             pg_indexes.schemaname = pg_tables.schemaname and
             pg_indexes.tablename = pg_tables.tablename and
-            pg_indexes.tablespace = pg_tables.tablespace
+            (pg_indexes.tablespace IS NULL or pg_indexes.tablespace = pg_tables.tablespace)
       where
         pg_indexes.schemaname <> 'information_schema' and
         pg_indexes.schemaname <> 'pg_catalog' and
@@ -250,7 +246,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       };
     }))).map((x) => x.rows).flat();
 
-    const foreignKeyConstraints = (await Promise.all(constraints.filter((x) => x.constraint_type === 'FOREIGN KEY').map(async (constraint) => {
+    const foreignKeyConstraints = (await Promise.all(constraints.filter((x) => x.constraint_type === 'FORIEGN KEY').map(async (constraint) => {
       const fromTableUUID = findTableOrViewId(tables, views, database.database, database.name, constraint.from_schema, constraint.from_table_name).table; // eslint-disable-line max-len
       const fromColumnUUIDs = constraint.from_columns.map((x) => findColumnId(columns, database.database, database.name, constraint.from_schema, fromTableUUID, x).column); // eslint-disable-line max-len
       const toTableUUID = findTableOrViewId(tables, views, database.database, database.name, constraint.to_schema, constraint.to_table_name).table; // eslint-disable-line max-len
@@ -289,11 +285,10 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
               (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
             on conflict (database, name, type, from_catalog, from_schema, from_table, check_clause, deleted) where "type" = 'CHECK'
             do update set name = $2
-            returning "constraint", database, name, type, from_catalog, from_schema, from_table, check_clause, deleted
-          `, [database.database, constraint.constraint_name, constraint.constraint_type, database.name, constraint.from_schema, tableUUID, columnUUID, constraint.check_clause, false])))).map((x) => x.rows).flat(),
+            returning "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, check_clause, deleted
+          `, [database.database, constraint.constraint_name, constraint.constraint_type, database.name, constraint.from_schema, tableUUID, columnUUID, constraint.definition, false])))).map((x) => x.rows).flat(),
       };
     }))).map((x) => x.rows).flat();
-
     // Column Statistics
     (await Promise.all((await client.query(`
       select
@@ -334,7 +329,6 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         debug(`Failed to import column statistc for ${database.database} and %o due to ${e.message}`, estimate);
       }
     })));
-
     // Table Statistics
     (await Promise.all((await client.query(`
       select
@@ -389,7 +383,6 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6)
       on conflict do nothing
     `, [database.database, estimate.max_connections, estimate.used_connections, estimate.reserved_connections, estimate.available_connections, false]))));
-
     // TODO: This is not tracking changes to the config, it should.
     //       Probably should be its own log table.
     const config = (await client.query('show all')).rows.reduce((acc, x) => ({ ...acc, [x.name]: { value: x.setting, description: x.description } }), {});
@@ -403,7 +396,6 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
     // TODO: Add blocking queries, long running queries? locks? outliers
     //       (requires pg_stat_statments)?
     // TODO: snapshot pg_catalog.pg_available_extensions
-
     // Check for table deletion
     await Promise.all((await pgpool.query('select "table", database, catalog, schema, name, is_view, definition from postgresql.tables where database = $1', [database.database]))
       .rows
@@ -456,7 +448,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
     await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column from postgresql.constraints where database = $1 and type = \'PRIMARY KEY\'', [database.database]))
       .rows
       .map(async (constraint) => {
-        if (!findConstraintId(primaryKeyConstraints, database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column)) { // eslint-disable-line max-len
+        if (!findConstraintId(primaryKeyConstraints, database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column)) { // eslint-disable-line max-len
           await pgpool.query(`
           insert into postgresql.constraints_log 
             ("constraint", database, name, "type", from_catalog, from_schema, from_table, from_column, deleted)
@@ -472,7 +464,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
     await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column from postgresql.constraints where database = $1 and type = \'FOREIGN KEY\'', [database.database]))
       .rows
       .map(async (constraint) => {
-        if (!findConstraintId(foreignKeyConstraints, database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, database.name, constraint.to_schema, constraint.to_table, constraint.to_column)) { // eslint-disable-line max-len
+        if (!findConstraintId(foreignKeyConstraints, database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, database.name, constraint.to_schema, constraint.to_table, constraint.to_column)) { // eslint-disable-line max-len
           await pgpool.query(`
           insert into postgresql.constraints_log 
             ("constraint", database, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted) 
@@ -488,7 +480,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
     await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, check_clause from postgresql.constraints where database = $1 and type = \'CHECK\'', [database.database]))
       .rows
       .map(async (constraint) => {
-        if (!findConstraintId(checkConstraints, database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, database.name, constraint.to_schema, constraint.to_table, constraint.to_column)) { // eslint-disable-line max-len
+        if (!findConstraintId(checkConstraints, database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, database.name, constraint.to_schema, constraint.to_table, constraint.to_column)) { // eslint-disable-line max-len
           await pgpool.query(`
           insert into postgresql.constraints_log 
             ("constraint", database, name, "type", from_catalog, from_schema, from_table, from_column, check_clause, deleted) 
@@ -521,11 +513,8 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
   /* /END critical section */
 }
 
-async function run(pgpool, bus) {
-  if (process.env.POSTGRESQL !== 'true') {
-    return;
-  }
-  debug('Running postgresql plugin...');
+// seperated into separate function to make testing easier.
+async function exec(pgpool, bus, secret) {
   const databases = (await Promise.all((await pgpool.query(`
     select 
       databases.database, databases.name, databases.host, databases.port,
@@ -534,7 +523,7 @@ async function run(pgpool, bus) {
       postgresql.databases 
       join postgresql.roles on roles.database = databases.database`, []))
     .rows
-    .map((database) => ({ ...database, password: security.decryptValue(process.env.SECRET, database.password).toString('utf8') }))));
+    .map((database) => ({ ...database, password: security.decryptValue(secret, database.password).toString('utf8') }))));
 
   for (let i = 0; i < databases.length; i += 10) { // eslint-disable-line no-restricted-syntax
     debug(`Examining databases ${Math.round((i / databases.length) * 10000) / 100}% finished.`);
@@ -546,6 +535,14 @@ async function run(pgpool, bus) {
     }
     await Promise.all(pool); // eslint-disable-line no-await-in-loop
   }
+}
+
+async function run(pgpool, bus) {
+  if (process.env.POSTGRESQL !== 'true') {
+    return;
+  }
+  debug('Running postgresql plugin...');
+  await exec(pgpool, bus, process.env.SECRET);
   debug('Examining databases 100% finished.');
   debug('Beginning re-index...');
   await pgpool.query('reindex index postgresql.constraints_observed_on');
@@ -558,4 +555,5 @@ async function run(pgpool, bus) {
 module.exports = {
   init,
   run,
+  exec,
 };

@@ -106,37 +106,11 @@ begin
       tables_log.observed_on,
       tables_log.deleted as tables_deleted,
       databases_log.deleted as databases_deleted,
-      row_number() over (partition by tables_log.database, tables_log.catalog, tables_log.schema, tables_log.name, tables_log.is_view, tables_log.definition order by tables_log.observed_on desc) as rn
+      row_number() over (partition by tables_log.database, tables_log.catalog, tables_log.schema, tables_log.name, tables_log.is_view order by tables_log.observed_on desc) as rn
     from oracle.tables_log join oracle.databases_log on tables_log.database = databases_log.database)
     select "table", database, catalog, schema, name, is_view, definition, observed_on from ordered_list where rn=1 and tables_deleted = false and databases_deleted = false;
     comment on view "oracle"."tables" IS E'@name oracleTables';
     comment on table "oracle"."tables_log" IS E'@name oracleTablesLog';
-
-    create or replace view oracle.table_changes as
-      select 
-        "table",
-        database,
-        catalog,
-        schema,
-        name,
-        is_view,
-        deleted
-      from (
-        select
-          "table",
-          database,
-          catalog,
-          schema,
-          name,
-          is_view,
-          deleted,
-          row_number() over (partition by tables_log.database, tables_log.catalog, tables_log.schema, tables_log.name, tables_log.is_view order by tables_log.observed_on asc) as rn
-        from
-          oracle.tables_log
-        ) a 
-      where 
-        a.rn > 1;
-  comment on view "oracle"."table_changes" IS E'@name oracleTableChanges';
 
   create table if not exists oracle.columns_log (
     "column" uuid not null primary key,

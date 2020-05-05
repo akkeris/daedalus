@@ -120,7 +120,7 @@ begin
       nodes.status,
       nodes.observed_on;
 
-  -- metadata on how information is connected.
+  -- Procedures and views for familial relationships in-between nodes
   create table if not exists metadata.families (
     connection uuid not null primary key,
     parent uuid references metadata.nodes("node") on delete cascade not null,

@@ -378,6 +378,9 @@ async function runElastiCache(pgpool) {
   }));
 }
 async function run(pgpool) {
+  if (process.env.AWS !== 'true') {
+    return;
+  }
   if (!process.env.AWS_RDS_REGIONS && !process.env.AWS_ELASTICACHE_REGIONS) {
     return;
   }

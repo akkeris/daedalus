@@ -209,7 +209,8 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       where
         f.constraint_type in ('P', 'R', 'C') and 
         f.constraint_name not like '%/%' and
-        f.constraint_name not like '%$%'
+        f.constraint_name not like '%$%' and
+        f.constraint_name not like 'SYS_C%'
       group by
         f.constraint_name,
         f.constraint_type,

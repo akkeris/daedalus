@@ -106,37 +106,11 @@ begin
       tables_log.observed_on,
       tables_log.deleted as tables_deleted,
       databases_log.deleted as databases_deleted,
-      row_number() over (partition by tables_log.database, tables_log.catalog, tables_log.schema, tables_log.name, tables_log.is_view, tables_log.definition order by tables_log.observed_on desc) as rn
+      row_number() over (partition by tables_log.database, tables_log.catalog, tables_log.schema, tables_log.name, tables_log.is_view order by tables_log.observed_on desc) as rn
     from postgresql.tables_log join postgresql.databases_log on tables_log.database = databases_log.database)
     select "table", database, catalog, schema, name, is_view, definition, observed_on from ordered_list where rn=1 and tables_deleted = false and databases_deleted = false;
     comment on view "postgresql"."tables" IS E'@name postgresqlTables';
     comment on table "postgresql"."tables_log" IS E'@name postgresqlTablesLog';
-
-    create or replace view postgresql.table_changes as
-      select 
-        "table",
-        database,
-        catalog,
-        schema,
-        name,
-        is_view,
-        deleted
-      from (
-        select
-          "table",
-          database,
-          catalog,
-          schema,
-          name,
-          is_view,
-          deleted,
-          row_number() over (partition by tables_log.database, tables_log.catalog, tables_log.schema, tables_log.name, tables_log.is_view order by tables_log.observed_on asc) as rn
-        from
-          postgresql.tables_log
-        ) a 
-      where 
-        a.rn > 1;
-  comment on view "postgresql"."table_changes" IS E'@name postgresqlTableChanges';
 
   create table if not exists postgresql.columns_log (
     "column" uuid not null primary key,

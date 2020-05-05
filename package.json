@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "DEBUG=daedalus:* node index.js",
-    "test": "./node_modules/.bin/nyc --reporter=text --reporter=lcov ./node_modules/.bin/mocha --colors -u exports --reporter spec",
-    "coverage": "./node_modules/.bin/nyc --reporter=text --reporter=lcov ./node_modules/.bin/mocha --colors -u exports --reporter spec"
+    "test": "./node_modules/.bin/nyc --reporter=text --reporter=lcov ./node_modules/.bin/mocha",
+    "coverage": "./node_modules/.bin/nyc --reporter=text --reporter=lcov ./node_modules/.bin/mocha && wget -qO - https://coverage.codacy.com/get.sh > report.sh && chmod +x report.sh && ./report.sh report -l Javascript -r ./coverage/lcov.info && rm report.sh"
   },
   "repository": {
     "type": "git",

@@ -31,5 +31,7 @@ jobs:
     - name: Run tests
       run: npm test
       env: 
-        TEST_DATABASE_URL: 'postgres://postgres:postgres@postgres:5432/postgres'
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+        TEST_DATABASE_URL: 'postgres://postgres:postgres@localhost:5432/postgres'
         CODACY_PROJECT_TOKEN: ${{secrets.CODACY_PROJECT_TOKEN}}

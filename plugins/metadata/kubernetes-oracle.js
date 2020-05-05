@@ -103,7 +103,7 @@ async function writeOracleFromConfigMaps(pgpool, bus, type, configMapRecords) {
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
               [db.rows[0].database, role.rows[0].role]);
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-              [role.rows[0].role, configMap.config_map]); // TODO: switch these?
+              [configMap.config_map, role.rows[0].role]);
           } catch (e) {
             if (e.message.includes('Invalid URL')) {
               bus.emit('kubernetes.config_map.error', [configMap.config_map, 'bad-oracle-url-error', e.message]);
@@ -212,9 +212,9 @@ async function writeOracleFromPods(pgpool, bus, type, podRecords) {
               await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
                 [role.rows[0].role, role.rows[0].username, roleType]);
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [db.rows[0].database, role.rows[0].role]);
+                [role.rows[0].role, db.rows[0].database]);
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [role.rows[0].role, pod.pod]);
+                [pod.pod, role.rows[0].role]);
             } catch (e) {
               if (e.message.includes('Invalid URL')) {
                 bus.emit('kubernetes.pod.error', [pod.pod, 'bad-oracle-url-error', e.message]);
@@ -273,9 +273,9 @@ async function writeOracleFromDeployments(pgpool, bus, type, deploymentRecords) 
               await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
                 [role.rows[0].role, role.rows[0].username, roleType]);
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [db.rows[0].database, role.rows[0].role]);
+                [role.rows[0].role, db.rows[0].database]);
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [role.rows[0].role, deployment.deployment]); // TODO: Switch these?
+                [deployment.deployment, role.rows[0].role]);
             } catch (e) {
               if (e.message.includes('Invalid URL')) {
                 bus.emit('kubernetes.deployment.error', [deployment.deployment, 'bad-oracle-url-error', e.message]);

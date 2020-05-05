@@ -76,7 +76,8 @@ class AppKitApp extends HTMLElement {
       font-weight: 300;
       color: var(--font-main-color);
       margin-top: 1em;
-      margin-bottom: 0.333em
+      margin-bottom: 0.333em;
+      line-height:2.5rem;
     }
 
     appkit-app p {

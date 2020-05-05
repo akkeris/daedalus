@@ -48,3 +48,65 @@ Plan for software to be restarted or interrupted at any point.  It should gracef
 * Encrypt anything sensitive using the functions in the library `common/security.js` as it helps prevent making mistakes with encryption and decryption.  Before encrypting consider how the same task could be accomplished without storing sensitive information. Encrypted information should be stored as a `jsonb` type in postgres.
 * Hash values using the hmac or redact function in `common/security.js`, if there's even a slight possibility that the values you're storing could potentially store sensitive information. The hash value will help indicate if the value has changed (even if the value is unavailable).
 * Always consider what would happen if the data stored became public on the internet.
+
+
+## Understanding Nodes and Relationships
+
+Anything that represents an infrastructural object (not a property or function or relationship) is consdiered a "node" and generically represented by the `metadata.nodes` table. This table must be updated and inserted into when any plug-in finds a new object of interest.  
+
+In addition to the `metadata.nodes` table, relationships should be provided to daedalus by plug-ins. The plug-in is responsible for determining if the following relationships exist (and adding the record to the table necessary)
+
+### Familial Relationship
+
+Table: `metadata.families`
+
+Nodes which have a concept of a parent and child (and thus cousin, sibling, etc) relationship should add itself to this table. When considering whether or not a node is a familial relationship consider:
+
+1. A parent is defined as a node that is responsible for creating one or more other nodes. The nodes it creates is considered a child of that node. 
+2. If more than one node is responsible for creating a node then both can be parents.  There can be any amount of parents or children.
+3. A node may not exist in this relationship with a `NULL` parent.
+4. A node may not exist in this relationship with a `NULL` child.
+5. Do not assume that a parent child relationship exists if one node being deleted would imply another node must be removed. This is not a parent child relationship but a "ownership" relationship. While a child may be owned by a parent, this relationship only describes how an node was created.
+6. Do not assume that a parent child relationship exists if one node depends on the other node. This is not a parent child relationship but a "dependency" relationship. While a child node may depend on a parent node, the parent child relationship only describes how a node was created.
+7. Parent and child relationships cannot be cyclical.
+8. If a node is a grant parent of another node it should not be recorded. Transient relatsionships should not be recorded unless the transient node is unavailable. 
+
+### Dependency Relationship
+
+Table: `metadata.dependencies`
+
+Nodes which require another node in order to function, but NOT to exist are described as dependencies. When considering whether or not a node is a dependency relationship consider:
+
+1. A node that depends on an other node does not imply that if one is deleted the other is deleted. This is a "ownership" relationship. A node could potentially be both dependent and owned however.
+2. Not all parent and child relationships imply dependency. Parent child relationships describe how a node was created, dependency describe runtime needs.
+3. Dependencies may be cyclical (although this is typical of bad design).
+4. Dependencies are a directed graph, meaning node A is dependent on node B DOES NOT imply node B is dependent on node A.
+5. A dependency implies if node A depends on node B then node A will not work if node B is removed.
+6. Transient dependencies should not be recorded unless the transient node is unavialable and cannot be added to `metadata.nodes` table.  E.g., should Node A depend on node B which depends on node C, a record indicating node A depends on node C should not be added, UNLESS node B cannot be assertained or recorded.
+7. When determining dependency, if a node becomes useless should another node be removed this is not a dependency but a node that may not need to exist.
+
+### Ownership Relationship
+
+Table: `metadata.ownerships`
+
+Nodes which can only exist if another node exists are considered "owned" by that node.  This is the case in situations like a column in a database table, where if the table is removed the column cannot survive. Consider the following before adding a node as "owned":
+
+1. A node that depends on another node but can potentially exist outside of that node is not "owned" by that node. This relationship is a dependency.
+2. A node that was created by another node but can exist the life-cycle of the node that created it is not "owned" by that node. This relationship is familial.
+3. An ownership relationship cannot be cyclical.
+
+### Orphaned Nodes
+
+Any nodes with no relationships to any other nodes are inherently considered orphaned as either A) the relationship cannot be defined or B) there is no relationship and the node should not exist. 
+
+
+site -> app -> database as dependency
+
+
+site -(depends on)-> app -(parent of && owns)-> kube deploy -(depends on)-> role -(depends on)-> database
+														   '-(owns && parent of)-> replicaset -(depends on)-> role -(depends on)-> database
+														   						'-(owns && parent of)-> pod -(depends on)-> role -(depends on)-> database
+
+
+
+

@@ -38,6 +38,9 @@ function lookupAddonById(addons, id) {
 }
 
 async function run(pgpool) {
+  if (process.env.AKKERIS !== 'true') {
+    return;
+  }
   if (!process.env.AKKERIS_URL || !process.env.AKKERIS_TOKEN) {
     return;
   }

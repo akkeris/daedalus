@@ -28,6 +28,8 @@ begin
     from kubernetes.persistent_volumes_log) 
     select persistent_volume, name, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
+  -- node definitions change (and thus the resource vresion) on every deployment or change on the node
+  -- thus we may end up with a lot of node objects.
   create table if not exists kubernetes.nodes_log (
     node uuid not null primary key,
     name varchar(128) not null,
@@ -221,5 +223,101 @@ begin
     from kubernetes.events_log) 
     select event, name, namespace, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
+  create table if not exists kubernetes.ingress_log (
+    ingress uuid not null primary key,
+    name varchar(128) not null,
+    namespace varchar(128) not null,
+    context varchar(128) not null,
+    definition jsonb not null,
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+  create unique index if not exists ingress_unique on kubernetes.ingress_log (name, namespace, context, ((definition->'metadata')->>'resourceVersion'), deleted);
+  create index if not exists ingress_observed_on on kubernetes.ingress_log (name, namespace, context, observed_on desc);
+  create or replace view kubernetes.ingress as
+    with ordered_list as ( select
+      ingress,
+      name,
+      namespace,
+      context,
+      definition,
+      observed_on,
+      deleted,
+      row_number() over (partition by name, namespace, context order by observed_on desc) as rn
+    from kubernetes.ingress_log) 
+    select ingress, name, namespace, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
+
+  create table if not exists kubernetes.daemon_sets_log (
+    daemon_set uuid not null primary key,
+    name varchar(128) not null,
+    namespace varchar(128) not null,
+    context varchar(128) not null,
+    definition jsonb not null,
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+  create unique index if not exists daemon_sets_unique on kubernetes.daemon_sets_log (name, namespace, context, ((definition->'metadata')->>'resourceVersion'), deleted);
+  create index if not exists daemon_sets_observed_on on kubernetes.daemon_sets_log (name, namespace, context, observed_on desc);
+  create or replace view kubernetes.daemon_sets as
+    with ordered_list as ( select
+      daemon_set,
+      name,
+      namespace,
+      context,
+      definition,
+      observed_on,
+      deleted,
+      row_number() over (partition by name, namespace, context order by observed_on desc) as rn
+    from kubernetes.daemon_sets_log) 
+    select daemon_set, name, namespace, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
+
+  create table if not exists kubernetes.stateful_sets_log (
+    stateful_set uuid not null primary key,
+    name varchar(128) not null,
+    namespace varchar(128) not null,
+    context varchar(128) not null,
+    definition jsonb not null,
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+  create unique index if not exists stateful_set_unique on kubernetes.stateful_sets_log (name, namespace, context, ((definition->'metadata')->>'resourceVersion'), deleted);
+  create index if not exists stateful_set_observed_on on kubernetes.stateful_sets_log (name, namespace, context, observed_on desc);
+  create or replace view kubernetes.stateful_sets as
+    with ordered_list as ( select
+      stateful_set,
+      name,
+      namespace,
+      context,
+      definition,
+      observed_on,
+      deleted,
+      row_number() over (partition by name, namespace, context order by observed_on desc) as rn
+    from kubernetes.stateful_sets_log) 
+    select stateful_set, name, namespace, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
+
+
+  create table if not exists kubernetes.jobs_log (
+    job uuid not null primary key,
+    name varchar(128) not null,
+    namespace varchar(128) not null,
+    context varchar(128) not null,
+    definition jsonb not null,
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+  create unique index if not exists job_unique on kubernetes.jobs_log (name, namespace, context, ((definition->'metadata')->>'resourceVersion'), deleted);
+  create index if not exists job_observed_on on kubernetes.jobs_log (name, namespace, context, observed_on desc);
+  create or replace view kubernetes.jobs as
+    with ordered_list as ( select
+      job,
+      name,
+      namespace,
+      context,
+      definition,
+      observed_on,
+      deleted,
+      row_number() over (partition by name, namespace, context order by observed_on desc) as rn
+    from kubernetes.jobs_log) 
+    select job, name, namespace, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
 end
 $$;

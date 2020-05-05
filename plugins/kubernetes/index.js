@@ -17,6 +17,9 @@ async function checkPermissions(kc) {
   const accessPersistentVolumeClaims = { spec: { resourceAttributes: { verb: 'watch', resource: 'persistentvolumeclaims' } } };
   const accessEvents = { spec: { resourceAttributes: { verb: 'watch', resource: 'events' } } };
   const accessDeployments = { spec: { resourceAttributes: { verb: 'watch', resource: 'deployment', group: 'apps' } } };
+  const accessIngress = { spec: { resourceAttributes: { verb: 'watch', resource: 'ingress', group: 'extensions' } } };
+  const accessStatefulSets = { spec: { resourceAttributes: { verb: 'watch', resource: 'statefulset', group: 'apps' } } };
+  const accessDaemonSets = { spec: { resourceAttributes: { verb: 'watch', resource: 'daemonset', group: 'apps' } } };
   const k8sApi = kc.makeApiClient(k8s.AuthorizationV1Api);
 
   const canWatchPods = (await k8sApi.createSelfSubjectAccessReview(accessPods)).body.status.allowed;
@@ -28,6 +31,9 @@ async function checkPermissions(kc) {
   const canWatchPersistentVolumes = (await k8sApi.createSelfSubjectAccessReview(accessPersistentVolumes)).body.status.allowed; // eslint-disable-line max-len
   const canWatchPersistentVolumeClaims = (await k8sApi.createSelfSubjectAccessReview(accessPersistentVolumeClaims)).body.status.allowed; // eslint-disable-line max-len
   const canWatchEvents = (await k8sApi.createSelfSubjectAccessReview(accessEvents)).body.status.allowed; // eslint-disable-line max-len
+  const canWatchIngress = (await k8sApi.createSelfSubjectAccessReview(accessIngress)).body.status.allowed; // eslint-disable-line max-len
+  const canWatchStatefulSets = (await k8sApi.createSelfSubjectAccessReview(accessIngress)).body.status.allowed; // eslint-disable-line max-len
+  const canWatchDaemonSets = (await k8sApi.createSelfSubjectAccessReview(accessIngress)).body.status.allowed; // eslint-disable-line max-len
 
   accessDeployments.spec.resourceAttributes.verb = 'get';
   accessPods.spec.resourceAttributes.verb = 'get';
@@ -48,6 +54,9 @@ async function checkPermissions(kc) {
   const canGetPersistentVolumeClaims = (await k8sApi.createSelfSubjectAccessReview(accessPersistentVolumeClaims)).body.status.allowed; // eslint-disable-line max-len
   const canGetEvents = (await k8sApi.createSelfSubjectAccessReview(accessEvents)).body.status.allowed; // eslint-disable-line max-len
   const canGetReplicaSets = (await k8sApi.createSelfSubjectAccessReview(accessReplicaSets)).body.status.allowed; // eslint-disable-line max-len
+  const canGetIngress = (await k8sApi.createSelfSubjectAccessReview(accessIngress)).body.status.allowed; // eslint-disable-line max-len
+  const canGetStatefulSets = (await k8sApi.createSelfSubjectAccessReview(accessStatefulSets)).body.status.allowed; // eslint-disable-line max-len
+  const canGetDaemonSets = (await k8sApi.createSelfSubjectAccessReview(accessDaemonSets)).body.status.allowed; // eslint-disable-line max-len
 
   return canWatchPods && canGetPods
     && canWatchDeployments && canGetDeployments
@@ -57,7 +66,10 @@ async function checkPermissions(kc) {
     && canWatchPersistentVolumes && canGetPersistentVolumes
     && canWatchPersistentVolumeClaims && canGetPersistentVolumeClaims
     && canWatchEvents && canGetEvents
-    && canWatchReplicaSets && canGetReplicaSets;
+    && canWatchReplicaSets && canGetReplicaSets
+    && canWatchIngress && canGetIngress
+    && canWatchStatefulSets && canGetStatefulSets
+    && canWatchDaemonSets && canGetDaemonSets;
 }
 
 async function loadFromKubeEnvironment(kc) {
@@ -219,7 +231,7 @@ async function writeNamespacedObjs(pgpool, bus, type, func, args) {
       redacted = redactDeployments(redacted);
     }
     const dbObj = await pgpool.query(`
-      insert into kubernetes.${type}s_log (${type}, name, namespace, context, definition, deleted)
+      insert into kubernetes.${type.endsWith('ss') ? type : (`${type}s`)}_log (${type}, name, namespace, context, definition, deleted)
       values (uuid_generate_v4(), $1, $2, $3, $4, $5)
       on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
       do update set name = $1, definition = $4
@@ -243,7 +255,7 @@ async function writeObjs(pgpool, bus, type, func, args) {
     'The items field on the returned kube response was not an array');
   debug(`Received ${body.items.length} items for ${type}`);
   const dbObjs = await Promise.all(body.items.map((item) => pgpool.query(`
-    insert into kubernetes.${type}s_log (${type}, name, context, definition, deleted)
+    insert into kubernetes.${type.endsWith('ss') ? type : (`${type}s`)}_log (${type}, name, context, definition, deleted)
     values (uuid_generate_v4(), $1, $2, $3, $4)
     on conflict (name, context, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
     do update set name = $1
@@ -258,13 +270,13 @@ async function writeObjs(pgpool, bus, type, func, args) {
 }
 
 async function writeDeletedNamespacedObjs(pgpool, type, items) {
-  (await pgpool.query(`select ${type}, name, namespace, context, definition from kubernetes.${type}s`, []))
+  (await pgpool.query(`select ${type}, name, namespace, context, definition from kubernetes.${type.endsWith('ss') ? type : (`${type}s`)}`, []))
     .rows
     .filter((entry) => !items.some((item) => entry.namespace === item.metadata.namespace
           && entry.name === item.metadata.name
           && entry.context === process.env.KUBERNETES_CONTEXT))
     .map((item) => pgpool.query(`
-      insert into kubernetes.${type}s_log (${type}, name, namespace, context, definition, deleted)
+      insert into kubernetes.${type.endsWith('ss') ? type : (`${type}s`)}_log (${type}, name, namespace, context, definition, deleted)
       values (uuid_generate_v4(), $1, $2, $3, $4, $5)
       on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
       do nothing
@@ -273,12 +285,12 @@ async function writeDeletedNamespacedObjs(pgpool, type, items) {
 }
 
 async function writeDeletedObjs(pgpool, type, items) {
-  (await pgpool.query(`select ${type}, name, context, definition from kubernetes.${type}s`, []))
+  (await pgpool.query(`select ${type}, name, context, definition from kubernetes.${type.endsWith('ss') ? type : (`${type}s`)}`, []))
     .rows
     .filter((entry) => !items.some((item) => entry.name === item.metadata.name
       && entry.context === process.env.KUBERNETES_CONTEXT))
     .map((item) => pgpool.query(`
-      insert into kubernetes.${type}s_log (${type}, name, context, definition, deleted)
+      insert into kubernetes.${type.endsWith('ss') ? type : (`${type}s`)}_log (${type}, name, context, definition, deleted)
       values (uuid_generate_v4(), $1, $2, $3, $4)
       on conflict (name, context, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
       do nothing
@@ -287,6 +299,9 @@ async function writeDeletedObjs(pgpool, type, items) {
 }
 
 async function run(pgpool, bus) {
+  if (process.env.KUBERNETES !== 'true') {
+    return;
+  }
   if (!process.env.KUBERNETES_CONTEXT) {
     return;
   }
@@ -309,6 +324,8 @@ async function run(pgpool, bus) {
   debug(`Loaded kubernetes context ${process.env.KUBERNETES_CONTEXT}`);
   const k8sCoreApi = kc.makeApiClient(k8s.CoreV1Api);
   const k8sAppsApi = kc.makeApiClient(k8s.AppsV1Api);
+  const k8sExtensionsApi = kc.makeApiClient(k8s.ExtensionsV1beta1Api);
+  const k8sBatchApi = kc.makeApiClient(k8s.BatchV1Api);
   const maxMemory = 1 * 1024 * 1024;
   const labelSelector = process.env.KUBERNETES_LABEL_SELECTOR;
 
@@ -358,12 +375,26 @@ async function run(pgpool, bus) {
     await writeNamespacedObjs(pgpool, bus, 'event',
       k8sCoreApi.listEventForAllNamespaces.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 2048), labelSelector }));
-
-  // TODO: Job? DaemonSet? StatefulSet?
-  // TODO: istio?
-  // TODO: ingress objects?
-  // TODO: cert-manager objects?
-  // TODO: docker images?
+  debug(`Refreshing ingresses from ${process.env.KUBERNETES_CONTEXT}`);
+  await writeDeletedNamespacedObjs(pgpool, 'ingress',
+    await writeNamespacedObjs(pgpool, bus, 'ingress',
+      k8sExtensionsApi.listIngressForAllNamespaces.bind(k8sExtensionsApi),
+      { limit: Math.floor(maxMemory / 2048), labelSelector }));
+  debug(`Refreshing daemon sets from ${process.env.KUBERNETES_CONTEXT}`);
+  await writeDeletedNamespacedObjs(pgpool, 'daemon_set',
+    await writeNamespacedObjs(pgpool, bus, 'daemon_set',
+      k8sAppsApi.listDaemonSetForAllNamespaces.bind(k8sAppsApi),
+      { limit: Math.floor(maxMemory / 2048), labelSelector }));
+  debug(`Refreshing stateful sets from ${process.env.KUBERNETES_CONTEXT}`);
+  await writeDeletedNamespacedObjs(pgpool, 'stateful_set',
+    await writeNamespacedObjs(pgpool, bus, 'stateful_set',
+      k8sAppsApi.listStatefulSetForAllNamespaces.bind(k8sAppsApi),
+      { limit: Math.floor(maxMemory / 2048), labelSelector }));
+  debug(`Refreshing jobs from ${process.env.KUBERNETES_CONTEXT}`);
+  await writeDeletedNamespacedObjs(pgpool, 'job',
+    await writeNamespacedObjs(pgpool, bus, 'job',
+      k8sBatchApi.listJobForAllNamespaces.bind(k8sAppsApi),
+      { limit: Math.floor(maxMemory / 2048), labelSelector }));
 }
 
 module.exports = {

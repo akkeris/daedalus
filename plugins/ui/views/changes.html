@@ -1,12 +1,17 @@
 const {getDateDiff} = require('../../../common/format.js');
 
+function actionFromChange(x, i, length) {
+  return x.deleted === true ? 'deleted' : (i === (length - 1) || x.rn === '1') ? 'added' : 'changed';
+}
+
 module.exports = (req, data) => `
         ${data.changes.map((x, i) => `
         <div class="list-item">
           <div class="pre-inline"><i class="fa fa-${x['$icon']}" aria-hidden="true"></i> ${x.name}</div>
           <div>
             ${x["$type"]} 
-            ${x.deleted === true ? 'deleted' : (i === (data.changes.length - 1)) ? 'added' : 'changed'} • ${getDateDiff(x.observed_on)}
+            ${actionFromChange(x, i, data.changes.length)} • 
+            ${getDateDiff(x.observed_on)}
           </div>
         </div>
         `).join("")}

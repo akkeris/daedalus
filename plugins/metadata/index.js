@@ -29,8 +29,8 @@ async function run(pgpool, bus) {
 // todo: akkeris apps -> akkeris sites (based on configuration)
 // todo: akkeris apps -> services (based on configuration)
 // todo: deployments -> services (based on configuration)
-
-// TODO: delete old links & nodes?...
+// todo: nodes -> pods
+// todo: aws ec2s -> nodes ?
 
 async function init(pgpool, bus) {
   debug('Initializing metadata plugin...');

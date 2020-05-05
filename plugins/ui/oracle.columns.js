@@ -87,7 +87,7 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
         parent_type as "$owner_type",
         parent_icon as "$owner_icon"
       from 
-        metadata.find_node_relatives($1)
+        metadata.find_node_descendants_and_ancestors($1)
     `, [req.params.oracle_column_id]);
 
     const { rows: [statistics] } = await pgpool.query(`

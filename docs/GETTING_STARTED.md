@@ -62,6 +62,8 @@ The metadata plugin is generally required if you want to use the UI or GraphQL, 
 
 To listen to one or more kubernetes clusters, deploy daedalus to multiple clusters. Configuring kubernetes can be done multiple ways:
 
+*  `KUBERNETES` - This must be set to "true" in order for the kuberentes plugin to be enabled.
+
  1. Through a service account in the deployment and when `KUBERNETES_CONTEXT` is set. 
  2. Through the `$HOME/.kube` kubectl config file and when `KUBERNETES_CONTEXT` is set.
  3. Through explicit environment varialbes below.
@@ -88,6 +90,8 @@ echo $KUBERNETES_TOKEN
 
 ### Akkeris Plugin
 
+*  `AKKERIS` - Must be set to "true" in order to enable the akkeris plugin.
+
 Daedalus can optionally crawl Akkeris for sites, apps, etc. To setup akkeris the following environment variables must be set. This will crawl all regions in akkeris.
 
  *  `AKKERIS_URL` - The apps URL for akkeris. (e.g., `https://apps.example.com`)
@@ -95,6 +99,7 @@ Daedalus can optionally crawl Akkeris for sites, apps, etc. To setup akkeris the
 
 ### AWS RDS Plugin
 
+ *  `AWS` - This must be set to `true` in order to enable AWS scanning.
  *  `AWS_RDS_SECRET_KEY` - The IAM secret key that must have access to list and describe RDS instances.
  *  `AWS_RDS_ACCESS_KEY` - The IAM access key id that must have access to list and describe RDS instances.
  *  `AWS_RDS_REGIONS` - A comma delimited list of regions to crawl for RDS instances.
@@ -110,5 +115,6 @@ To debug, set the environment variable `DEBUG` with one of the values below.
  *  `daedalus:akkeris` - akkeris debugging, importing and checks.
  *  `daedalus:links` - turn on debugging for module that attempts to establish links between various objects.
  *  `daedalus:metadata` - turn on debugging for module that attempts to classify with labels and annotations.
+ *  `daedalus:oracle` - turn on debugging for oracle scanning.
  *  `daedalus:aws` - aws debugging, importing and checks.
 

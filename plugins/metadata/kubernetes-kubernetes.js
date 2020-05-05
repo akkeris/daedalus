@@ -96,7 +96,7 @@ async function writeKubernetesDeploymentToConfigMaps(pgpool, type, deployments) 
                 await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
                   [config_map, `${deployment.definition.metadata.namespace}/${name}`, configMapType]); // eslint-disable-line camelcase
                 await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                  [config_map, deployment.deployment]); // eslint-disable-line camelcase
+                  [deployment.deployment, config_map]); // eslint-disable-line camelcase
               } catch (e) {
                 debug(`Error unable to add link for deployment ${deployment.deployment} to configmap ${envFrom.configMapRef.name}`); // eslint-disable-line max-len,no-console
               }

@@ -30,6 +30,7 @@ begin
 
   create or replace view aws.rds_db_instances as
     with ordered_list as ( select
+      rds_db_instance_log,
       db_instance_arn,
       engine,
       status,
@@ -40,7 +41,7 @@ begin
       deleted,
       row_number() over (partition by db_instance_arn order by observed_on desc) as rn
     from aws.rds_db_instances_log)
-    select db_instance_arn, engine, status, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select db_instance_arn, engine, status, name, definition, observed_on, rds_db_instance_log from ordered_list where rn=1 and deleted = false;
 
 
   create table if not exists aws.rds_db_clusters_log (
@@ -62,6 +63,7 @@ begin
 
   create or replace view aws.rds_db_clusters as
     with ordered_list as ( select
+      rds_db_cluster_log,
       db_cluster_arn,
       engine,
       status,
@@ -72,7 +74,7 @@ begin
       deleted,
       row_number() over (partition by db_cluster_arn order by observed_on desc) as rn
     from aws.rds_db_clusters_log)
-    select db_cluster_arn, engine, status, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select db_cluster_arn, engine, status, name, definition, observed_on, rds_db_cluster_log from ordered_list where rn=1 and deleted = false;
 
 
   create table if not exists aws.es_clusters_log (
@@ -94,6 +96,7 @@ begin
   create or replace view aws.es_clusters as
     with ordered_list as (
       select
+        es_cluster_log,
         engine,
         status,
         name,
@@ -104,7 +107,7 @@ begin
         row_number() over (partition by name order by observed_on desc) as rn
       from aws.es_clusters_log
     )
-    select engine, status, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select engine, status, name, definition, observed_on, es_cluster_log from ordered_list where rn=1 and deleted = false;
 
 
   create table if not exists aws.rds_events_log (
@@ -126,6 +129,7 @@ begin
   create or replace view aws.rds_events as
     with ordered_list as ( 
       select
+        rds_events_log,
         source_identifier,
         source_type,
         source_arn,
@@ -136,7 +140,7 @@ begin
         row_number() over (partition by source_identifier order by observed_on desc) as rn
       from aws.rds_events_log
     )
-    select source_identifier, source_type, source_arn, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select source_identifier, source_type, source_arn, definition, observed_on, rds_events_log from ordered_list where rn=1 and deleted = false;
 
 
 
@@ -159,6 +163,7 @@ begin
 
   create or replace view aws.rds_db_parameter_groups as
     with ordered_list as ( select
+      rds_db_parameter_groups_log,
       db_parameter_group_arn,
       family,
       description,
@@ -169,7 +174,7 @@ begin
       deleted,
       row_number() over (partition by db_parameter_group_arn order by observed_on desc) as rn
     from aws.rds_db_parameter_groups_log)
-    select db_parameter_group_arn, family, description, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select db_parameter_group_arn, family, description, name, definition, observed_on, rds_db_parameter_groups_log from ordered_list where rn=1 and deleted = false;
 
 
 
@@ -189,6 +194,7 @@ begin
 
   create or replace view aws.rds_db_snapshots as
     with ordered_list as ( select
+      rds_db_snapshot_log,
       db_snapshot_identifier,
       db_instance_identifier,
       definition,
@@ -197,7 +203,7 @@ begin
       deleted,
       row_number() over (partition by db_snapshot_identifier order by observed_on desc) as rn
     from aws.rds_db_snapshots_log)
-    select db_snapshot_identifier, db_instance_identifier, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select db_snapshot_identifier, db_instance_identifier, definition, observed_on, rds_db_snapshot_log from ordered_list where rn=1 and deleted = false;
 
 
 
@@ -218,6 +224,7 @@ begin
 
   create or replace view aws.rds_certificates as
     with ordered_list as ( select
+      rds_certificate_log,
       certificate_identifier,
       certificate_type,
       certificate_arn,
@@ -227,7 +234,7 @@ begin
       deleted,
       row_number() over (partition by certificate_identifier, certificate_arn order by observed_on desc) as rn
     from aws.rds_certificates_log)
-    select certificate_identifier, certificate_type, certificate_arn, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select certificate_identifier, certificate_type, certificate_arn, definition, observed_on, rds_certificate_log from ordered_list where rn=1 and deleted = false;
 
 
   create table if not exists aws.rds_db_subnet_groups_log (
@@ -246,6 +253,7 @@ begin
 
   create or replace view aws.rds_db_subnet_groups as
     with ordered_list as ( select
+      rds_db_subnet_group_log,
       name,
       db_subnet_group_arn,
       definition,
@@ -254,7 +262,7 @@ begin
       deleted,
       row_number() over (partition by db_subnet_group_arn order by observed_on desc) as rn
     from aws.rds_db_subnet_groups_log)
-    select name, db_subnet_group_arn, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select name, db_subnet_group_arn, definition, observed_on, rds_db_subnet_group_log from ordered_list where rn=1 and deleted = false;
 
 
   create table if not exists aws.rds_db_security_groups_log (
@@ -273,6 +281,7 @@ begin
 
   create or replace view aws.rds_db_security_groups as
     with ordered_list as ( select
+      rds_db_security_group_log,
       name,
       db_security_group_arn,
       definition,
@@ -281,6 +290,6 @@ begin
       deleted,
       row_number() over (partition by db_security_group_arn order by observed_on desc) as rn
     from aws.rds_db_security_groups_log)
-    select name, db_security_group_arn, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select name, db_security_group_arn, definition, observed_on, rds_db_security_group_log from ordered_list where rn=1 and deleted = false;
 end
 $$;

@@ -6,7 +6,7 @@
   "scripts": {
     "start": "DEBUG=daedalus:* node index.js",
     "test": "./node_modules/.bin/nyc --reporter=text --reporter=lcov ./node_modules/.bin/mocha",
-    "coverage": "./node_modules/.bin/nyc --reporter=text --reporter=lcov ./node_modules/.bin/mocha"
+    "coverage": "./node_modules/.bin/nyc --reporter=text --reporter=lcov ./node_modules/.bin/mocha && wget -qO - https://coverage.codacy.com/get.sh | sh -s report -l Javascript -r ./coverage/lcov.info"
   },
   "repository": {
     "type": "git",

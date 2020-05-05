@@ -29,7 +29,7 @@ jobs:
     - name: Install dependencies
       run: NODE_ENV=development npm install
     - name: Run tests
-      run: npm test
+      run: npm run coverage
       env: 
         POSTGRES_HOST: localhost
         POSTGRES_PORT: 5432

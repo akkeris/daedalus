@@ -93,7 +93,7 @@ button.passive:hover {
   box-shadow: var(--subtle-box-shadow);
 }
 
-button > i {
+button > i:not(:only-child) {
   margin-left:0.25rem;
   opacity:0.8;
 }
@@ -191,7 +191,8 @@ body.loading::after {
 h2 > sub {
   font-size: var(--font-text-smallest-size);
   vertical-align: initial;
-  margin-left: 0.5rem;
+  display: block;
+  line-height: 1rem;
 }
 
 .secret {
@@ -807,6 +808,6 @@ div.list-item div.percentage {
 }
 
 p.description {
-  margin:0.25rem 0;
+  margin:0.25rem 0 0.5rem 0;
   font-size:var(--font-text-small-size);
 }

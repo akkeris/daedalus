@@ -44,43 +44,57 @@ class Search extends HTMLElement {
     this.results = this.querySelector('.results');
     this.search = this.querySelector('input[type="search"]');
 
-    this.addEventListener('focusout', (e) => {
+    this.results.addEventListener('focusout', (e) => {
       if (!this.contains(e.relatedTarget)) {
         this.results.classList.remove('open');
       }
     });
 
     // on clear..
+    var interval = null;
     this.search.addEventListener('input', (async () => {
-      if (!this.search || !this.search.value || this.search.value.length < 3) {
-        this.results.classList.remove('open');
-        return;
+      // debounce the type-ahead on a 150ms trigger.
+      if(interval) {
+        clearInterval(interval);
       }
-      this.data = await search_content(this.getAttribute('search-api'), this.search.value);
-      // todo: do not use docs like this
-      // todo: handle searching by js and searching by param/body
-      // todo: support parameters
-      if (Object.keys(this.data).length === 1) {
-        this.data = this.data[Object.keys(this.data)[0]];
-      }
-      const title = this.getAttribute('title') || 'title';
-      this.data = this.data.filter((x) => x[title].toLowerCase().indexOf(this.search.value.toLowerCase()) !== -1);
-      this.render();
+      interval = setTimeout(async () => {
+        interval = null;
+        if (!this.search || !this.search.value || this.search.value.length < 3) {
+          this.results.classList.remove('open');
+          return;
+        }
+        this.data = await search_content(this.getAttribute('search-api'), this.search.value);
+        // todo: do not use docs like this
+        // todo: handle searching by js and searching by param/body
+        // todo: support parameters
+        if (!this.data.length && Object.keys(this.data).length === 1) {
+          this.data = this.data[Object.keys(this.data)[0]];
+        }
+        const title = this.getAttribute('title') || 'title';
+        this.data = this.data.filter((x) => x[title].toLowerCase().indexOf(this.search.value.toLowerCase()) !== -1);
+        this.render();
+      }, 200);
     }));
   }
 
   render() {
     if (this.data && this.data.length > 0) {
       this.results.innerHTML = this.data.map((x) => `
-          <li>
-            <a href="${x[this.getAttribute('location')] || x.location}">${x[this.getAttribute('title')] || x.title}</a>
-            <p>${x[this.getAttribute('description') || 'text']}</p>
-          </li>
-        `).join('\n');
+        <li>
+          <a tabindex="1" href="${x[this.getAttribute('location')] || x.location}">
+            <h5>
+              ${x.icon ? `<img src="/${x.icon}" />` : ''}
+              ${x[this.getAttribute('title')] || x.title}
+            </h5>
+            ${x[this.getAttribute('description') || 'text'] ? `<p>${x[this.getAttribute('description') || 'text'] || ''}</p>` : ''}
+          </a>
+        </li>
+      `).join('\n');
     } else {
-      this.results.innerHTML = `<li>${this.getAttribute('no-results') || "Can't find any matching results"}</li>`;
+      this.results.innerHTML = `<li class="none">${this.getAttribute('no-results') || "Can't find any matching results"}</li>`;
     }
     this.results.classList.add('open');
+    this.results.querySelector('a').focus();
   }
 
   connectedCallback() {
@@ -172,7 +186,7 @@ class Search extends HTMLElement {
         width:100%;
         transform-origin:top;
         animation:show-search 0.2s;
-        max-height:50vh;
+        max-height:60vh;
         overflow-y:auto;
         overflow-x:hidden;
         z-index: 4;
@@ -180,7 +194,6 @@ class Search extends HTMLElement {
 
       x-search > .results.open > li {
         margin: 0;
-        padding: 0.75em;
         border-bottom:1px solid var(--divider-color);
       }
 
@@ -191,23 +204,39 @@ class Search extends HTMLElement {
       }
 
       x-search > .results.open > li > a {
+        display: block;
         text-decoration:none;
         text-align: left;
-        display: block;
+        padding: 0.75em 1em;
+        margin: 2px 4px;
+      }
+
+      x-search > .results.open > li > a > h5 {
         font-weight: 600;
-        text-transform: uppercase;
-        padding: 0 1em;
-        margin: 0.5em 0 0 0;
+        align-items: center;
+        display: flex;
+        margin: 0;
+        padding: 0; 
         color: var(--callout-color);
       }
 
-      x-search > .results.open > li > p {
+      x-search > .results.open > li > a > h5 > img {
+        max-width:1rem;
+        margin-right:0.5rem;
+      }
+
+      x-search > .results.open > li > a > p {
         display: block;
         overflow-y: hidden;
         text-overflow: ellipsis;
         text-align: left;
-        padding: 0 1em;
-        margin: 0.5em 0 0 0;
+        padding: 0.5em 0 0 0;
+        margin: 0 0 0 0;
+      }
+
+      x-search > .results.open > li.none {
+        font-weight: 600;
+        padding:1rem;
       }
 
       @keyframes show-search {

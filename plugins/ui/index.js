@@ -16,6 +16,7 @@ const kubernetesReplicasets = require('./kubernetes.replicasets.js');
 const kubernetesPods = require('./kubernetes.pods.js');
 const kubernetesConfigMaps = require('./kubernetes.config_maps.js');
 const { grab, cursors } = require('./common.js');
+const search = require('./search.js');
 
 async function init(pgpool, bus, app) {
   if (process.env.UI !== 'true') {
@@ -41,6 +42,7 @@ async function init(pgpool, bus, app) {
       });
   });
   app.get('/oauth/callback', oauth.callback);
+  app.get('/search', search(pgpool));
   await postgresqlDatabases(pgpool, bus, app);
   await postgresqlRoles(pgpool, bus, app);
   await postgresqlTables(pgpool, bus, app);

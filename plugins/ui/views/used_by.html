@@ -9,6 +9,9 @@ function getChildren(usedBy, parent, index) {
       if(children === '' && x['$type'] === 'kubernetes/replicasets') {
         return ``;
       }
+      if(index >= 8) {
+        return '';
+      }
       return `
       <div class="list-item">
         <div class="uno" style="margin-left:${index * 2}rem;">

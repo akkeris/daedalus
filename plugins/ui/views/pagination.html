@@ -26,11 +26,19 @@ module.exports = (req, data) => `
         `}
         ${(data.cursor.pages - 1) >= (data.cursor.page + 3) ? `
           <li class="break">...</li>
-          <li><a href="?page=${data.cursor.pages - 1}&${data.cursor.template}">${data.cursor.pages - 1}</a></li>
+          <li>
+            <a href="?page=${data.cursor.pages - 1}&${data.cursor.template}">${data.cursor.pages - 1}</a>
+          </li>
         ` : ''}
-        ${data.cursor.pages > 1 && data.cursor.pages !== data.cursor.page || data.cursor.pages === data.cursor.page && data.cursor.pages < 3 && data.cursor.pages !== 1 ? `
-          <li ${data.cursor.page === data.cursor.pages ? 'class="selected"' : ''} ><a href="?page=${data.cursor.pages}&${data.cursor.template}">${data.cursor.pages}</a></li>
-        ` : ''}
-        <li><a rel="next" ${(data.cursor.page + 1) > data.cursor.pages ? `class="disabled"` : `href="?page=${data.cursor.page + 1}"`}>Next</a></li>
+        ${(data.cursor.pages > 1 && data.cursor.pages !== 3) && data.cursor.pages !== data.cursor.page ||
+          data.cursor.pages === data.cursor.page && data.cursor.pages < 3 && data.cursor.pages !== 1 ?
+          `
+          <li ${data.cursor.page === data.cursor.pages ? 'class="selected"' : ''} >
+            <a href="?page=${data.cursor.pages}&${data.cursor.template}">${data.cursor.pages}</a>
+          </li>
+          ` : ''}
+        <li>
+          <a rel="next" ${(data.cursor.page + 1) > data.cursor.pages ? `class="disabled"` : `href="?page=${data.cursor.page + 1}"`}>Next</a>
+        </li>
       </ul>
 `;

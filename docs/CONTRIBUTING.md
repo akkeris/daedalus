@@ -52,11 +52,20 @@ Plan for software to be restarted or interrupted at any point.  It should gracef
 
 ## Understanding Nodes and Relationships
 
+### Nodes
+
+Nodes are an abstract concept of a specific object in daedalus. The specifics of a node are contained to the relevant plugin and irrelevant for most of the other abstract needs of daedalus.  Any plugin may register their node by creating a new record in `nodes.node_types` then subsequently adding nodes they find to the `metadata.nodes` table, and if their are relationships between nodes they can be recorded using one of the tables described below in the relationships section. 
+
+Adding nodes to this immediately makes it available to graph search tools, notifications and searches.
+
+
+### Relationships
+
 Anything that represents an infrastructural object (not a property or function or relationship) is consdiered a "node" and generically represented by the `metadata.nodes` table. This table must be updated and inserted into when any plug-in finds a new object of interest.  
 
 In addition to the `metadata.nodes` table, relationships should be provided to daedalus by plug-ins. The plug-in is responsible for determining if the following relationships exist (and adding the record to the table necessary)
 
-### Familial Relationship
+### Familial Relationships
 
 Table: `metadata.families`
 
@@ -71,7 +80,7 @@ Nodes which have a concept of a parent and child (and thus cousin, sibling, etc)
 7. Parent and child relationships cannot be cyclical.
 8. If a node is a grant parent of another node it should not be recorded. Transient relatsionships should not be recorded unless the transient node is unavailable. 
 
-### Dependency Relationship
+### Dependency Relationships
 
 Table: `metadata.dependencies`
 
@@ -85,7 +94,7 @@ Nodes which require another node in order to function, but NOT to exist are desc
 6. Transient dependencies should not be recorded unless the transient node is unavialable and cannot be added to `metadata.nodes` table.  E.g., should Node A depend on node B which depends on node C, a record indicating node A depends on node C should not be added, UNLESS node B cannot be assertained or recorded.
 7. When determining dependency, if a node becomes useless should another node be removed this is not a dependency but a node that may not need to exist.
 
-### Ownership Relationship
+### Ownership Relationships
 
 Table: `metadata.ownerships`
 

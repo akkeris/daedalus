@@ -441,7 +441,6 @@ ul.panel > li {
 .table-list-item > div.icon {
   max-width:25px;
   align-self:center;
-  display:inline-flex;
   padding-left:0.75rem;
 }
 .table-list-item > div.icon > img {
@@ -656,7 +655,7 @@ dialog:not([open]) {
   display:none;
 }
 dialog > h1, dialog > h2, dialog > h3, dialog > h4, dialog > h5 {
-  padding:1.25rem 1.5rem;
+  padding:0.5rem 1.5rem;
   margin:0;
   z-index:1;
   border-top-left-radius: 4px;

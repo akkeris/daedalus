@@ -6,7 +6,15 @@ module.exports = (req, res, next, data) => res.send(`
       <div>
         <h2>${data.human_name}<sub>${data.human_name !== data.name ? `(${data.name})` : ``}</sub></h2>
         ${data.annotations && data.annotations.description ? `
-        <p class="description">${data.annotations.description}</p>
+        <script>
+          function modifyDescription() {
+            let annotation = document.getElementById("add-annotation");
+            annotation.querySelector('#aname').value = 'description';
+            annotation.querySelector('#avalue').value = '${data.annotations.description}';
+            annotation.setAttribute('open', 'true');
+          }
+        </script>
+        <p class="description">${data.annotations.description}<button class="passive" onclick="modifyDescription()"><i class="fa fa-edit"></i></button></p>
         ` : ''}
         <dl class="facts">
           ${data.config && data.config.server_version && data.config.server_version.value ? `

@@ -6,7 +6,7 @@ module.exports = (req, data, base_url) => `
           <div>
             <a onclick="this.children[1].setAttribute('open','true');">
               <i class="fa fa-plus" aria-hidden="true"></i>
-              <dialog id="add-label" class="popup">
+              <dialog id="add-annotation" class="popup">
                 <h4>Annotations</h4>
                 <form method="post" action="${base_url}/annotations">
                   <fieldset class="content">
@@ -37,7 +37,7 @@ module.exports = (req, data, base_url) => `
                       action="${base_url}/annotations"
                       type="submit"
                       class="primary">
-                      Add
+                      Save
                     </button>
                   </fieldset>
                 </form>

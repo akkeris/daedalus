@@ -26,7 +26,7 @@ class Search extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return ['placeholder', 'no-results', 'title', 'location', 'icon', 'description', 'search-api'];
+    return ['placeholder', 'no-results', 'title', 'location', 'icon', 'description', 'search-api', 'formfield'];
   }
 
   attributeChangedCallback(attr, oldValue, newValue) {
@@ -35,8 +35,10 @@ class Search extends HTMLElement {
 
   renderContainer() {
     const ptext = this.getAttribute('placeholder') || 'Search';
+    const formfield = this.getAttribute('formfield') || 'search';
+    const params = new URLSearchParams(window.location.search);
     this.innerHTML = `
-      <input type="search" placeholder="${ptext}"/>
+      <input type="search" name="${formfield}" value="${params.get(formfield) || ''}" placeholder="${ptext}"/>
       <ul class="results">
       </ul>
     `;
@@ -107,6 +109,21 @@ class Search extends HTMLElement {
         margin: 0 10em 0 5em;
       }
 
+      nav-bar > form > x-search {
+        margin: 0 5em 0 10em;
+      }
+
+      @media only screen and (max-width: 660px) {
+
+        nav-bar > x-search {
+          margin: 0;
+        }
+
+        nav-bar > form > x-search {
+          margin: 0;
+        }
+      }
+
       x-search.dark {
         background-color: rgba(0,0,0,0.3);
         color:white;
@@ -134,6 +151,8 @@ class Search extends HTMLElement {
         border-radius: 3px;
         position:relative;
         text-align: center;
+        align-content:center;
+        max-width:35vw;
       }
 
       x-search * {

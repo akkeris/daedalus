@@ -23,6 +23,10 @@ Daedalus can be deployed with a docker image from [https://hub.docker.com/r/akke
  *  `OAUTH_CLIENT_URI` - The URI that should be provided as the redirect in the authorization_code, this is typically the url for daedalus (e.g., `https://daedalus.example.com/oauth/callback`)
  *  `OAUTH_CLIENT_ID` - The client id provided by the oauth system.
  *  `OAUTH_CLIENT_SECRET` - The client secret provided by the oauth system.
+ *  `OAUTH_USER_PROFILE_URL` - Must return a json object containing users information with token obtained through oauth flow.
+ *  `OAUTH_USER_AVATAR_JSON_PATH` - Json path in profile object to avatar url. 
+ *  `OAUTH_USER_EMAIL_JSON_PATH` - Json path in profile object to email.
+ *  `OAUTH_USER_NAME_JSON_PATH` - Json path in profile object to name.
 
  Note that session information is stored in the `public` schema in the table `session`.
 
@@ -44,10 +48,12 @@ The metadata plugin is generally required if you want to use the UI or GraphQL, 
 ### Postgresql Plugin
 
  *  `POSTRESQL` - Set this value to `true` to enable scanning postgres databases for schema changes and statistics.
+ *  `POSTGRESQL_HISTOGRAM` - Set this to `true` to enable column level histograms, this may collect data from scanned databases, because of this it's disabled by default.
 
 ### Oracle Plugin
 
  *  `ORACLE` - Set this value to `true` to enable scanning oracle databases for schema changes and statistics.
+ *  `ORACLE_HISTOGRAM` - Set this to `true` to enable column level histogram samples, this may collect data from scanned databases. because of this it's disabled by default.
 
  To use the oracle plugin you'll need to generate your own Dockerfile image due to licensing restrictions on oracle drivers. 
 
@@ -87,6 +93,18 @@ export SECRET_NAME=`kubectl get serviceaccount/daedalus -n default -o=jsonpath='
 export KUBERNETES_TOKEN=`kubectl --context ds1 get secrets/$SECRET_NAME -o jsonpath='{.data.token}' -n default | base64 -D` 
 echo $KUBERNETES_TOKEN
 ```
+
+### Istio Plugin
+
+This requires the kubernetes plugin, otherwise it will not function.
+
+* `ISTIO` - Set this to `true` to enable istio virtual service, policy and gateway scanning.
+
+### Cert Manager Plugin
+
+This requires the kubernetes plugin, otherwise it will not function.
+
+* `CERT_MANAGER` - Set this to `true` to enable cert manager certificate scanning (note this isn't the private key just the certificate information thats scanned).
 
 ### Akkeris Plugin
 

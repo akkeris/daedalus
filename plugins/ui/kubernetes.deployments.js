@@ -1,4 +1,6 @@
-const { grab, addExpressAnnotationsAndLabelRoutes } = require('./common.js');
+const {
+  grab, findUses, findMetaData, findUsedBy, addExpressAnnotationsAndLabelRoutes,
+} = require('./common.js');
 
 module.exports = async function addExpressRoutes(pgpool, bus, app) {
   app.param('kubernetes_deployment_id', async (req, res, next) => {
@@ -13,21 +15,6 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
     next();
   });
   app.get('/ui/kubernetes/deployments/:kubernetes_deployment_id', async (req, res, next) => {
-    const { rows: metadata } = await pgpool.query('select * from metadata.objects where node = $1', [req.params.kubernetes_deployment_id]);
-    const { rows: usedBy } = await pgpool.query(`
-      select 
-        child_icon as "$icon",
-        child_type as "$type",
-        child as id,
-        child_name as name,
-        parent as owner,
-        parent_name as owner_name,
-        parent_type as "$owner_type",
-        parent_icon as "$owner_icon"
-      from 
-        metadata.find_node_relatives($1)
-    `, [req.params.kubernetes_deployment_id]);
-
     // TODO: Flip this to use the actual uid from kube.
     const { rows: changes } = await pgpool.query(`
       with a as (
@@ -60,10 +47,11 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
     `, [req.params.kubernetes_deployment.namespace, req.params.kubernetes_deployment.name, req.params.kubernetes_deployment.context]);
 
     const data = {
-      ...metadata[0],
+      ...(await findMetaData(pgpool, req.params.kubernetes_deployment_id)),
       ...req.params.kubernetes_deployment,
       changes,
-      usedBy,
+      usedBy: await findUsedBy(pgpool, req.params.kubernetes_deployment_id),
+      uses: await findUses(pgpool, req.params.kubernetes_deployment_id),
     };
 
     grab('./views/kubernetes.deployments.html', req, res, next, data);

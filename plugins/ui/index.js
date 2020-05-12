@@ -25,10 +25,14 @@ async function init(pgpool, bus, app) {
   app.get('/', (req, res) => res.redirect('/ui/'));
   app.use(express.static('./plugins/ui/public/'));
   app.all('/ui/*', oauth.check);
-  app.get('/ui/', async (req, res, next) => {
+  app.get(['/ui/', '/ui/index.html'], async (req, res, next) => {
+    grab('./views/index.html', req, res, next,
+      await pgpool.query('select name from metadata.labels where name != \'name\' group by name order by count(*) desc'));
+  });
+  app.get('/ui/browse.html', async (req, res, next) => {
     const cursor = await cursors(req);
     const { rows: [{ count }] } = await pgpool.query(`select count(*) as count from metadata.active_objects ${cursor.filter}`, cursor.params);
-    grab('./views/index.html', req, res, next,
+    grab('./views/browse.html', req, res, next,
       {
         ...(await pgpool.query(`select * from metadata.active_objects ${cursor.sql}`, cursor.params)),
         cursor: {
@@ -42,7 +46,17 @@ async function init(pgpool, bus, app) {
       });
   });
   app.get('/oauth/callback', oauth.callback);
-  app.get('/search', search(pgpool));
+  const { searchAPI, searchUI } = search(pgpool);
+  // this is an API search not a UI search, TODO: add alternate auth instead of session?
+  // it's primarily used by the type ahead to give optional results before the user
+  // presses enter, however it could be useful to other systems wanting to query without
+  // using the graphql.
+  app.get('/search', searchAPI);
+  // This is shown when the user presses enter on the search it optionally
+  // has a node that can be specified which shows results related to the
+  // node in question
+  app.get('/ui/search', searchUI);
+
   await postgresqlDatabases(pgpool, bus, app);
   await postgresqlRoles(pgpool, bus, app);
   await postgresqlTables(pgpool, bus, app);

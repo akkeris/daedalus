@@ -298,13 +298,15 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         inherited,
         null_frac,
         avg_width,
-        n_distinct,
-        array_to_string(most_common_vals, '|,|::') as most_common_vals,
+        n_distinct
+        ${process.env.POSTGRESQL_HISTOGRAM === 'true' ? `
+        ,array_to_string(most_common_vals, '|,|::') as most_common_vals,
         most_common_freqs,
         array_to_string(histogram_bounds, '|,|::') as histogram_bounds,
         correlation,
         array_to_string(most_common_elems, '|,|::') as most_common_elems,
         array_to_string(most_common_elem_freqs, '|,|::') as most_common_elem_freqs
+        ` : ''}
       from 
         pg_stats
       where
@@ -324,7 +326,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
           values
             (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
           on conflict do nothing
-        `, [database.database, database.name, estimate.schema, tableUUID, columnUUID, estimate.inherited, estimate.null_frac, estimate.avg_width, estimate.n_distinct, estimate.most_common_vals ? estimate.most_common_vals.split('|,|::') : null, estimate.most_common_freqs, estimate.histogram_bounds ? estimate.histogram_bounds.split('|,|::') : null, estimate.correlation, estimate.most_common_elems ? estimate.most_common_elems.split(',') : null, estimate.most_common_elem_freqs ? estimate.most_common_elem_freqs.split('|,|::') : null, false]);
+        `, [database.database, database.name, estimate.schema, tableUUID, columnUUID, estimate.inherited, estimate.null_frac, estimate.avg_width, estimate.n_distinct, estimate.most_common_vals ? estimate.most_common_vals.split('|,|::') : null, estimate.most_common_freqs, estimate.histogram_bounds ? estimate.histogram_bounds.split('|,|::') : null, estimate.correlation, estimate.most_common_elems ? estimate.most_common_elems.split('|,|::') : null, estimate.most_common_elem_freqs ? estimate.most_common_elem_freqs.split('|,|::') : null, false]);
       } catch (e) {
         debug(`Failed to import column statistc for ${database.database} and %o due to ${e.message}`, estimate);
       }

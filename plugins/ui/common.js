@@ -121,9 +121,46 @@ async function addExpressAnnotationsAndLabelRoutes(pgpool, app, typeName, param)
   });
 }
 
+async function findMetaData(pgpool, id) {
+  const { rows: metadata } = await pgpool.query(
+    'select * from metadata.objects where node = $1',
+    [id],
+  );
+  return metadata[0];
+}
+
+async function findUsedBy(pgpool, id) {
+  const { rows: usedBy } = await pgpool.query(`
+      select 
+        child_icon as "$icon",
+        child_type as "$type",
+        child as id,
+        child_name as name,
+        parent as owner,
+        parent_name as owner_name,
+        parent_type as "$owner_type",
+        parent_icon as "$owner_icon"
+      from 
+        metadata.find_ancestors_graph($1)
+    `, [id]);
+  return usedBy;
+}
+async function findUses(pgpool, id) {
+  let uses = [];
+  let depth = 5;
+  do {
+    uses = (await pgpool.query('select * from metadata.find_descendants_with_depth($1, $2)', // eslint-disable-line no-await-in-loop
+      [id, depth--])).rows; // eslint-disable-line no-plusplus
+  } while (uses.length > 500 && depth !== -1);
+  return uses;
+}
+
 module.exports = {
   grab,
   cursors,
   addExpressAnnotationsAndLabelRoutes,
   diffJSON,
+  findUses,
+  findUsedBy,
+  findMetaData,
 };

@@ -33,6 +33,7 @@ module.exports = (req, res, next, data) => res.send(`
         <x-tab><a href="#metadata">Metadata</a></x-tab>
         <x-tab><a href="#changes">Changes</a></x-tab>
         <x-tab><a href="#used_by">Used By</a></x-tab>
+        <x-tab><a href="#uses">Uses</a></x-tab>
         <x-tab><a href="#columns">Columns</a></x-tab>
         <x-tab><a href="#definition">Definition</a></x-tab>
       </x-tabs>
@@ -45,6 +46,9 @@ module.exports = (req, res, next, data) => res.send(`
       </div>
       <div name="used_by" class="list tab-panel"> 
         ${require('./used_by.html')(req, data)}
+      </div>
+      <div name="uses" class="list tab-panel">
+        ${require('./uses.html')(req, data)}
       </div>
       <div name="columns" class="list tab-panel">
         ${data.columns.sort((x, y) => x.position > y.position ? 1 : -1 ).map((column) => `

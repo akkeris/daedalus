@@ -1,0 +1,81 @@
+module.exports = (req, res, next, data) => res.send(`
+  ${require('./header.html')(req)}
+  <appkit-app>
+    <nav-breadcrumb size="small">
+      <ul>
+        <li>
+          <i class="fa fa-search" style="margin-right:0.25rem;" aria-hidden="true"></i>
+          Showing results for <i>${req.query.q}</i>
+        </li>
+      </ul>
+    </nav-breadcrumb>
+    <main>
+      <div class="panel">
+        <div class="icons">
+          <img src="/${data.type.split('/').join('.')}.svg" />
+          <img src="/${data.type.split('/')[0]}.svg" />
+        </div>
+        <h4 style="padding-bottom:0;">
+          <a href="/ui/${data.type}/${data.node}">${data.human_name}</a>
+          ${data.human_name !== data.name ? `<sub>${data.name}</sub>` : ``}
+        </h4>
+        ${data.description ? `<p>${data.description}</p>` : ``}
+        <i style="font-size:var(--font-text-smallest-size)">${data.type}</i>
+      </div>
+      <div class="panel list">
+        ${data.dependencies.slice(0, req.query.show === 'all' ? -1 : 10).map((node) => `
+        <div class="list-item">
+          <div class="uno">
+            <img style="max-width:1rem;margin-right:0.5rem" src="/${node.type.split('/').join('.')}.svg" />
+            <a href="/ui/${node.type}/${node.node}">${node.name}</a>
+          </div>
+        </div>
+        `).join('')}
+        ${data.dependencies.length > 10 && req.query.show !== 'all' ? `
+        <div class="list-item">
+          <div class="uno" style="justify-content:center;">
+            <a href="${(new URL(req.url, 'http://localhost')).search}&show=all">Show ${(data.dependencies.length - 20).toLocaleString()} more...</a>
+          </div>
+        </div>
+        ` : ''}
+      </div>
+      <div class="panel list">
+        <div class="list-item">
+          <h4>Related</h4>
+        </div>
+        ${data.dependents.reduce((acc, ele) => (!acc.includes(ele.type) ? acc.concat([ele.type]) : acc), []).map((type) => `
+        <div class="list-item group">
+          <a href="#" onclick="this.parentNode.classList.toggle('expanded'); return false">
+            ${type.split(/[\/_]/g).map((x) => x[0].toUpperCase() + x.substring(1)).join(' ')} (${data.dependents.filter((x) => x.type === type)[0].rank})
+            <i class="fa fa-caret-down" aria-hidden="true"></i>
+          </a>
+        </div>
+        ${data.dependents.filter((x) => x.type === type).map((node) => `
+        <div class="list-item">
+          <div class="uno">
+            <img style="max-width:1rem;margin-right:0.5rem" src="/${node.type.split('/').join('.')}.svg" />
+            <a href="/ui/${node.type}/${node.node}">${node.name}</a>
+          </div>
+        </div>
+        `).join('')}
+        `).join('')}
+      </div>
+      <div class="panel list">
+        <div class="list-item">
+          <h4>Other</h4>
+        </div>
+        ${data.nodes.map((node) => `
+        <div class="list-item">
+          <div class="uno">
+            <img style="max-width:1rem;margin-right:0.5rem" src="/${node.type.split('/').join('.')}.svg" />
+            <a href="/ui/${node.type}/${node.id}">${node.title}</a>
+          </div>
+        </div>
+        `).join('')}
+      </div>
+    </main>
+    <aside>
+    </aside>
+  </appkit-app>
+  ${require('./footer.html')(req, res)}
+`);

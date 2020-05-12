@@ -1,0 +1,19 @@
+module.exports = (req, res, next, data) => res.send(`
+  ${require('./header.html')(req)}
+  <appkit-app>
+    <nav-breadcrumb size="small">
+      <ul>
+        <li>
+          <i class="fa fa-search" style="margin-right:0.25rem;" aria-hidden="true"></i>
+          Showing results for <i>${req.query.q}</i>
+        </li>
+      </ul>
+    </nav-breadcrumb>
+    <main>
+      <div class="panel">
+        No results were found.
+      </div>
+    </main>
+  </appkit-app>
+  ${require('./footer.html')(req, res)}
+`);

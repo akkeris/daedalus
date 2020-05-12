@@ -1,4 +1,6 @@
-const { grab, addExpressAnnotationsAndLabelRoutes } = require('./common.js');
+const {
+  grab, findUses, findUsedBy, findMetaData, addExpressAnnotationsAndLabelRoutes,
+} = require('./common.js');
 
 module.exports = async function addExpressRoutes(pgpool, bus, app) {
   app.param('oracle_table_id', async (req, res, next) => {
@@ -13,7 +15,6 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
     next();
   });
   app.get('/ui/oracle/tables/:oracle_table_id', async (req, res, next) => {
-    const { rows: metadata } = await pgpool.query('select * from metadata.objects where node = $1', [req.params.oracle_table_id]);
     const { rows: tables } = await pgpool.query('select * from oracle.tables where "table" = $1', [req.params.oracle_table_id]);
     const { rows: columns } = await pgpool.query('select * from oracle.columns where "table" = $1', [req.params.oracle_table_id]);
     const { rows: indexes } = await pgpool.query('select * from oracle.indexes where "table" = $1', [req.params.oracle_table_id]);
@@ -119,20 +120,6 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
         observed_on desc
     `, [req.params.oracle_table_id]);
 
-    const { rows: usedBy } = await pgpool.query(`
-      select 
-        child_icon as "$icon",
-        child_type as "$type",
-        child as id,
-        child_name as name,
-        parent as owner,
-        parent_name as owner_name,
-        parent_type as "$owner_type",
-        parent_icon as "$owner_icon"
-      from 
-        metadata.find_node_relatives($1)
-    `, [req.params.oracle_table_id]);
-
     let changes = columnChanges.map((x) => ({ ...x, $type: 'column' }))
       .concat(tableChanges.map((x) => ({ ...x, $type: 'table' })))
       .concat(constraintChanges.map((x) => ({ ...x, $type: 'constraint' })))
@@ -146,7 +133,7 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
 
     const data = {
       ...req.params.oracle_table,
-      ...metadata[0],
+      ...(await findMetaData(pgpool, req.params.oracle_table_id)),
       tables,
       columns,
       indexes,
@@ -157,7 +144,8 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
       indexChanges,
       constraintChanges,
       changes,
-      usedBy,
+      usedBy: await findUsedBy(pgpool, req.params.oracle_table_id),
+      uses: await findUses(pgpool, req.params.oracle_table_id),
     };
 
     grab('./views/oracle.tables.html', req, res, next, data);

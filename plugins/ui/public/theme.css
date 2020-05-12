@@ -188,7 +188,7 @@ body.loading::after {
 }
 
 /* Header and sub properties */
-h2 > sub {
+sub {
   font-size: var(--font-text-smallest-size);
   vertical-align: initial;
   display: block;
@@ -364,6 +364,29 @@ ul.panel > li {
   }
 }
 
+.panel > .icons {
+  margin-bottom: 0.5rem;
+  margin-top: -0.75rem;
+  margin-left: -1rem;
+  background-color: var(--subtle-background-color);
+  margin-right: -1rem;
+  border-radius: var(--border-radius);
+  display:flex;
+}
+.panel > .icons > img {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  max-width:6rem;
+  max-height:6rem;
+  border-radius: var(--border-radius);
+}
+.panel > .icons > img:first-child {
+  padding-left: 0.75rem;
+}
+.panel > .icons > img:last-child {
+  padding-right: 0.75rem;
+}
+
 /* pill box */
 .pill {
   font-weight: 700;
@@ -373,6 +396,8 @@ ul.panel > li {
   background-color: var(--highlight-link-color);
   padding: 0px 0px 0px 0.5rem;
   display: inline-block;
+  margin-right: 0.25rem;
+  margin-left: 0.25rem;
 }
 .pill:visited {
   color: var(--highlight-text-color);
@@ -380,7 +405,11 @@ ul.panel > li {
 .pill.subtle {
   background-color: var(--random-bright-color-two);
 }
-.pill > .inner {
+.pill > .name:last-of-type {
+  padding: 0.125rem 0.5rem 0.125rem 0;
+  display: inline-block;
+}
+.pill > .value {
   border-top-right-radius: 8px;
   border-bottom-right-radius: 8px;
   background-color: rgba(255,255,255,0.2);
@@ -409,7 +438,7 @@ ul.panel > li {
   background-color:var(--default-background);
   border-radius:0.25rem;
   box-shadow:0px 2px 5px rgba(0,0,0,0.03);
-  max-height:4rem;
+  max-height:4.5rem;
 }
 .table-list-item > div {
   flex-grow:1;
@@ -519,11 +548,25 @@ ul.panel > li {
   width:100%;
   font-weight:400;
 }
-.list-item.group > a > i, .list-item.group > div > a > i {
+.list-item.group a > i.fa-caret-down, .list-item.group > div > a > i {
   margin-left:0.5rem;
 }
-.list-item.group.expanded > a > i, .list-item.group.expanded > div > a > i{
+.list-item.group.expanded a > i.fa-caret-down, .list-item.group.expanded > div > a > i{
   transform:rotate(180deg);
+}
+/* fix up for combined panel lists */
+.panel.list {
+  padding-top:0;
+  padding-bottom:0;
+  margin-bottom:1rem;
+}
+.panel.list .list-item {
+  padding-left:1rem;
+  padding-right:1rem;
+}
+.panel.list > .list-item > h4 {
+  padding:0;
+  margin:0;
 }
 
 @media only screen and (max-width: 1024px) {
@@ -809,4 +852,19 @@ div.list-item div.percentage {
 p.description {
   margin:0.25rem 0 0.5rem 0;
   font-size:var(--font-text-small-size);
+}
+
+pre > code.hljs.sql,
+pre > code.hljs.json
+{
+  background-color: var(--subtle-background-color);
+  border-radius: var(--border-radius-containers);
+}
+
+
+img.avatar {
+  max-width:1.5rem;
+  max-height:1.5rem;
+  border-radius:1rem;
+  padding:0.125rem;
 }

@@ -295,7 +295,6 @@ begin
     from kubernetes.stateful_sets_log) 
     select stateful_set, name, namespace, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
-
   create table if not exists kubernetes.jobs_log (
     job uuid not null primary key,
     name varchar(128) not null,
@@ -319,5 +318,101 @@ begin
       row_number() over (partition by name, namespace, context order by observed_on desc) as rn
     from kubernetes.jobs_log) 
     select job, name, namespace, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
+
+  create table if not exists kubernetes.virtualservices_log (
+    virtualservice uuid not null primary key,
+    name varchar(128) not null,
+    namespace varchar(128) not null,
+    context varchar(128) not null,
+    definition jsonb not null,
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+  create unique index if not exists vs_unique on kubernetes.virtualservices_log (name, namespace, context, ((definition->'metadata')->>'resourceVersion'), deleted);
+  create index if not exists vs_observed_on on kubernetes.virtualservices_log (name, namespace, context, observed_on desc);
+  create or replace view kubernetes.virtualservices as
+    with ordered_list as ( select
+      virtualservice,
+      name,
+      namespace,
+      context,
+      definition,
+      observed_on,
+      deleted,
+      row_number() over (partition by name, namespace, context order by observed_on desc) as rn
+    from kubernetes.virtualservices_log) 
+    select virtualservice, name, namespace, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
+
+  create table if not exists kubernetes.gateways_log (
+    gateway uuid not null primary key,
+    name varchar(128) not null,
+    namespace varchar(128) not null,
+    context varchar(128) not null,
+    definition jsonb not null,
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+  create unique index if not exists gateway_unique on kubernetes.gateways_log (name, namespace, context, ((definition->'metadata')->>'resourceVersion'), deleted);
+  create index if not exists gateway_observed_on on kubernetes.gateways_log (name, namespace, context, observed_on desc);
+  create or replace view kubernetes.gateways as
+    with ordered_list as ( select
+      gateway,
+      name,
+      namespace,
+      context,
+      definition,
+      observed_on,
+      deleted,
+      row_number() over (partition by name, namespace, context order by observed_on desc) as rn
+    from kubernetes.gateways_log) 
+    select gateway, name, namespace, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
+
+  create table if not exists kubernetes.policies_log (
+    policy uuid not null primary key,
+    name varchar(128) not null,
+    namespace varchar(128) not null,
+    context varchar(128) not null,
+    definition jsonb not null,
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+  create unique index if not exists policy_unique on kubernetes.policies_log (name, namespace, context, ((definition->'metadata')->>'resourceVersion'), deleted);
+  create index if not exists policy_observed_on on kubernetes.policies_log (name, namespace, context, observed_on desc);
+  create or replace view kubernetes.policies as
+    with ordered_list as ( select
+      policy,
+      name,
+      namespace,
+      context,
+      definition,
+      observed_on,
+      deleted,
+      row_number() over (partition by name, namespace, context order by observed_on desc) as rn
+    from kubernetes.policies_log) 
+    select policy, name, namespace, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
+
+  create table if not exists kubernetes.certificates_log (
+    certificate uuid not null primary key,
+    name varchar(128) not null,
+    namespace varchar(128) not null,
+    context varchar(128) not null,
+    definition jsonb not null,
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+  create unique index if not exists certificate_unique on kubernetes.certificates_log (name, namespace, context, ((definition->'metadata')->>'resourceVersion'), deleted);
+  create index if not exists certificate_observed_on on kubernetes.certificates_log (name, namespace, context, observed_on desc);
+  create or replace view kubernetes.certificates as
+    with ordered_list as ( select
+      certificate,
+      name,
+      namespace,
+      context,
+      definition,
+      observed_on,
+      deleted,
+      row_number() over (partition by name, namespace, context order by observed_on desc) as rn
+    from kubernetes.certificates_log) 
+    select certificate, name, namespace, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
 end
 $$;

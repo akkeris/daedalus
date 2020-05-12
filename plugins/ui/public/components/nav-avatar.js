@@ -46,14 +46,7 @@ class NavAvatar extends HTMLElement {
       <img alt="${this.name}" src="${this.photo}">
       <nav>
         <ul>
-          <li><a tabindex="0" href="https://auth.octanner.io/user">Signed in as<br><strong>${this.name}</strong></a></li>
-          <li><a tabindex="0" href="https://auth.octanner.io/authorizations">Authorizations</a></li>
-          <li><a tabindex="0" href="https://auth.octanner.io/applications">OAuth Clients</a></li>
-          <li><a tabindex="0" href="https://ui.appkit.sh">Applications</a></li>
-          <li><a tabindex="0" href="https://docs.octanner.io/">Help</a></li>
-          <li><hr border="0"/></li>
-          <li><a tabindex="0" href="https://auth.octanner.io/user">Settings</a></li>
-          <li><a tabindex="0" href="https://auth.octanner.io/logout">Sign Out</a></li>
+          <li></li>
         </ul>
       </nav>
     </form>`;

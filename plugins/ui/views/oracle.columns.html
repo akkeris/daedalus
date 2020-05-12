@@ -20,6 +20,7 @@ module.exports = (req, res, next, data) => res.send(`
         <x-tab><a href="#metadata">Metadata</a></x-tab>
         <x-tab><a href="#changes">Changes</a></x-tab>
         <x-tab><a href="#used_by">Used By</a></x-tab>
+        <x-tab><a href="#uses">Uses</a></x-tab>
         ${data.statistics ? `<x-tab><a href="#statistics">Statistics</a></x-tab>` : ''}
         <x-tab><a href="#definition">Definition</a></x-tab>
       </x-tabs>
@@ -32,6 +33,9 @@ module.exports = (req, res, next, data) => res.send(`
       </div>
       <div name="used_by" class="tab-panel list"> 
         ${require('./used_by.html')(req, data)}
+      </div>
+      <div name="uses" class="tab-panel list"> 
+        ${require('./uses.html')(req, data)}
       </div>
       ${data.statistics ? `
       <div name="statistics" class="tab-panel list">

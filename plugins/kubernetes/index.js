@@ -215,6 +215,7 @@ function redactDeployments(data) {
 }
 
 async function writeNamespacedObjs(pgpool, bus, type, func, args) {
+  const plural = type.endsWith('cy') ? `${type.substring(0, type.length - 1)}ies` : (type.endsWith('ss') ? type : `${type}s`); // eslint-disable-line no-nested-ternary
   const { body } = await func(args);
   assert.ok(body.items, 'The items field on the returned kube response was not there.');
   assert.ok(Array.isArray(body.items), 'The items field on the returned kube response was not an array');
@@ -231,7 +232,7 @@ async function writeNamespacedObjs(pgpool, bus, type, func, args) {
       redacted = redactDeployments(redacted);
     }
     const dbObj = await pgpool.query(`
-      insert into kubernetes.${type.endsWith('ss') ? type : (`${type}s`)}_log (${type}, name, namespace, context, definition, deleted)
+      insert into kubernetes.${plural}_log (${type}, name, namespace, context, definition, deleted)
       values (uuid_generate_v4(), $1, $2, $3, $4, $5)
       on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
       do update set name = $1, definition = $4
@@ -249,13 +250,14 @@ async function writeNamespacedObjs(pgpool, bus, type, func, args) {
 }
 
 async function writeObjs(pgpool, bus, type, func, args) {
+  const plural = type.endsWith('cy') ? `${type.substring(0, type.length - 1)}ies` : (type.endsWith('ss') ? type : `${type}s`); // eslint-disable-line no-nested-ternary
   const { body } = await func(args);
   assert.ok(body.items, 'The items field on the returned kube response was not there.');
   assert.ok(Array.isArray(body.items),
     'The items field on the returned kube response was not an array');
   debug(`Received ${body.items.length} items for ${type}`);
   const dbObjs = await Promise.all(body.items.map((item) => pgpool.query(`
-    insert into kubernetes.${type.endsWith('ss') ? type : (`${type}s`)}_log (${type}, name, context, definition, deleted)
+    insert into kubernetes.${plural}_log (${type}, name, context, definition, deleted)
     values (uuid_generate_v4(), $1, $2, $3, $4)
     on conflict (name, context, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
     do update set name = $1
@@ -270,13 +272,14 @@ async function writeObjs(pgpool, bus, type, func, args) {
 }
 
 async function writeDeletedNamespacedObjs(pgpool, type, items) {
-  (await pgpool.query(`select ${type}, name, namespace, context, definition from kubernetes.${type.endsWith('ss') ? type : (`${type}s`)}`, []))
+  const plural = type.endsWith('cy') ? `${type.substring(0, type.length - 1)}ies` : (type.endsWith('ss') ? type : `${type}s`); // eslint-disable-line no-nested-ternary
+  (await pgpool.query(`select ${type}, name, namespace, context, definition from kubernetes.${plural}`, []))
     .rows
     .filter((entry) => !items.some((item) => entry.namespace === item.metadata.namespace
           && entry.name === item.metadata.name
           && entry.context === process.env.KUBERNETES_CONTEXT))
     .map((item) => pgpool.query(`
-      insert into kubernetes.${type.endsWith('ss') ? type : (`${type}s`)}_log (${type}, name, namespace, context, definition, deleted)
+      insert into kubernetes.${plural}_log (${type}, name, namespace, context, definition, deleted)
       values (uuid_generate_v4(), $1, $2, $3, $4, $5)
       on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
       do nothing
@@ -285,12 +288,13 @@ async function writeDeletedNamespacedObjs(pgpool, type, items) {
 }
 
 async function writeDeletedObjs(pgpool, type, items) {
-  (await pgpool.query(`select ${type}, name, context, definition from kubernetes.${type.endsWith('ss') ? type : (`${type}s`)}`, []))
+  const plural = type.endsWith('cy') ? `${type.substring(0, type.length - 1)}ies` : (type.endsWith('ss') ? type : `${type}s`); // eslint-disable-line no-nested-ternary
+  (await pgpool.query(`select ${type}, name, context, definition from kubernetes.${plural}`, []))
     .rows
     .filter((entry) => !items.some((item) => entry.name === item.metadata.name
       && entry.context === process.env.KUBERNETES_CONTEXT))
     .map((item) => pgpool.query(`
-      insert into kubernetes.${type.endsWith('ss') ? type : (`${type}s`)}_log (${type}, name, context, definition, deleted)
+      insert into kubernetes.${plural}_log (${type}, name, context, definition, deleted)
       values (uuid_generate_v4(), $1, $2, $3, $4)
       on conflict (name, context, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
       do nothing
@@ -326,6 +330,7 @@ async function run(pgpool, bus) {
   const k8sAppsApi = kc.makeApiClient(k8s.AppsV1Api);
   const k8sExtensionsApi = kc.makeApiClient(k8s.ExtensionsV1beta1Api);
   const k8sBatchApi = kc.makeApiClient(k8s.BatchV1Api);
+  const k8sCustomApi = kc.makeApiClient(k8s.CustomObjectsApi);
   const maxMemory = 1 * 1024 * 1024;
   const labelSelector = process.env.KUBERNETES_LABEL_SELECTOR;
 
@@ -395,6 +400,47 @@ async function run(pgpool, bus) {
     await writeNamespacedObjs(pgpool, bus, 'job',
       k8sBatchApi.listJobForAllNamespaces.bind(k8sAppsApi),
       { limit: Math.floor(maxMemory / 2048), labelSelector }));
+
+  if (process.env.ISTIO === 'true') {
+    try {
+      debug(`Refreshing virtual services from ${process.env.KUBERNETES_CONTEXT}`);
+      await writeDeletedNamespacedObjs(pgpool, 'virtualservice',
+        await writeNamespacedObjs(pgpool, bus, 'virtualservice',
+          k8sCustomApi.listClusterCustomObject.bind(k8sCustomApi, 'networking.istio.io', 'v1alpha3', 'virtualservices'),
+          {
+            limit: Math.floor(maxMemory / 2048), labelSelector, group: 'networking.istio.io', version: 'v1alpha3', plural: 'virtualservices',
+          }));
+      debug(`Refreshing gateways from ${process.env.KUBERNETES_CONTEXT}`);
+      await writeDeletedNamespacedObjs(pgpool, 'gateway',
+        await writeNamespacedObjs(pgpool, bus, 'gateway',
+          k8sCustomApi.listClusterCustomObject.bind(k8sCustomApi, 'networking.istio.io', 'v1alpha3', 'gateways'),
+          {
+            limit: Math.floor(maxMemory / 2048), labelSelector, group: 'networking.istio.io', version: 'v1alpha3', plural: 'gateways',
+          }));
+      debug(`Refreshing gateways from ${process.env.KUBERNETES_CONTEXT}`);
+      await writeDeletedNamespacedObjs(pgpool, 'policy',
+        await writeNamespacedObjs(pgpool, bus, 'policy',
+          k8sCustomApi.listClusterCustomObject.bind(k8sCustomApi, 'authentication.istio.io', 'v1alpha1', 'policies'),
+          {
+            limit: Math.floor(maxMemory / 2048), labelSelector, group: 'authentication.istio.io', version: 'v1alpha1', plural: 'policies',
+          }));
+    } catch (e) {
+      debug(`Failed to get istio custom objects in kubernetes: ${e.stack}`);
+    }
+  }
+  if (process.env.CERT_MANAGER === 'true') {
+    try {
+      debug(`Refreshing certificates from ${process.env.KUBERNETES_CONTEXT}`);
+      await writeDeletedNamespacedObjs(pgpool, 'certificate',
+        await writeNamespacedObjs(pgpool, bus, 'certificate',
+          k8sCustomApi.listClusterCustomObject.bind(k8sCustomApi, 'cert-manager.io', 'v1alpha2', 'certificates'),
+          {
+            limit: Math.floor(maxMemory / 2048), labelSelector, group: 'cert-manager.io', version: 'v1alpha2', plural: 'certificates',
+          }));
+    } catch (e) {
+      debug(`Failed to get custom objects in kubernetes: ${e.stack}`);
+    }
+  }
 }
 
 module.exports = {

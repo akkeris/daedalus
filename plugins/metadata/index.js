@@ -25,6 +25,8 @@ async function run(pgpool, bus) {
   await pgpool.query('reindex index metadata.families_node_idx');
 }
 
+// todo: pod -> configmap
+// todo: replicaset -> configmap
 // todo: akkeris apps -> akkeris apps (based on configuration)
 // todo: akkeris apps -> akkeris sites (based on configuration)
 // todo: akkeris apps -> services (based on configuration)

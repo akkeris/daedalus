@@ -27,6 +27,9 @@ function getChildren(usedBy, parent, index) {
 }
 
 module.exports = (req, data) => `
+      ${data.usedBy.length === 0 ? `
+        <div class="list-item" style="text-align:center;display:block;">Nothing depends on this.</div>
+      ` : ''}
       ${data.usedBy.filter((x) => !data.usedBy.some((y) => y.id === x.owner))
           .map((x) => x.owner)
           .filter((x, i, s) => s.indexOf(x) === i)

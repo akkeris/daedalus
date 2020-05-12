@@ -50,6 +50,14 @@ function findTableOrViewId(tables, views, database, catalog, schema, name) {
       && view.name === name))[0];
 }
 
+function hexOrString(buf) {
+  try {
+    return buf.toString('utf8');
+  } catch (e) {
+    return buf.toString('hex');
+  }
+}
+
 // TODO: detect permission changes in roles.
 
 // TODO: Fix the issue if there's a state flip back to the original state the diff breaks.
@@ -292,8 +300,10 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         table_name,
         column_name,
         num_distinct,
+        ${process.env.ORACLE_HISTOGRAM === 'true' ? `
         low_value,
         high_value,
+        ` : ''}
         density,
         num_nulls,
         num_buckets,
@@ -311,7 +321,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         values
           (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         on conflict do nothing
-      `, [database.database, database.name, estimate.SCHEMA, tableUUID, columnUUID, estimate.NUM_DISTINCT || 0, estimate.LOW_VALUE ? estimate.LOW_VALUE.toString('hex') : '', estimate.HIGH_VALUE ? estimate.HIGH_VALUE.toString('hex') : '', estimate.DENSITY || 0, estimate.NUM_NULLS || 0, estimate.NUM_BUCKETS || 0, estimate.SAMPLE_SIZE || 0, estimate.AVG_COL_LEN || 0, false]);
+      `, [database.database, database.name, estimate.SCHEMA, tableUUID, columnUUID, estimate.NUM_DISTINCT || 0, estimate.LOW_VALUE ? hexOrString(estimate.LOW_VALUE) : '', estimate.HIGH_VALUE ? hexOrString(estimate.HIGH_VALUE) : '', estimate.DENSITY || 0, estimate.NUM_NULLS || 0, estimate.NUM_BUCKETS || 0, estimate.SAMPLE_SIZE || 0, estimate.AVG_COL_LEN || 0, false]);
       } catch (e) {
         debug(`Cannot find column while inserting column statistics for ${database.database} %o`, estimate);
       }

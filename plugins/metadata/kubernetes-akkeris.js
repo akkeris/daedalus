@@ -12,13 +12,13 @@ async function writeAkkersAppsFromDeployments(pgpool, type, deployments) {
   await Promise.all(deployments.map(async (deployment) => {
     if (deployment.definition.metadata.labels['akkeris.io/app-uuid']) {
       try {
-        const { rows: [{ app_log, name }] } = await pgpool.query('select app_log, name from akkeris.apps where app = $1', // eslint-disable-line camelcase
+        const { rows: [{ app_log, name, definition }] } = await pgpool.query('select app_log, name, definition from akkeris.apps where app = $1', // eslint-disable-line camelcase
           [deployment.definition.metadata.labels['akkeris.io/app-uuid']]);
 
-        await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-          [deployment.deployment, deployment.name, deploymentType]);
-        await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-          [app_log, name, appType]); // eslint-disable-line camelcase
+        await pgpool.query('insert into metadata.nodes (node, name, type, definition) values ($1, $2, $3, $4) on conflict (node) do update set name = $2, definition = $4',
+          [deployment.deployment, deployment.name, deploymentType, deployment.definition]);
+        await pgpool.query('insert into metadata.nodes (node, name, type, definition) values ($1, $2, $3, $4) on conflict (node) do update set name = $2, definition = $4',
+          [app_log, name, appType, definition]); // eslint-disable-line camelcase
         await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
           [app_log, deployment.deployment]); // eslint-disable-line camelcase
       } catch (e) {

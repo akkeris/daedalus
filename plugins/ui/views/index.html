@@ -2,7 +2,7 @@ function createUrlWithQueryParams(req, key, value) {
   return `?${key}=${value}&${Object.keys(req.query).filter((x) => x !== key).map((x) => `${x}=${req.query[x]}`).join('&')}`
 }
 module.exports = (req, res, next, data) => res.send(`
-  ${require('./header.html')()}
+  ${require('./header.html')(req)}
     <appkit-app>
       <nav-breadcrumb size="small">
         <ul>
@@ -11,60 +11,21 @@ module.exports = (req, res, next, data) => res.send(`
               Home
           </li>
         </ul>
-        <button class="passive sort-filter">
-          Sort
-          <i class="fa fa-sort" aria-hidden="true"></i>
-        </button>
-        <x-dropdown target=".sort-filter">
-          <nav>
-            <ul>
-              <li>
-                <a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'name')}">Name</a>
-              </li>
-              <li>
-                <a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'type')}">Type</a>
-              </li>
-              <li>
-                <a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'observed_on')}">Observed On</a>
-              </li>
-              <!-- TODO: <li>
-                <a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'labels')}">Labels</a>
-              </li> -->
-          </nav>
-        </x-dropdown>
       </nav-breadcrumb>
-      <div class="table-list">
-      ${data.rows.map((row) => `
-        <div class="table-list-item">
-          <div class="icon">
-            <img src="/${row.type.split('/').join('.')}.svg" />
+      <main>
+        <div class="panel list">
+          <div class="list-item">
+            <h4>Browse Labels</h4>
           </div>
-          <div>
-            <a class="name" href="/ui/${row.type.replace('.', '/')}/${row.node}">
-              ${row.labels && row.labels.name ? row.labels.name : row.name}
-              ${row.labels && row.labels.name ? `<sub>(${row.name})</sub>` : ``}
-            </a>
-            <sub class="last-seen">Last seen ${row.observed_on.toLocaleString()}</sub>
-          </div>
-          <div class="labels">
-            ${row.labels ? Object.keys(row.labels).map((key) => `
-            <a class="pill" href="?${data.cursor.template}&labels=${key}">
-              <i class="fa fa-tag" aria-hidden="true"></i> 
-              ${key}
-              <span class="inner">${row.labels[key]}</span>
-            </a>
-            `).join("") : ''}
-            ${row.status ? Object.keys(row.status).map((key) => !key.startsWith("max_") ? `
-            <span class="pill subtle">
-              ${key.split("_").map(x => x[0].toUpperCase() + x.substring(1).toLowerCase()).join(" ")}
-              <span class="inner">${row.status['max_' + key] ? row.status[key] + '/' + row.status['max_' + key] : row.status[key]}</span>
-            </span>
-            ` : '').filter((x) => x !== '').join("") : ''}
-          </div>
+          <div class="list-item labels" style="display:flex;justify-content:center">
+          ${data.rows.map((row) => `
+          <a class="pill" href="/ui/browse.html?labels=${row.name}">
+            <i class="fa fa-tag" aria-hidden="true"></i> 
+            <span class="name">${row.name}</span>
+          </a>
+        `).join('')}
         </div>
-      `).join('')}
-      </div>
-      ${require('./pagination.html')(req, data)}
+      </main>
     </appkit-app>
   ${require('./footer.html')(req, res)}
 `);

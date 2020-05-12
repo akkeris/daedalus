@@ -169,7 +169,6 @@ begin
     from akkeris.sites_log) 
     select site_log, site, name, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
-
   create table if not exists akkeris.routes_log (
     route_log uuid not null primary key,
     route uuid not null,

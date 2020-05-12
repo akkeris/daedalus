@@ -8,6 +8,21 @@ Define whichever environment settings above, then...
 $ npm start
 ```
 
+## Governance and Pull Reviews
+
+This section helps outline what will be judged when submitting a pull review, this helps contributors know what to expect during a review:
+
+1. Were code style guidelines followed (eslint), this is somewhat superficial but it helps keep the code base standard.
+2. Were the principals outlined below used during the PRs development.
+3. If dependencies were added, what security risk did it add to the overall footprint of the project.
+4. If dependencies were added, what licensing issues may occur due to the dependency.
+5. Was the pull request for a feature complete and useful? Major features or refactors should first have a request for comment from the maintainers, we don't want anyone putting a lot of effort into something then have it conflict with other requirements or goals of the project.
+6. Did the author sign a CLA?
+7. Did the test pass?
+8. Does the PR significantly lower our code coverage, and does it have adequate tests?
+9. If it adds a new dependency for a new service (e.g., the pull request now requires a graph database like cassandra to use daedalus) this should first be discussed with maintainers as it may put undo resource needs on all of our users. This is especially problematic if the same functionality could be accomplished with out.
+10. Is the feature or plugin provide enough usefulness to the community to add? Pull request adding plugins that are proprietary to your company or use case won't be merged as it doesn't add value to anyone else.
+
 ## Principals
 
 Please follow the conventions and principals below when contributing.

@@ -70,7 +70,7 @@ async function run(pgpool) {
     insert into akkeris.addon_services_log (addon_service_log, addon_service, name, definition, observed_on, deleted)
     values (uuid_generate_v4(), $1, $2, $3, now(), false)
     on conflict (addon_service, name, (definition->>'updated_at'), deleted)
-    do update set name = EXCLUDED.name
+    do update set name = EXCLUDED.name, definition = $3
     returning addon_service_log, addon_service, name, definition, observed_on, deleted
   `,
   [item.id, item.name, item]))))
@@ -82,7 +82,7 @@ async function run(pgpool) {
     insert into akkeris.spaces_log (space_log, space, name, definition, observed_on, deleted)
     values (uuid_generate_v4(), $1, $2, $3, now(), false)
     on conflict (space, name, (definition->>'updated_at'), deleted)
-    do update set name = EXCLUDED.name
+    do update set name = EXCLUDED.name, definition = $3
     returning space_log, space, name, definition, observed_on, deleted
   `,
   [item.id, item.name, item]))))
@@ -94,7 +94,7 @@ async function run(pgpool) {
     insert into akkeris.apps_log (app_log, app, name, space_log, definition, observed_on, deleted)
     values (uuid_generate_v4(), $1, $2, $3, $4, now(), false)
     on conflict (app, name, space_log, (definition->>'updated_at'), deleted)
-    do update set name = EXCLUDED.name
+    do update set name = EXCLUDED.name, definition = $4
     returning app_log, app, name, space_log, definition, observed_on, deleted
   `,
   [item.id, item.name, lookupSpaceById(spacesLog, item.space.id), item]))))
@@ -106,7 +106,7 @@ async function run(pgpool) {
     insert into akkeris.routes_log (route_log, route, site_log, app_log, target_path, source_path, definition, observed_on, deleted)
     values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, now(), false)
     on conflict (route, site_log, app_log, (definition->>'updated_at'), deleted)
-    do update set route = EXCLUDED.route
+    do update set route = EXCLUDED.route, definition = $6
     returning route_log, route, site_log, app_log, target_path, source_path, definition, observed_on, deleted
   `,
   [item.id, lookupSiteById(sitesLog, item.site.id), lookupAppById(appsLog, item.app.id), item.source_path, item.target_path, item])))) // eslint-disable-line max-len
@@ -118,7 +118,7 @@ async function run(pgpool) {
     insert into akkeris.addons_log (addon_log, addon, app_log, addon_service_log, name, definition, observed_on, deleted)
     values (uuid_generate_v4(), $1, $2, $3, $4, $5, now(), false)
     on conflict (addon, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
-    do update set name = EXCLUDED.name
+    do update set name = EXCLUDED.name, definition = $5
     returning addon_log, addon, app_log, addon_service_log, name, definition, observed_on, deleted
   `,
   [item.id, lookupAppById(appsLog, item.app.id), lookupAddonServiceById(addonServicesLog, item.addon_service.id), item.name, item])))) // eslint-disable-line max-len
@@ -129,22 +129,22 @@ async function run(pgpool) {
   await Promise.all(addonAttachments.map(async (item) => {
     try {
       return pgpool.query(`
-          insert into akkeris.addon_attachments_log (addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted)
-          values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, now(), false)
-          on conflict (addon_attachment, addon_log, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
-          do update set name = EXCLUDED.name
-          returning addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted
-        `,
+        insert into akkeris.addon_attachments_log (addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted)
+        values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, now(), false)
+        on conflict (addon_attachment, addon_log, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
+        do update set name = EXCLUDED.name, definition = $6
+        returning addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted
+      `,
       [item.id, lookupAddonById(addonsLog, item.addon.id), lookupAppById(appsLog, item.app.id), lookupAddonServiceByPlanId(addonServicesLog, item.addon.plan.id), item.name, item]); // eslint-disable-line max-len
     } catch (e) {
-      console.error(`Error: Cannot process addon-attachment ${item.id} because ${e.message}`); // eslint-disable-line no-console
+      debug(`ERROR: Cannot process addon-attachment ${item.id} because ${e.stack}`); // eslint-disable-line no-console
       return {};
     }
   }));
 
 
   debug('Checking for routes deletions');
-  (await pgpool.query('select route_log, route, site, app, source_path, target_path, definition, observed_on from akkeris.routes'))
+  (await pgpool.query('select routes.route_log, routes.route, routes.site, routes.app, routes.source_path, routes.target_path, routes.definition, routes.observed_on from akkeris.routes'))
     .rows
     .filter((route) => !routes.map((x) => x.id).includes(route.route))
     .map(async (route) => {
@@ -159,7 +159,7 @@ async function run(pgpool) {
       } catch (e) {
         // TODO: this introduces a logical falicy, how do we detect whether a route is deleted if a
         // site is deleted?...
-        debug(`Unable to insert route deletion ${route.route} with ${route.site} due to: ${e.message}`);
+        debug(`ERROR: Unable to insert route deletion ${route.route} with ${route.site} due to: ${e.stack}`);
         return {};
       }
     });

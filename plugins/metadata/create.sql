@@ -218,5 +218,366 @@ begin
   ) select distinct parent, parent_name, parent_type_name, parent_icon, child, child_name, child_type_name, child_icon from precord
   $c$ language sql;
 
+  create or replace function metadata.find_ancestors_graph(in_node uuid)
+    returns table (
+      parent uuid,
+      parent_name text,
+      parent_type text,
+      parent_icon text,
+      child uuid,
+      child_name text,
+      child_type text,
+      child_icon text
+    )
+  as $c$
+    with recursive
+      precord(parent, parent_name, parent_type, parent_type_name, parent_icon, child, child_name, child_type, child_type_name, child_icon, path, cycle)
+    as (
+     select
+       parent.node as parent,
+       parent.name as parent_name,
+       parent_type.type as parent_type,
+       parent_type.name as parent_type_name,
+       parent_type.icon as parent_icon,
+       child.node as parent,
+       child.name as parent_name,
+       child_type.type as parent_type,
+       child_type.name as parent_type_name,
+       child_type.icon as parent_icon,
+       array[parent.node] path,
+       false as cycle
+     from
+       metadata.families
+         join metadata.nodes as parent on families.parent = parent.node
+         join metadata.node_types as parent_type on parent.type = parent_type.type
+         join metadata.nodes as child on families.child = child.node
+         join metadata.node_types as child_type on child.type = child_type.type
+     where
+       (child.node = in_node)
+
+    union all
+
+    select parent, parent_name, parent_type, parent_type_name, parent_icon, child, child_name, child_type, child_type_name, child_icon, path, cycle from (
+      select
+        parent.node as parent,
+        parent.name as parent_name,
+        parent_type.type as parent_type,
+        parent_type.name as parent_type_name,
+        parent_type.icon as parent_icon,
+        child.node as child,
+        child.name as child_name,
+        child_type.type as child_type,
+        child_type.name as child_type_name,
+        child_type.icon as child_icon,
+        precord.path || precord.child as path,
+        families.parent = ANY(precord.path) as cycle,
+        families.observed_on,
+        row_number() over (partition by parent.name, parent_type.type, parent_type.icon, child.name, child_type.type, child_type.icon order by metadata.families.observed_on desc) as rn
+      from
+        precord
+          join metadata.families on families.child = precord.parent
+          join metadata.nodes as parent on families.parent = parent.node
+          join metadata.node_types as parent_type on parent.type = parent_type.type
+          join metadata.nodes as child on families.child = child.node
+          join metadata.node_types as child_type on child.type = child_type.type
+      where
+        NOT cycle
+    ) a where a.rn = 1
+  ) select distinct parent, parent_name, parent_type_name, parent_icon, child, child_name, child_type_name, child_icon from precord
+  $c$ language sql;
+
+  create or replace function metadata.find_descendants_graph(in_node uuid)
+    returns table (
+      parent uuid,
+      parent_name text,
+      parent_type text,
+      parent_icon text,
+      child uuid,
+      child_name text,
+      child_type text,
+      child_icon text
+    )
+  as $c$
+    with recursive
+      precord(parent, parent_name, parent_type, parent_type_name, parent_icon, child, child_name, child_type, child_type_name, child_icon, path, cycle)
+    as (
+     select
+       parent.node as parent,
+       parent.name as parent_name,
+       parent_type.type as parent_type,
+       parent_type.name as parent_type_name,
+       parent_type.icon as parent_icon,
+       child.node as parent,
+       child.name as parent_name,
+       child_type.type as parent_type,
+       child_type.name as parent_type_name,
+       child_type.icon as parent_icon,
+       array[child.node] path,
+       false as cycle
+     from
+       metadata.families
+         join metadata.nodes as parent on families.parent = parent.node
+         join metadata.node_types as parent_type on parent.type = parent_type.type
+         join metadata.nodes as child on families.child = child.node
+         join metadata.node_types as child_type on child.type = child_type.type
+     where
+       (parent.node = in_node)
+
+    union all
+
+    select parent, parent_name, parent_type, parent_type_name, parent_icon, child, child_name, child_type, child_type_name, child_icon, path, cycle from (
+      select
+        parent.node as parent,
+        parent.name as parent_name,
+        parent_type.type as parent_type,
+        parent_type.name as parent_type_name,
+        parent_type.icon as parent_icon,
+        child.node as child,
+        child.name as child_name,
+        child_type.type as child_type,
+        child_type.name as child_type_name,
+        child_type.icon as child_icon,
+        precord.path || precord.parent as path,
+        families.child = ANY(precord.path) as cycle,
+        families.observed_on,
+        row_number() over (partition by parent.name, parent_type.type, parent_type.icon, child.name, child_type.type, child_type.icon order by metadata.families.observed_on desc) as rn
+      from
+        precord
+          join metadata.families on families.parent = precord.child
+          join metadata.nodes as parent on families.parent = parent.node
+          join metadata.node_types as parent_type on parent.type = parent_type.type
+          join metadata.nodes as child on families.child = child.node
+          join metadata.node_types as child_type on child.type = child_type.type
+      where
+        NOT cycle
+    ) a where a.rn = 1
+  ) select distinct parent, parent_name, parent_type_name, parent_icon, child, child_name, child_type_name, child_icon from precord
+  $c$ language sql;
+
+
+
+  create or replace function metadata.find_descendants_graph_with_depth(in_node uuid, depth integer)
+    returns table (
+      parent uuid,
+      parent_name text,
+      parent_type text,
+      parent_icon text,
+      child uuid,
+      child_name text,
+      child_type text,
+      child_icon text
+    )
+  as $c$
+    with recursive
+      precord(parent, parent_name, parent_type, parent_type_name, parent_icon, child, child_name, child_type, child_type_name, child_icon, path, cycle)
+    as (
+     select
+       parent.node as parent,
+       parent.name as parent_name,
+       parent_type.type as parent_type,
+       parent_type.name as parent_type_name,
+       parent_type.icon as parent_icon,
+       child.node as parent,
+       child.name as parent_name,
+       child_type.type as parent_type,
+       child_type.name as parent_type_name,
+       child_type.icon as parent_icon,
+       array[child.node] path,
+       case when depth = 0 then true else false end as cycle
+     from
+       metadata.families
+         join metadata.nodes as parent on families.parent = parent.node
+         join metadata.node_types as parent_type on parent.type = parent_type.type
+         join metadata.nodes as child on families.child = child.node
+         join metadata.node_types as child_type on child.type = child_type.type
+     where
+       (parent.node = in_node)
+
+    union all
+
+    select parent, parent_name, parent_type, parent_type_name, parent_icon, child, child_name, child_type, child_type_name, child_icon, path, cycle from (
+      select
+        parent.node as parent,
+        parent.name as parent_name,
+        parent_type.type as parent_type,
+        parent_type.name as parent_type_name,
+        parent_type.icon as parent_icon,
+        child.node as child,
+        child.name as child_name,
+        child_type.type as child_type,
+        child_type.name as child_type_name,
+        child_type.icon as child_icon,
+        precord.path || precord.parent as path,
+        (families.child = ANY(precord.path) or array_length(precord.path, 1) = depth) as cycle,
+        families.observed_on,
+        row_number() over (partition by parent.name, parent_type.type, parent_type.icon, child.name, child_type.type, child_type.icon order by metadata.families.observed_on desc) as rn
+      from
+        precord
+          join metadata.families on families.parent = precord.child
+          join metadata.nodes as parent on families.parent = parent.node
+          join metadata.node_types as parent_type on parent.type = parent_type.type
+          join metadata.nodes as child on families.child = child.node
+          join metadata.node_types as child_type on child.type = child_type.type
+      where
+        NOT cycle
+    ) a where a.rn = 1
+  ) select distinct parent, parent_name, parent_type_name, parent_icon, child, child_name, child_type_name, child_icon from precord
+  $c$ language sql;
+
+
+  create or replace function metadata.find_ancestors(in_node uuid)
+    returns table (
+      node uuid,
+      name text,
+      "type" text,
+      icon text,
+      parents uuid[],
+      rank bigint
+    )
+  as $c$
+    with cte as (
+      select
+        parent,
+        parent_name,
+        parent_type,
+        parent_icon,
+        child,
+        child_name,
+        child_type,
+        child_icon
+      from
+        metadata.find_ancestors_graph(in_node)
+    )
+    select
+      node,
+      name,
+      "type",
+      icon,
+      array_agg(parent) as parents,
+      count(*) over (partition by "type") as rank
+    from (
+      select 
+        cte.parent      as node,
+        cte.parent_name as name,
+        cte.parent_type as "type",
+        cte.parent_icon as icon,
+        cte2.parent
+      from cte left join cte as cte2 on cte2.child = cte.parent
+      union
+      select 
+        cte.child      as node,
+        cte.child_name as name,
+        cte.child_type as "type",
+        cte.child_icon as icon,
+        cte3.parent
+      from cte left join cte as cte3 on cte3.child = cte.child
+    ) as a
+    group by node, name, "type", icon
+    order by rank desc
+  $c$ language sql;
+
+  create or replace function metadata.find_descendants(in_node uuid)
+    returns table (
+      node uuid,
+      name text,
+      "type" text,
+      icon text,
+      parents uuid[],
+      rank bigint
+    )
+  as $c$
+    with cte as (
+      select
+        parent,
+        parent_name,
+        parent_type,
+        parent_icon,
+        child,
+        child_name,
+        child_type,
+        child_icon
+      from
+        metadata.find_descendants_graph(in_node)
+    )
+    select
+      node,
+      name,
+      "type",
+      icon,
+      array_agg(parent) as parents,
+      count(*) over (partition by "type") as rank
+    from (
+      select 
+        cte.parent      as node,
+        cte.parent_name as name,
+        cte.parent_type as "type",
+        cte.parent_icon as icon,
+        cte2.parent
+      from cte left join cte as cte2 on cte2.child = cte.parent
+      union
+      select 
+        cte.child      as node,
+        cte.child_name as name,
+        cte.child_type as "type",
+        cte.child_icon as icon,
+        cte3.parent
+      from cte left join cte as cte3 on cte3.child = cte.child
+    ) as a
+    group by node, name, "type", icon
+    order by rank desc
+  $c$ language sql;
+
+
+  create or replace function metadata.find_descendants_with_depth(in_node uuid, depth integer)
+    returns table (
+      node uuid,
+      name text,
+      "type" text,
+      icon text,
+      parents uuid[],
+      rank bigint
+    )
+  as $c$
+    with cte as (
+      select
+        parent,
+        parent_name,
+        parent_type,
+        parent_icon,
+        child,
+        child_name,
+        child_type,
+        child_icon
+      from
+        metadata.find_descendants_graph_with_depth(in_node, depth)
+    )
+    select
+      node,
+      name,
+      "type",
+      icon,
+      array_agg(parent) as parents,
+      count(*) over (partition by "type") as rank
+    from (
+      select 
+        cte.parent      as node,
+        cte.parent_name as name,
+        cte.parent_type as "type",
+        cte.parent_icon as icon,
+        cte2.parent
+      from cte left join cte as cte2 on cte2.child = cte.parent
+      union
+      select 
+        cte.child      as node,
+        cte.child_name as name,
+        cte.child_type as "type",
+        cte.child_icon as icon,
+        cte3.parent
+      from cte left join cte as cte3 on cte3.child = cte.child
+    ) as a
+    group by node, name, "type", icon
+    order by rank desc
+  $c$ language sql;
+
 end
 $$;

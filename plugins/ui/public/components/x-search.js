@@ -54,7 +54,12 @@ class Search extends HTMLElement {
 
     // on clear..
     var interval = null;
-    this.search.addEventListener('input', (async () => {
+    this.search.addEventListener('keydown', (e) => {
+      if(e.key === 'ArrowDown' && this.results.classList.contains('open')) {
+        this.results.querySelector('a').focus();
+      }
+    });
+    let processSearch = async (e) => {
       // debounce the type-ahead on a 150ms trigger.
       if(interval) {
         clearInterval(interval);
@@ -75,15 +80,17 @@ class Search extends HTMLElement {
         const title = this.getAttribute('title') || 'title';
         this.data = this.data.filter((x) => x[title].toLowerCase().indexOf(this.search.value.toLowerCase()) !== -1);
         this.render();
-      }, 200);
-    }));
+      }, 150);
+    };
+    this.search.addEventListener('input', processSearch);
+    this.search.addEventListener('focusin', processSearch);
   }
 
   render() {
     if (this.data && this.data.length > 0) {
       this.results.innerHTML = this.data.map((x) => `
         <li>
-          <a tabindex="1" href="${x[this.getAttribute('location')] || x.location}">
+          <a tabindex="0" href="${x[this.getAttribute('location')] || x.location}">
             <h5>
               ${x.icon ? `<img src="/${x.icon}" />` : ''}
               ${x[this.getAttribute('title')] || x.title}
@@ -96,7 +103,7 @@ class Search extends HTMLElement {
       this.results.innerHTML = `<li class="none">${this.getAttribute('no-results') || "Can't find any matching results"}</li>`;
     }
     this.results.classList.add('open');
-    this.results.querySelector('a').focus();
+    //this.results.querySelector('a').focus();
   }
 
   connectedCallback() {

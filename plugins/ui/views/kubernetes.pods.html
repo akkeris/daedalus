@@ -29,9 +29,8 @@ module.exports = (req, res, next, data) => res.send(`
         <x-tab><a href="#containers">Containers</a></x-tab>
         <x-tab><a href="#definition">Definition</a></x-tab>
       </x-tabs>
-      <div name="metadata" class="tab-panel list">
-        ${require('./labels.html')(req, data, `/ui/kubernetes/pods/${data.pod}`)}
-        ${require('./annotations.html')(req, data, `/ui/kubernetes/pods/${data.pod}`)}
+      <div name="metadata" class="tab-panel">
+        ${require('./metadata.html')(req, data, `/ui/kubernetes/pods/${data.pod}`)}
       </div>
       <div name="changes" class="tab-panel list">
         ${require('./changes.html')(req, data)}
@@ -99,13 +98,13 @@ module.exports = (req, res, next, data) => res.send(`
           <div class="uno">
             <dl class="facts" style="margin-left:2rem;">
               <dt>CPU Limit</dt>
-              <dd>${container.resources.limits.cpu || 'No Quota'}</dd>
+              <dd>${container.resources.limits ? (container.resources.limits.cpu || 'No Quota') : 'No Quota'}</dd>
               <dt>Memory Limit</dt>
-              <dd>${container.resources.limits.memory || 'No Quota'}</dd>
+              <dd>${container.resources.limits ? (container.resources.limits.memory || 'No Quota') : 'No Quota'}</dd>
               <dt>CPU Requests</dt>
-              <dd>${container.resources.requests.cpu || 'No Quota'}</dd>
+              <dd>${container.resources.requests ? (container.resources.requests.cpu || 'No Quota') : 'No Quota'}</dd>
               <dt>Memory Requests</dt>
-              <dd>${container.resources.requests.memory || 'No Quota'}</dd>
+              <dd>${container.resources.requests ? (container.resources.requests.memory || 'No Quota') : 'No Quota'}</dd>
             </dl>
           </div>
         </div>

@@ -18,7 +18,7 @@ function check(req, res, next) {
   }
 }
 
-async function callback(req, res) {
+async function callback(pgpool, req, res) {
   if (!req.query.code) {
     res.send('Uh oh, an authorization code wasn\'t returned.');
     return;
@@ -43,6 +43,13 @@ async function callback(req, res) {
       },
     });
     if (status2 < 299 && status2 > 199 && user) {
+      if (process.env.OAUTH_USER_ID_JSON_PATH) {
+        req.session.username = jpath.resolve(user, process.env.OAUTH_USER_ID_JSON_PATH);
+      } else if (user.id) {
+        req.session.username = user.id;
+      } else if (user.username) {
+        req.session.username = user.username;
+      }
       if (process.env.OAUTH_USER_AVATAR_JSON_PATH) {
         req.session.picture = jpath.resolve(user, process.env.OAUTH_USER_AVATAR_JSON_PATH);
       } else if (user.picture) {
@@ -70,7 +77,36 @@ async function callback(req, res) {
       } else {
         req.session.name = '';
       }
+      if (process.env.OAUTH_USER_WEBSITE_JSON_PATH) {
+        req.session.website = jpath.resolve(user, process.env.OAUTH_USER_WEBSITE_JSON_PATH);
+      } else if (user.website) {
+        req.session.profile_url = user.website;
+      } else if (user.profile) {
+        req.session.profile_url = user.profile;
+      } else if (user.url) {
+        req.session.profile_url = user.url;
+      }
+    } else {
+      res.send(`Unable to access user profile data ${status2}`);
+      return;
     }
+
+    if (!req.session.name || !req.session.email || !req.session.username) {
+      res.send(`Unable to fetch full profile, name: ${req.session.name} username: ${req.session.username} email: ${req.session.email}`);
+      return;
+    }
+
+    const { rows: [{ system }] } = (await pgpool.query('select system from metadata.systems where name = \'daedalus\''));
+    const { rows: [profile] } = await pgpool.query(`
+      insert into metadata.users 
+        ("user", username, name, email, system, photo_url, profile_url)
+      values
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6)
+      on conflict (username, system) 
+      do update set name = $2, email = $3, photo_url = $5, profile_url = $6
+      returning "user", username, name, email, system, photo_url, profile_url`,
+    [req.session.username, req.session.name, req.session.email, system, req.session.picture || '/avatar.svg', req.session.profile_url || '#']);
+    req.session.profile = profile;
   }
   res.redirect(req.session.redirect || '/');
 }

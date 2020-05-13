@@ -21,9 +21,8 @@ module.exports = (req, res, next, data) => res.send(`
         <x-tab><a href="#used_by">Used By</a></x-tab>
         <x-tab><a href="#uses">Uses</a></x-tab>
       </x-tabs>
-      <div name="metadata" class="tab-panel list">
-        ${require('./labels.html')(req, data, `/ui/oracle/roles/${data.role}`)}
-        ${require('./annotations.html')(req, data, `/ui/oracle/roles/${data.role}`)}
+      <div name="metadata" class="tab-panel">
+        ${require('./metadata.html')(req, data, `/ui/oracle/roles/${data.role}`)}
       </div>
       <div name="changes" class="tab-panel list">
         ${require('./changes.html')(req, data)}

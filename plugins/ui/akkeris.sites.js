@@ -1,5 +1,6 @@
 const {
-  grab, findUses, findUsedBy, findMetaData, addExpressAnnotationsAndLabelRoutes,
+  grab, findUses, findUsedBy, findMetaData, isFavorite,
+  usersAndWatchers, addExpressAnnotationsAndLabelRoutes,
 } = require('./common.js');
 
 module.exports = async function addExpressRoutes(pgpool, bus, app) {
@@ -12,6 +13,7 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
     }
     req.params.akkeris_site = sites[0]; // eslint-disable-line prefer-destructuring
     req.params.akkeris_site_id = sites[0].site_log;
+    req.params.node = sites[0].site_log;
     next();
   });
   app.get('/ui/akkeris/sites/:akkeris_site_id', async (req, res, next) => {
@@ -30,13 +32,14 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
       where
         sites_log.site_log = $1
     `, [req.params.akkeris_site_id]);
-
     const data = {
       ...req.params.akkeris_site,
       ...(await findMetaData(pgpool, req.params.akkeris_site_id)),
       changes,
       usedBy: await findUsedBy(pgpool, req.params.akkeris_site_id),
       uses: await findUses(pgpool, req.params.akkeris_site_id),
+      users: await usersAndWatchers(pgpool, req.params.akkeris_site_id),
+      favorite: req.session.profile ? await isFavorite(pgpool, req.params.node, req.session.profile.user) : null, // eslint-disable-line max-len
     };
 
     grab('./views/akkeris.sites.html', req, res, next, data);

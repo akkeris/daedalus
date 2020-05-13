@@ -77,6 +77,7 @@ begin
     schema varchar(1024) not null,
     name varchar(1024) not null,
     is_view boolean not null default false,
+    is_foreign boolean not null default false,
     hash varchar(128) not null,
     definition text not null default '',
     observed_on timestamp with time zone default now(),
@@ -91,6 +92,10 @@ begin
     update postgresql.tables_log set hash = encode(digest(definition::text, 'sha1'), 'hex');
     alter table postgresql.tables_log alter column hash set not null;
   end if;
+  if not exists (select 1 from information_schema.columns where table_schema='postgresql' and table_name='tables_log' and column_name='is_foreign') then
+    drop view postgresql.tables;
+    alter table postgresql.tables_log add column is_foreign boolean not null default false;
+  end if;
 
   create unique index if not exists tables_unique on postgresql.tables_log (database, catalog, schema, name, is_view, hash, deleted);
   create index if not exists tables_observed_on on postgresql.tables_log (database, catalog, schema, name, is_view, hash, observed_on desc);
@@ -102,13 +107,14 @@ begin
       tables_log.schema,
       tables_log.name,
       tables_log.is_view,
+      tables_log.is_foreign,
       tables_log.definition,
       tables_log.observed_on,
       tables_log.deleted as tables_deleted,
       databases_log.deleted as databases_deleted,
       row_number() over (partition by tables_log.database, tables_log.catalog, tables_log.schema, tables_log.name, tables_log.is_view order by tables_log.observed_on desc) as rn
     from postgresql.tables_log join postgresql.databases_log on tables_log.database = databases_log.database)
-    select "table", database, catalog, schema, name, is_view, definition, observed_on from ordered_list where rn=1 and tables_deleted = false and databases_deleted = false;
+    select "table", database, catalog, schema, name, is_view, is_foreign, definition, observed_on from ordered_list where rn=1 and tables_deleted = false and databases_deleted = false;
     comment on view "postgresql"."tables" IS E'@name postgresqlTables';
     comment on table "postgresql"."tables_log" IS E'@name postgresqlTablesLog';
 
@@ -290,6 +296,50 @@ begin
       databases_deleted = false;
   comment on view "postgresql"."constraints" IS E'@name postgresqlConstraints';
   comment on table "postgresql"."constraints_log" IS E'@name postgresqlConstraintsLog';
+
+  create table if not exists postgresql.foreign_tables_log (
+    foreign_table_log uuid not null primary key,
+    database uuid references postgresql.databases_log("database") not null,
+    catalog varchar(1024) not null,
+    schema varchar(1024) not null,
+    "table" uuid references postgresql.tables_log("table") not null,
+    foreign_schema_name varchar(1024) not null,
+    foreign_table_name varchar(1024) not null,
+    foreign_database_name varchar(1024) not null,
+    foreign_database_host varchar(1024) not null,
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+
+  create unique index if not exists foreign_tables_unique on postgresql.foreign_tables_log (database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, deleted);
+  create index if not exists foreign_tables_observed_on on postgresql.foreign_tables_log (database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, observed_on desc);
+  create index if not exists foreign_tables_log_table on postgresql.foreign_tables_log ("table");
+  create or replace view postgresql.foreign_tables as
+    with ordered_list as ( 
+      select
+        foreign_tables_log.foreign_table_log,
+        foreign_tables_log.database,
+        foreign_tables_log.catalog,
+        foreign_tables_log.schema,
+        foreign_tables_log.table,
+        foreign_tables_log.foreign_schema_name,
+        foreign_tables_log.foreign_table_name,
+        foreign_tables_log.foreign_database_name,
+        foreign_tables_log.foreign_database_host,
+        foreign_tables_log.observed_on,
+        foreign_tables_log.deleted as foreign_tables_deleted,
+        tables_log.deleted as tables_deleted,
+        databases_log.deleted as databases_deleted,
+        row_number() over (partition by foreign_tables_log.database, foreign_tables_log.catalog, foreign_tables_log.schema, foreign_tables_log.table, foreign_tables_log.foreign_schema_name, foreign_tables_log.foreign_table_name, foreign_tables_log.foreign_database_name, foreign_tables_log.foreign_database_host order by foreign_tables_log.observed_on desc) as rn
+      from postgresql.foreign_tables_log 
+        join postgresql.tables_log on foreign_tables_log.table = tables_log.table 
+        join postgresql.databases_log on foreign_tables_log.database = databases_log.database
+    )
+    select foreign_table_log, database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, observed_on 
+    from ordered_list 
+    where rn=1 and foreign_tables_deleted = false and tables_deleted = false and databases_deleted = false;
+  comment on view "postgresql"."foreign_tables" IS E'@name postgresqlForeignTables';
+  comment on table "postgresql"."foreign_tables_log" IS E'@name postgresqlForeignTablesLog';
 
   create table if not exists postgresql.column_statistics_log (
     "column_statistic" uuid not null primary key, 

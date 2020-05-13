@@ -1,5 +1,6 @@
 const {
-  grab, findUses, findUsedBy, findMetaData, addExpressAnnotationsAndLabelRoutes,
+  grab, findUses, findUsedBy, findMetaData, isFavorite,
+  usersAndWatchers, addExpressAnnotationsAndLabelRoutes,
 } = require('./common.js');
 
 module.exports = async function addExpressRoutes(pgpool, bus, app) {
@@ -12,6 +13,7 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
     }
     req.params.kubernetes_replicaset = replicaset[0]; // eslint-disable-line prefer-destructuring
     req.params.kubernetes_replicaset_id = replicaset[0].replicaset;
+    req.params.node = replicaset[0].replicaset;
     next();
   });
   app.get('/ui/kubernetes/replicasets/:kubernetes_replicaset_id', async (req, res, next) => {
@@ -35,6 +37,8 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
       changes,
       usedBy: await findUsedBy(pgpool, req.params.kubernetes_replicaset_id),
       uses: await findUses(pgpool, req.params.kubernetes_replicaset_id),
+      users: await usersAndWatchers(pgpool, req.params.kubernetes_replicaset_id),
+      favorite: req.session.profile ? await isFavorite(pgpool, req.params.node, req.session.profile.user) : null, // eslint-disable-line max-len
     };
 
     grab('./views/kubernetes.replicasets.html', req, res, next, data);

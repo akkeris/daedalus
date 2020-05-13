@@ -27,6 +27,7 @@ Daedalus can be deployed with a docker image from [https://hub.docker.com/r/akke
  *  `OAUTH_USER_AVATAR_JSON_PATH` - Json path in profile object to avatar url. 
  *  `OAUTH_USER_EMAIL_JSON_PATH` - Json path in profile object to email.
  *  `OAUTH_USER_NAME_JSON_PATH` - Json path in profile object to name.
+ *  `OAUTH_USER_ID_JSON_PATH` - JSON path in profile object to a unique id representing the user.
 
  Note that session information is stored in the `public` schema in the table `session`.
 

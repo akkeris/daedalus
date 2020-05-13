@@ -19,6 +19,8 @@ Daedalus is a knowledge system intended for collecting an examining resources on
 
 * Akkeris
 * AWS (RDS and ElastiCache)
+* Cert Manager
+* Istio
 * Kubernetes
 * Oracle
 * PostgreSQL

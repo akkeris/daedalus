@@ -50,6 +50,15 @@ function findTableOrViewId(tables, views, database, catalog, schema, name) {
       && view.name === name))[0];
 }
 
+function findForeignServer(foreignServers, database, catalog, owner, name, username, connection) {
+  return foreignServers.filter((server) => server.database === database
+    && server.catalog === catalog
+    && server.owner === owner
+    && server.name === name
+    && server.username === username
+    && server.connection === connection)[0];
+}
+
 function hexOrString(buf) {
   try {
     return buf.toString('utf8');
@@ -293,6 +302,26 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       };
     }))).map((x) => x.rows).flat();
 
+    // Get foreign servers
+    const foreignServers = (await Promise.all((await client.execute(`
+      select
+        owner,
+        db_link,
+        username,
+        host
+      from
+        sys.all_db_links
+    `, [])).rows.map((foreignServer) => pgpool.query(`
+      insert into oracle.foreign_servers_log 
+        (foreign_server_log, database, catalog, owner, name, username, connection, deleted)
+      values 
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
+      on conflict (database, catalog, owner, name, username, connection, deleted)
+      do update set deleted = false
+      returning foreign_server_log, database, catalog, owner, name, username, connection, deleted
+    `, [database.database, database.name, foreignServer.OWNER, foreignServer.DB_LINK, foreignServer.USERNAME, foreignServer.HOST, false]))))
+      .map((x) => x.rows).flat();
+
     // Column Statistics
     (await Promise.all((await client.execute(`
       select 
@@ -384,13 +413,9 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
     } catch (e) {
       // do nothing if it fails to pull, some users may not have access to this.
     }
-    // TODO: User defined data types, Foreign data wrappers, foreign tables, foreign servers
-    // TODO: Long running queries, Locks, Vacuum statistics, pg_settings?
-    // TODO: Check for column statistics of some sort?
+    // TODO: User defined data types
+    // TODO: Long running queries, Locks?
     // TODO: Index statistics? I can't imagine this exists but, constraint statistics?...
-    // TODO: Add blocking queries, long running queries? locks? outliers
-    //       (requires pg_stat_statments)?
-    // TODO: snapshot pg_catalog.pg_available_extensions
 
     // Check for table deletion
     await Promise.all((await pgpool.query('select "table", database, catalog, schema, name, is_view, definition from oracle.tables where database = $1', [database.database]))
@@ -487,6 +512,22 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
           [database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, constraint.check_clause, true]); // eslint-disable-line max-len
         }
       }));
+
+    // Check for foreign server deletion
+    await Promise.all((await pgpool.query('select foreign_server_log, database, catalog, owner, name, username, connection from oracle.foreign_servers_log where database = $1', [database.database]))
+      .rows
+      .map(async (foreignServer) => {
+        if (!findForeignServer(foreignServers, database.database, foreignServer.catalog, foreignServer.owner, foreignServer.name, foreignServer.username, foreignServer.connection)) { // eslint-disable-line max-len
+          await pgpool.query(`
+          insert into oracle.foreign_servers_log 
+            (foreign_server_log, database, catalog, owner, name, username, connection, deleted) 
+          values 
+            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
+          on conflict (database, catalog, owner, name, username, connection, deleted)
+          do update set deleted = true`,
+          [database.database, foreignServer.catalog, foreignServer.owner, foreignServer.name, foreignServer.username, foreignServer.connection, true]); // eslint-disable-line max-len
+        }
+      }));
   } catch (e) {
     if (e.message.includes('password authentication failed')) {
       bus.emit('oracle.error', [database.database, 'authentication-failed', e.message]);
@@ -524,6 +565,7 @@ async function run(pgpool, bus) {
       oracle.databases 
       join oracle.roles on roles.database = databases.database`, []))
     .rows
+    .filter((database) => database.password && database.password.cipher && database.password.encrypted) // eslint-disable-line max-len
     .map((database) => ({ ...database, password: security.decryptValue(process.env.SECRET, database.password).toString('utf8') }))));
 
   for (let i = 0; i < databases.length; i += 10) { // eslint-disable-line no-restricted-syntax

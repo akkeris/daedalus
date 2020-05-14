@@ -604,7 +604,7 @@ begin
       array_agg(parent) as parents,
       count(*) over (partition by "type") as rank
     from (
-      select 
+      select
         cte.parent      as node,
         cte.parent_name as name,
         cte.parent_type as "type",
@@ -612,7 +612,7 @@ begin
         cte2.parent
       from cte left join cte as cte2 on cte2.child = cte.parent
       union
-      select 
+      select
         cte.child      as node,
         cte.child_name as name,
         cte.child_type as "type",

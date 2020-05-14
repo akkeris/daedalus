@@ -58,6 +58,16 @@ function findForeignTable(tables, database, catalog, schema, table_in, foreign_s
     && table.foreign_database_host === foreign_database_host)[0]; // eslint-disable-line max-len,camelcase
 }
 
+
+function findForeignServer(foreignServers, database, catalog, owner, name, username, connection) {
+  return foreignServers.filter((server) => server.database === database
+    && server.catalog === catalog
+    && server.owner === owner
+    && server.name === name
+    && server.username === username
+    && server.connection === connection)[0];
+}
+
 // TODO: detect permission changes in roles.
 
 // TODO: Fix the issue if there's a state flip back to the original state the diff breaks.
@@ -356,6 +366,31 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       };
     }))).map((x) => x.rows).flat();
 
+    // Get foreign servers
+    const foreignServers = (await Promise.all((await client.query(`
+      select
+        pg_roles.rolname as owner,
+        pg_foreign_server.srvname as db_link,
+        pg_user_mappings.usename as username,
+        pg_foreign_server.srvoptions::text as connection
+      from
+        pg_foreign_server
+          join pg_foreign_data_wrapper on pg_foreign_data_wrapper.oid = pg_foreign_server.srvfdw
+          join pg_roles on pg_roles.oid = pg_foreign_server.srvowner
+        left join pg_user_mappings on pg_user_mappings.srvid = pg_foreign_server.oid
+      where
+        pg_foreign_server.srvoptions is not null
+    `, [])).rows.map((foreignServer) => pgpool.query(`
+      insert into postgresql.foreign_servers_log 
+        (foreign_server_log, database, catalog, owner, name, username, connection, deleted)
+      values 
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
+      on conflict (database, catalog, owner, name, username, connection, deleted)
+      do update set deleted = false
+      returning foreign_server_log, database, catalog, owner, name, username, connection, deleted
+    `, [database.database, database.name, foreignServer.owner, foreignServer.db_link, foreignServer.username, foreignServer.connection, false]))))
+      .map((x) => x.rows).flat();
+
     // Column Statistics
     (await Promise.all((await client.query(`
       select
@@ -577,6 +612,22 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
           [database.database, table.catalog, table.schema, table.table, table.foreign_schema_name, table.foreign_table_name, table.foreign_database_name, table.foreign_database_host]); // eslint-disable-line max-len
         }
       }));
+
+    // Check for foreign server deletion
+    await Promise.all((await pgpool.query('select foreign_server_log, database, catalog, owner, name, username, connection from postgresql.foreign_servers_log where database = $1', [database.database]))
+      .rows
+      .map(async (foreignServer) => {
+        if (!findForeignServer(foreignServers, database.database, foreignServer.catalog, foreignServer.owner, foreignServer.name, foreignServer.username, foreignServer.connection)) { // eslint-disable-line max-len
+          await pgpool.query(`
+          insert into postgresql.foreign_servers_log 
+            (foreign_server_log, database, catalog, owner, name, username, connection, deleted) 
+          values 
+            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
+          on conflict (database, catalog, owner, name, username, connection, deleted)
+          do update set deleted = true`,
+          [database.database, foreignServer.catalog, foreignServer.owner, foreignServer.name, foreignServer.username, foreignServer.connection, true]); // eslint-disable-line max-len
+        }
+      }));
   } catch (e) {
     if (e.message.includes('password authentication failed')) {
       bus.emit('postgresql.error', [database.database, 'authentication-failed', e.message]);
@@ -609,6 +660,7 @@ async function exec(pgpool, bus, secret) {
       postgresql.databases 
       join postgresql.roles on roles.database = databases.database`, []))
     .rows
+    .filter((database) => database.password && database.password.cipher && database.password.encrypted) // eslint-disable-line max-len
     .map((database) => ({ ...database, password: security.decryptValue(secret, database.password).toString('utf8') }))));
 
   for (let i = 0; i < databases.length; i += 10) { // eslint-disable-line no-restricted-syntax

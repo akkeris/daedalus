@@ -629,7 +629,7 @@ begin
   create table if not exists metadata.favorites
   (
     "user" uuid references metadata.users("user"),
-    node uuid references metadata.nodes("node"),
+    node uuid not null,
     created timestamp with time zone default now()
   );
   create unique index if not exists metadata_favorites_user_node on metadata.favorites("user", node);

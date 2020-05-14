@@ -46,9 +46,9 @@ describe('postgresql', async () => { // eslint-disable-line no-undef
   });
   it('checking tables view', async () => { // eslint-disable-line no-undef
     const tables = (await pgpool.query('select * from postgresql.tables')).rows;
-    assert.equal(tables.length, 20);
+    assert.equal(tables.length, 22);
     assert.equal(tables.filter((x) => x.schema === 'public').length, 1);
-    assert.equal(tables.filter((x) => x.schema === 'postgresql').length, 19);
+    assert.equal(tables.filter((x) => x.schema === 'postgresql').length, 21);
     assert.equal(tables.filter((x) => x.name === 'tables' && x.is_view && x.definition.includes('tables_log')).length, 1);
     assert.equal(tables.filter((x) => x.name === 'tables_log' && !x.is_view).length, 1);
     assert.equal(tables.filter((x) => x.name === 'tables_log' && !x.is_view).length, 1);

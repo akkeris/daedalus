@@ -1,5 +1,6 @@
 const {
-  grab, findUses, findMetaData, findUsedBy, addExpressAnnotationsAndLabelRoutes,
+  grab, findUses, findMetaData, findUsedBy, isFavorite,
+  usersAndWatchers, addExpressAnnotationsAndLabelRoutes,
 } = require('./common.js');
 
 module.exports = async function addExpressRoutes(pgpool, bus, app) {
@@ -12,6 +13,7 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
     }
     req.params.kubernetes_deployment = deployment[0]; // eslint-disable-line prefer-destructuring
     req.params.kubernetes_deployment_id = deployment[0].deployment;
+    req.params.node = deployment[0].deployment;
     next();
   });
   app.get('/ui/kubernetes/deployments/:kubernetes_deployment_id', async (req, res, next) => {
@@ -52,6 +54,8 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
       changes,
       usedBy: await findUsedBy(pgpool, req.params.kubernetes_deployment_id),
       uses: await findUses(pgpool, req.params.kubernetes_deployment_id),
+      users: await usersAndWatchers(pgpool, req.params.kubernetes_deployment_id),
+      favorite: req.session.profile ? await isFavorite(pgpool, req.params.node, req.session.profile.user) : null, // eslint-disable-line max-len
     };
 
     grab('./views/kubernetes.deployments.html', req, res, next, data);

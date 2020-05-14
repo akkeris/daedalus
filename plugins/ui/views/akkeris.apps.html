@@ -2,7 +2,7 @@ const {formatBytes} = require('../../../common/format.js');
 module.exports = (req, res, next, data) => res.send(`
   ${require('./header.html')(req)}
     <appkit-app>
-      ${require('./object-header.html')(req, data, 'Apps', 'fa-microchip', `/ui/akkeris/apps/${data.app}`, data.name, 'akkeris/apps')}
+      ${require('./object-header.html')(req, data, 'Apps', 'fa-microchip', `/ui/akkeris/apps/${data.app}`, data.app, 'akkeris/apps')}
       <div>
         <h2>${data.name}</h2>
         ${data.annotations && data.annotations.description ? `
@@ -16,9 +16,8 @@ module.exports = (req, res, next, data) => res.send(`
         <x-tab><a href="#uses">Uses</a></x-tab>
         <x-tab><a href="#definition">Definition</a></x-tab>
       </x-tabs>
-      <div name="metadata" class="tab-panel list">
-        ${require('./labels.html')(req, data, `/ui/akkeris/apps/${data.app}`)}
-        ${require('./annotations.html')(req, data, `/ui/akkeris/apps/${data.app}`)}
+      <div name="metadata" class="tab-panel">
+        ${require('./metadata.html')(req, data, `/ui/akkeris/apps/${data.app}`)}
       </div>
       <div name="changes" class="tab-panel list">
         ${require('./changes.html')(req, data)}

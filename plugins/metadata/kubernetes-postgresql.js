@@ -55,7 +55,7 @@ async function writePostgresqlFromConfigMaps(pgpool, bus, type, configMapRecords
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
               [role.rows[0].role, db.rows[0].database]);
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-              [configMap.config_map, role.rows[0].role]); // TODO: switch these?
+              [configMap.config_map, role.rows[0].role]);
           } catch (e) {
             if (e.message.includes('Invalid URL')) {
               bus.emit('kubernetes.config_map.error', [configMap.config_map, 'bad-postgresql-url-error', e.message]);

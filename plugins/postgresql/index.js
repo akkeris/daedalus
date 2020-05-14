@@ -47,6 +47,17 @@ function findTableOrViewId(tables, views, database, catalog, schema, name) {
       && view.name === name))[0];
 }
 
+function findForeignTable(tables, database, catalog, schema, table_in, foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host) { // eslint-disable-line max-len,camelcase
+  return tables.filter((table) => table.database === database
+    && table.catalog === catalog
+    && table.schema === schema
+    && table.table === table_in // eslint-disable-line max-len,camelcase
+    && table.foreign_schema_name === foreign_schema_name // eslint-disable-line max-len,camelcase
+    && table.foreign_table_name === foreign_table_name // eslint-disable-line max-len,camelcase
+    && table.foreign_database_name === foreign_database_name // eslint-disable-line max-len,camelcase
+    && table.foreign_database_host === foreign_database_host)[0]; // eslint-disable-line max-len,camelcase
+}
+
 // TODO: detect permission changes in roles.
 
 // TODO: Fix the issue if there's a state flip back to the original state the diff breaks.
@@ -84,7 +95,9 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
 
     const tables = (await Promise.all((await client.query(`
       select 
-        schemaname, tablename
+        schemaname,
+        tablename,
+        false as is_foreign
       from 
         pg_catalog.pg_tables
       where 
@@ -92,15 +105,34 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         pg_tables.schemaname not like 'pg_%' and
         pg_tables.schemaname <> 'pgagent' and
         pg_tables.schemaname <> 'sys'
+
+      union 
+
+      select
+        pg_namespace.nspname as schemaname,
+        pg_class.relname as tablename,
+        true as is_foreign
+      from
+        pg_foreign_table
+          join pg_foreign_server on pg_foreign_server.oid = pg_foreign_table.ftserver
+          join pg_foreign_data_wrapper on pg_foreign_data_wrapper.oid = pg_foreign_server.srvfdw
+          join pg_catalog.pg_class on pg_foreign_table.ftrelid = pg_class.oid
+          join pg_catalog.pg_namespace on pg_class.relnamespace = pg_namespace.oid
+          join pg_roles on pg_roles.oid = pg_foreign_server.srvowner
+      where
+        pg_foreign_table.ftoptions is not null and
+        pg_foreign_server.srvoptions is not null and
+        array_length(pg_foreign_table.ftoptions, 1) > 0 and
+        array_length(pg_foreign_server.srvoptions, 1) > 0
     `, [])).rows.map((table) => pgpool.query(`
       insert into postgresql.tables_log 
-        ("table", database, catalog, schema, name, is_view, definition, hash, deleted)
+        ("table", database, catalog, schema, name, is_view, is_foreign, definition, hash, deleted)
       values 
-        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6::text, 'sha1'), 'hex'), $7)
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, encode(digest($7::text, 'sha1'), 'hex'), $8)
       on conflict (database, catalog, schema, name, is_view, hash, deleted)
       do update set name = $4
-      returning "table", database, catalog, schema, name
-    `, [database.database, database.name, table.schemaname, table.tablename, false, '', false]))))
+      returning "table", database, catalog, schema, name, is_view, is_foreign, definition, hash
+    `, [database.database, database.name, table.schemaname, table.tablename, false, table.is_foreign, '', false]))))
       .map((x) => x.rows).flat();
 
     const views = (await Promise.all((await client.query(`
@@ -114,13 +146,47 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         pg_views.schemaname <> 'sys'
     `, [])).rows.map((view) => pgpool.query(`
       insert into postgresql.tables_log 
-        ("table", database, catalog, schema, name, is_view, definition, hash, deleted)
+        ("table", database, catalog, schema, name, is_view, is_foreign, definition, hash, deleted)
       values 
-        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6::text, 'sha1'), 'hex'), $7)
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, false, $6, encode(digest($6::text, 'sha1'), 'hex'), $7)
       on conflict (database, catalog, schema, name, is_view, hash, deleted)
       do update set name = $4
-      returning "table", database, catalog, schema, name
+      returning "table", database, catalog, schema, name, is_foreign
     `, [database.database, database.name, view.schemaname, view.viewname, true, view.definition || '', false]))))
+      .map((x) => x.rows).flat();
+
+    // Foreign Tables
+    const foreigns = (await Promise.all((await client.query(`
+      select
+        pg_foreign_data_wrapper.fdwname as foreign_data_wrapper_name,
+        pg_class.relname as local_table_name,
+        pg_namespace.nspname as local_schema_name,
+        substring(pg_foreign_table.ftoptions[1] from 'schema_name=(.*$)') as foreign_schema_name,
+        substring(pg_foreign_table.ftoptions[2] from 'table_name=(.*$)') as foreign_table_name,
+        substring(pg_foreign_server.srvoptions[1] from 'dbname=(.*$)') as foreign_database_name,
+        substring(pg_foreign_server.srvoptions[2] from 'host=(.*$)') as foreign_database_host
+      from
+        pg_foreign_table
+          join pg_foreign_server on pg_foreign_server.oid = pg_foreign_table.ftserver
+          join pg_foreign_data_wrapper on pg_foreign_data_wrapper.oid = pg_foreign_server.srvfdw
+          join pg_catalog.pg_class on pg_foreign_table.ftrelid = pg_class.oid
+          join pg_catalog.pg_namespace on pg_class.relnamespace = pg_namespace.oid
+          join pg_roles on pg_roles.oid = pg_foreign_server.srvowner
+      where
+        pg_foreign_table.ftoptions is not null and
+        pg_foreign_server.srvoptions is not null and
+        array_length(pg_foreign_table.ftoptions, 1) > 0 and
+        array_length(pg_foreign_server.srvoptions, 1) > 0
+    `, [])).rows.map((table) => pgpool.query(`
+      insert into postgresql.foreign_tables_log
+        (foreign_table_log, database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, deleted)
+      values
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, false)
+      on conflict (database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, deleted)
+      do update set foreign_database_host = $8
+      returning
+        foreign_table_log, database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host
+    `, [database.database, database.name, table.local_schema_name, findTableOrViewId(tables, views, database.database, database.name, table.local_schema_name, table.local_table_name).table, table.foreign_schema_name, table.foreign_table_name, table.foreign_database_name, table.foreign_database_host]))))
       .map((x) => x.rows).flat();
 
     const columns = (await Promise.all((await client.query(`
@@ -145,7 +211,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         join pg_type on pg_attribute.atttypid = pg_type.oid
         left join pg_attrdef on pg_attribute.attrelid = pg_attrdef.adrelid and pg_attrdef.adnum = pg_attribute.attnum
       where
-        (pg_class.relkind = 'r' or pg_class.relkind = 'v') and
+        (pg_class.relkind = 'r' or pg_class.relkind = 'v' or pg_class.relkind = 'f') and
         pg_attribute.attnum > 0 and
         pg_namespace.nspname not like 'pg_%' and
         pg_namespace.nspname <> 'information_schema' and
@@ -289,6 +355,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
           `, [database.database, constraint.constraint_name, constraint.constraint_type, database.name, constraint.from_schema, tableUUID, columnUUID, constraint.definition, false])))).map((x) => x.rows).flat(),
       };
     }))).map((x) => x.rows).flat();
+
     // Column Statistics
     (await Promise.all((await client.query(`
       select
@@ -331,6 +398,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         debug(`Failed to import column statistc for ${database.database} and %o due to ${e.message}`, estimate);
       }
     })));
+
     // Table Statistics
     (await Promise.all((await client.query(`
       select
@@ -385,19 +453,19 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6)
       on conflict do nothing
     `, [database.database, estimate.max_connections, estimate.used_connections, estimate.reserved_connections, estimate.available_connections, false]))));
+
+
     // TODO: This is not tracking changes to the config, it should.
     //       Probably should be its own log table.
     const config = (await client.query('show all')).rows.reduce((acc, x) => ({ ...acc, [x.name]: { value: x.setting, description: x.description } }), {});
     await pgpool.query('update postgresql.databases_log set config = $2 where database = $1',
       [database.database, config]);
 
-    // TODO: User defined data types, Foreign data wrappers, foreign tables, foreign servers
-    // TODO: Long running queries, Locks, Vacuum statistics, pg_settings?
-    // TODO: Check for column statistics of some sort?
-    // TODO: Index statistics? I can't imagine this exists but, constraint statistics?...
-    // TODO: Add blocking queries, long running queries? locks? outliers
-    //       (requires pg_stat_statments)?
+    // TODO: User defined data types
+    // TODO: Vaccuum statistics, pg_settings Add blocking queries,
+    // long running queries? locks? outliers (requires pg_stat_statments)?
     // TODO: snapshot pg_catalog.pg_available_extensions
+
     // Check for table deletion
     await Promise.all((await pgpool.query('select "table", database, catalog, schema, name, is_view, definition from postgresql.tables where database = $1', [database.database]))
       .rows
@@ -491,6 +559,22 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
           on conflict (database, name, "type", from_catalog, from_schema, from_table, check_clause, deleted) where "type" = 'CHECK'
           do update set deleted = true`,
           [database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, constraint.check_clause, true]); // eslint-disable-line max-len
+        }
+      }));
+
+    // Check for foreign table deletion
+    await Promise.all((await pgpool.query('select foreign_table_log, database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host from postgresql.foreign_tables where database = $1', [database.database]))
+      .rows
+      .map(async (table) => {
+        if (!findForeignTable(foreigns, database.database, table.catalog, table.schema, table.table, table.foreign_schema_name, table.foreign_table_name, table.foreign_database_name, table.foreign_database_host)) { // eslint-disable-line max-len
+          await pgpool.query(`
+          insert into postgresql.foreign_tables_log 
+            (foreign_table_log, database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, deleted) 
+          values 
+            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, true)
+          on conflict (database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, deleted)
+          do update set deleted = true`,
+          [database.database, table.catalog, table.schema, table.table, table.foreign_schema_name, table.foreign_table_name, table.foreign_database_name, table.foreign_database_host]); // eslint-disable-line max-len
         }
       }));
   } catch (e) {

@@ -121,6 +121,29 @@ async function addExpressAnnotationsAndLabelRoutes(pgpool, app, typeName, param)
   });
 }
 
+async function isFavorite(pgpool, node, user) {
+  const { rows: [{ amount }] } = await pgpool.query('select count(*) as amount from metadata.favorites where node = $1 and "user" = $2',
+    [node, user]);
+  return amount > 0;
+}
+
+async function usersAndWatchers(pgpool, node) {
+  const { rows: users } = await pgpool.query(`
+    select
+      users.user,
+      users.name,
+      users.email,
+      users.photo_url,
+      users.profile_url
+    from 
+      metadata.favorites
+      join metadata.users on favorites.user = users.user
+    where
+      favorites.node = $1
+  `, [node]);
+  return users;
+}
+
 async function findMetaData(pgpool, id) {
   const { rows: metadata } = await pgpool.query(
     'select * from metadata.objects where node = $1',
@@ -145,6 +168,7 @@ async function findUsedBy(pgpool, id) {
     `, [id]);
   return usedBy;
 }
+
 async function findUses(pgpool, id) {
   let uses = [];
   let depth = 5;
@@ -163,4 +187,6 @@ module.exports = {
   findUses,
   findUsedBy,
   findMetaData,
+  isFavorite,
+  usersAndWatchers,
 };

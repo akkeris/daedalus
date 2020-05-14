@@ -15,7 +15,7 @@ const kubernetesDeployments = require('./kubernetes.deployments.js');
 const kubernetesReplicasets = require('./kubernetes.replicasets.js');
 const kubernetesPods = require('./kubernetes.pods.js');
 const kubernetesConfigMaps = require('./kubernetes.config_maps.js');
-const { grab, cursors } = require('./common.js');
+const { grab, cursors, isFavorite } = require('./common.js');
 const search = require('./search.js');
 
 async function init(pgpool, bus, app) {
@@ -45,7 +45,21 @@ async function init(pgpool, bus, app) {
         },
       });
   });
-  app.get('/oauth/callback', oauth.callback);
+  app.post('/ui/favorites/:node', async (req, res) => {
+    if (req.session.profile) {
+      if (await isFavorite(pgpool, req.params.node, req.session.profile.user)) {
+        await pgpool.query('delete from metadata.favorites where "user" = $1 and node = $2',
+          [req.session.profile.user, req.params.node]);
+      } else {
+        await pgpool.query('insert into metadata.favorites ("user", node) values ($1, $2) on conflict do nothing;',
+          [req.session.profile.user, req.params.node]);
+      }
+      res.redirect(req.get('referrer') || '/');
+    } else {
+      res.send('A favorite cannot be added, no users profile is available.');
+    }
+  });
+  app.get('/oauth/callback', oauth.callback.bind(oauth.callback, pgpool));
   const { searchAPI, searchUI } = search(pgpool);
   // this is an API search not a UI search, TODO: add alternate auth instead of session?
   // it's primarily used by the type ahead to give optional results before the user

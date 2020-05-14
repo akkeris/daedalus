@@ -1,5 +1,31 @@
 const debug = require('debug')('daedalus:metadata');
 
+async function writeAkkerisApps(pgpool) {
+  const { rows: apps } = await pgpool.query(`
+    select app_log, name, definition from akkeris.apps
+  `);
+  const appType = (await pgpool.query('select "type" from metadata.node_types where name = \'akkeris/apps\'')).rows[0].type;
+  await Promise.all(apps.map((async (app) => {
+    await pgpool.query('insert into metadata.nodes (node, name, type, definition) values ($1, $2, $3, $4) on conflict (node) do update set name = $2, definition = $4',
+      [app.app_log, app.name, appType, app.definition]);
+  })));
+
+  await pgpool.query('delete from metadata.nodes where nodes."type" = $1 and nodes.node not in (select app_log from akkeris.apps)', [appType]);
+}
+
+async function writeAkkerisSites(pgpool) {
+  const { rows: sites } = await pgpool.query(`
+    select site_log, name, definition from akkeris.sites
+  `);
+  const siteType = (await pgpool.query('select "type" from metadata.node_types where name = \'akkeris/sites\'')).rows[0].type;
+  await Promise.all(sites.map((async (site) => {
+    await pgpool.query('insert into metadata.nodes (node, name, type, definition) values ($1, $2, $3, $4) on conflict (node) do update set name = $2, definition = $4',
+      [site.site_log, site.name, siteType, site.definition]);
+  })));
+
+  await pgpool.query('delete from metadata.nodes where nodes."type" = $1 and nodes.node not in (select site_log from akkeris.sites)', [siteType]);
+}
+
 async function writeAkkerisAppsToSites(pgpool) {
   const { rows: routes } = await pgpool.query(`
     select
@@ -42,13 +68,15 @@ async function writeAkkerisAppsToSites(pgpool) {
       debug(`Error cannot add link between app ${route.app_log} and route ${route.route_log} and site ${route.site_log} due to: ${e.message}`);
     }
   }));
-
   await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select route_log from akkeris.routes)', [routeType]);
+  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select site_log from akkeris.sites)', [sitesType]);
 }
 
 async function init() {} // eslint-disable-line no-empty-function
 
 async function run(pgpool) {
+  await writeAkkerisApps(pgpool);
+  await writeAkkerisSites(pgpool);
   await writeAkkerisAppsToSites(pgpool);
 }
 

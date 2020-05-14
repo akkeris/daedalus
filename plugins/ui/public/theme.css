@@ -274,7 +274,8 @@ sub {
   font-size:var(--font-text-small-size);
   color:var(--font-subtle-color);
 }
-
+/*
+ * this was disabled as it over-wrode styles on the annoations/labels form.
 .bar form input[type="text"], .panel input[type="text"] {
   -webkit-appearance:none;
   border:0;
@@ -285,7 +286,7 @@ sub {
   align-self: center;
   outline:0;
 }
-
+*/
 .bar form input[type="text"]::hover {
   outline:0;
 }
@@ -333,8 +334,13 @@ sub {
 }
 
 .panel h4 {
-  line-height:1.75rem;
+  line-height:1.5rem;
   margin-bottom:0;
+}
+
+.panel.left h4, .panel.right h4 {
+  font-size:var(--font-text-small-size);
+  font-weight:500;
 }
 
 .panel > label.icon {
@@ -358,7 +364,7 @@ ul.panel > li {
 
 @media only screen and (max-width: 768px) {
   .panel.left, .panel.right, .panel {
-    width:calc(100% - 2rem - 2px);
+    width:calc(100% - 2rem - 2px) !important;
     display:block;
     margin:1rem;
   }
@@ -861,10 +867,22 @@ pre > code.hljs.json
   border-radius: var(--border-radius-containers);
 }
 
-
 img.avatar {
   max-width:1.5rem;
   max-height:1.5rem;
   border-radius:1rem;
   padding:0.125rem;
 }
+.list-item > div.uno > img.avatar {
+  max-width: 20px;
+  max-height: 20px;
+}
+
+form.action {
+  display: inline-block;
+}
+form.action > button {
+  border: 0;
+  padding: 0 0.25rem;
+}
+

@@ -37,9 +37,8 @@ module.exports = (req, res, next, data) => res.send(`
         <x-tab><a href="#columns">Columns</a></x-tab>
         <x-tab><a href="#definition">Definition</a></x-tab>
       </x-tabs>
-      <div name="metadata" class="tab-panel list">
-        ${require('./labels.html')(req, data, `/ui/postgresql/tables/${data.table}`)}
-        ${require('./annotations.html')(req, data, `/ui/postgresql/tables/${data.table}`)}
+      <div name="metadata" class="tab-panel">
+        ${require('./metadata.html')(req, data, `/ui/postgresql/tables/${data.table}`)}
       </div>
       <div name="changes" class="tab-panel list">
         ${require('./changes.html')(req, data)}

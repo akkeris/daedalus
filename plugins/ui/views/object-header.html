@@ -18,7 +18,16 @@
               ${title}
             </a>
           </li>
-          <li>${id}</li>
+          <li>
+            ${id}
+            ${req.session.profile ? `
+              <form class="action">
+                <button name="favorite" value="${req.params.node}" type="submit" formmethod="post" formaction="/ui/favorites/${req.params.node}">
+                  <i class="fa ${data.favorite === false ? 'fa-star-o' : 'fa-star'}" aria-hidden="true"></i>
+                </button>
+              </form>
+            ` : ''}
+          </li>
         </ul>
       </nav-breadcrumb>
 `;

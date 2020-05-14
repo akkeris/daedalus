@@ -1,5 +1,6 @@
 const {
-  grab, findUses, findUsedBy, findMetaData, addExpressAnnotationsAndLabelRoutes,
+  grab, findUses, findUsedBy, findMetaData, isFavorite,
+  usersAndWatchers, addExpressAnnotationsAndLabelRoutes,
 } = require('./common.js');
 
 module.exports = async function addExpressRoutes(pgpool, bus, app) {
@@ -12,6 +13,7 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
     }
     req.params.postgresql_database = databases[0]; // eslint-disable-line prefer-destructuring
     req.params.postgresql_database_id = databases[0].database;
+    req.params.node = databases[0].database;
     next();
   });
   app.get('/ui/postgresql/databases/:postgresql_database_id', async (req, res, next) => {
@@ -150,6 +152,8 @@ module.exports = async function addExpressRoutes(pgpool, bus, app) {
       roles,
       usedBy: await findUsedBy(pgpool, req.params.postgresql_database_id),
       uses: await findUses(pgpool, req.params.postgresql_database_id),
+      users: await usersAndWatchers(pgpool, req.params.postgresql_database_id),
+      favorite: req.session.profile ? await isFavorite(pgpool, req.params.node, req.session.profile.user) : null, // eslint-disable-line max-len
     };
 
     grab('./views/postgresql.databases.html', req, res, next, data);

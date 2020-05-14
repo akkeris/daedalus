@@ -1,6 +1,51 @@
 do $$
 begin
+
   create schema if not exists metadata;
+  create extension if not exists "uuid-ossp";
+
+  -- These tables do not describe users who have access to daedalus
+  -- they describe users who have been found in any system including daedalus.
+
+  create table if not exists metadata.people
+  (
+    person uuid not null primary key,
+    name text not null,
+    preferred text not null,
+    aliases text[] not null default '{}'::text[],
+    observed_on timestamp with time zone default now(),
+    deleted boolean default false
+  );
+
+  create table if not exists metadata.systems
+  (
+    system uuid not null primary key,
+    name text not null,
+    url text,
+    observed_on timestamp with time zone default now(),
+    deleted boolean default false
+  );
+  create unique index if not exists metadata_systems_name on metadata.systems(name);
+  insert into metadata.systems (system, name) values (uuid_generate_v4(), 'daedalus') on conflict (name) do nothing;
+
+  create table if not exists metadata.users
+  (
+    "user" uuid not null primary key,
+    person uuid references metadata.people("person"),
+    username text not null,
+    name text not null,
+    email text not null,
+    system uuid references metadata.systems("system"),
+    photo_url text not null,
+    profile_url text not null,
+    observed_on timestamp with time zone default now(),
+    deleted boolean default false
+  );
+  create unique index if not exists metadata_username_system on metadata.users(username, system);
+  create index if not exists metadata_users_person on metadata.users("person");
+  create index if not exists metadata_users_system on metadata.users("system");
+
+  -- Generic abstraction for object and types
 
   create table if not exists metadata.node_types (
     type uuid not null primary key,
@@ -579,5 +624,15 @@ begin
     order by rank desc
   $c$ language sql;
 
+  -- favorites and webhooks
+  
+  create table if not exists metadata.favorites
+  (
+    "user" uuid references metadata.users("user"),
+    node uuid references metadata.nodes("node"),
+    created timestamp with time zone default now()
+  );
+  create unique index if not exists metadata_favorites_user_node on metadata.favorites("user", node);
+  create index if not exists metadata_favorites_nodes on metadata.favorites(node);
 end
 $$;

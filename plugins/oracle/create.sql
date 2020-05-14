@@ -282,6 +282,41 @@ begin
   comment on view "oracle"."constraints" IS E'@name oracleConstraints';
   comment on table "oracle"."constraints_log" IS E'@name oracleConstraintsLog';
 
+  create table if not exists oracle.foreign_servers_log (
+    foreign_server_log uuid not null primary key,
+    database uuid references oracle.databases_log("database") not null,
+    catalog varchar(1024) not null,
+    owner varchar(1024) not null,
+    name varchar(1024) not null,
+    username varchar(1024) not null,
+    connection varchar(1024) not null,
+    observed_on timestamp with time zone default now(),
+    deleted boolean not null default false
+  );
+  create unique index if not exists foreign_servers_log_unique on oracle.foreign_servers_log (database, catalog, owner, name, username, connection, deleted);
+  create index if not exists foreign_servers_log_deleted on oracle.foreign_servers_log ("database");
+  create or replace view oracle.foreign_servers as
+    with ordered_list as ( 
+      select
+        foreign_servers_log.foreign_server_log,
+        foreign_servers_log.database,
+        foreign_servers_log.catalog,
+        foreign_servers_log.owner,
+        foreign_servers_log.name,
+        foreign_servers_log.username,
+        foreign_servers_log.connection,
+        foreign_servers_log.observed_on,
+        foreign_servers_log.deleted as foreign_server_deleted,
+        databases_log.deleted as database_deleted,
+        row_number() over (partition by foreign_servers_log.database, foreign_servers_log.catalog, foreign_servers_log.owner, foreign_servers_log.name, foreign_servers_log.username, foreign_servers_log.connection order by foreign_servers_log.observed_on desc) as rn
+      from oracle.foreign_servers_log
+        join oracle.databases_log on foreign_servers_log.database = databases_log.database)
+    select foreign_server_log, database, catalog, owner, name, username, connection, observed_on
+    from ordered_list
+    where rn=1 and foreign_server_deleted = false and database_deleted = false;
+  comment on view "oracle"."foreign_servers" IS E'@name oracleForeignServers';
+  comment on table "oracle"."foreign_servers_log" IS E'@name oracleForeignServersLog';
+
   create table if not exists oracle.column_statistics_log (
     "column_statistic" uuid not null primary key, 
     database uuid references oracle.databases_log("database") not null,

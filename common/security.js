@@ -108,7 +108,6 @@ function encryptValue(key, rawFrom) {
 function decodeToken(encToken) {
   assert.ok(encToken.cipher, 'No cipher was found.');
   assert.ok(encToken.encrypted, 'No encrypted portion found.');
-  assert.ok(encToken.cipher, 'No cipher was found.');
   assert.ok(encToken.iv, 'No iv field was found.');
   assert.ok(encToken.hmac, 'No hmac algorithm found.');
 

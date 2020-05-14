@@ -317,7 +317,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       values 
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
       on conflict (database, catalog, owner, name, username, connection, deleted)
-      do update set username = $6
+      do update set deleted = false
       returning foreign_server_log, database, catalog, owner, name, username, connection, deleted
     `, [database.database, database.name, foreignServer.OWNER, foreignServer.DB_LINK, foreignServer.USERNAME, foreignServer.HOST, false]))))
       .map((x) => x.rows).flat();
@@ -565,6 +565,7 @@ async function run(pgpool, bus) {
       oracle.databases 
       join oracle.roles on roles.database = databases.database`, []))
     .rows
+    .filter((database) => database.password && database.password.cipher && database.password.encrypted) // eslint-disable-line max-len
     .map((database) => ({ ...database, password: security.decryptValue(process.env.SECRET, database.password).toString('utf8') }))));
 
   for (let i = 0; i < databases.length; i += 10) { // eslint-disable-line no-restricted-syntax

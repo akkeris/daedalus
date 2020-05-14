@@ -386,7 +386,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       values 
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
       on conflict (database, catalog, owner, name, username, connection, deleted)
-      do update set username = $6
+      do update set deleted = false
       returning foreign_server_log, database, catalog, owner, name, username, connection, deleted
     `, [database.database, database.name, foreignServer.owner, foreignServer.db_link, foreignServer.username, foreignServer.connection, false]))))
       .map((x) => x.rows).flat();
@@ -660,6 +660,7 @@ async function exec(pgpool, bus, secret) {
       postgresql.databases 
       join postgresql.roles on roles.database = databases.database`, []))
     .rows
+    .filter((database) => database.password && database.password.cipher && database.password.encrypted) // eslint-disable-line max-len
     .map((database) => ({ ...database, password: security.decryptValue(secret, database.password).toString('utf8') }))));
 
   for (let i = 0; i < databases.length; i += 10) { // eslint-disable-line no-restricted-syntax

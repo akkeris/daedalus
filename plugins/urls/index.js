@@ -275,6 +275,7 @@ async function run(pgpool) {
       on conflict do nothing
     `, [deadUrl.protocol, deadUrl.hostname, deadUrl.port, deadUrl.pathname, deadUrl.definition, deadUrl.certificate, true]);
   });
+
   // detect deletions in urls and certificates
   await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select url_log from urls.urls)', [urlType]);
   await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select certificate_log from urls.certificates)', [certificateType]);

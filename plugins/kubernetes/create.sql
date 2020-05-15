@@ -400,6 +400,7 @@ begin
     observed_on timestamp with time zone default now(),
     deleted boolean not null default false
   );
+  comment on table kubernetes.certificates_log is E'@name kubernetesCertificatesLog';
   create unique index if not exists certificate_unique on kubernetes.certificates_log (name, namespace, context, ((definition->'metadata')->>'resourceVersion'), deleted);
   create index if not exists certificate_observed_on on kubernetes.certificates_log (name, namespace, context, observed_on desc);
   create or replace view kubernetes.certificates as
@@ -414,5 +415,6 @@ begin
       row_number() over (partition by name, namespace, context order by observed_on desc) as rn
     from kubernetes.certificates_log) 
     select certificate, name, namespace, context, definition, observed_on from ordered_list where rn=1 and deleted = false;
+  comment on view kubernetes.certificates is E'@name kubernetesCertificates';
 end
 $$;

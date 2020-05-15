@@ -68,6 +68,8 @@ begin
   insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'akkeris/sites', 'akkeris.sites.svg') on conflict (name, icon) do nothing;
   insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'akkeris/routes', 'akkeris.routes.svg') on conflict (name, icon) do nothing;
   insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'akkeris/apps', 'akkeris.apps.svg') on conflict (name, icon) do nothing;
+  insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'urls/urls', 'urls.urls.svg') on conflict (name, icon) do nothing;
+  insert into metadata.node_types ("type", name, icon) values (uuid_generate_v4(), 'urls/certificates', 'urls.certificates.svg') on conflict (name, icon) do nothing;
 
   create table if not exists metadata.nodes (
     node uuid not null primary key,

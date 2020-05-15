@@ -46,6 +46,12 @@ The metadata plugin is generally required if you want to use the UI or GraphQL, 
 
 *  `METADATA` - Set this to `true` to enable examining systems for links (highly recommended).
 
+### Urls Plugin
+
+This plugin examines urls (and certificates) it finds in various places and records information about them. 
+
+* `URLS` - Set this to `true` to enable examining urls (highly recommended).
+
 ### Postgresql Plugin
 
  *  `POSTRESQL` - Set this value to `true` to enable scanning postgres databases for schema changes and statistics.

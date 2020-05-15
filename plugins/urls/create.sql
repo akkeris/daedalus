@@ -21,7 +21,6 @@ begin
   comment on table urls.certificates_log IS E'@name urlsCertificatesLog';
   create unique index if not exists certificates_unique_ndx on urls.certificates_log (fingerprint_hex_160, fingerprint_hex_256, deleted);
   create index if not exists certificates_observed_on on urls.certificates_log (fingerprint_hex_160, fingerprint_hex_256, observed_on desc);
-  create index if not exists urls_log_certificate on urls.urls_log (certificate);
   create or replace view urls.certificates as
     with ordered_list as ( select
       certificate_log,
@@ -54,6 +53,7 @@ begin
   );
   create unique index if not exists urls_unique_ndx on urls.urls_log (protocol, hostname, port, pathname, deleted);
   create index if not exists urls_observed_on on urls.urls_log (protocol, hostname, port, pathname, observed_on desc);
+  create index if not exists urls_log_certificate on urls.urls_log (certificate);
   create or replace view urls.urls as
     with ordered_list as ( select
       url_log,

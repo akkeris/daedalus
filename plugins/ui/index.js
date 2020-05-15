@@ -15,6 +15,8 @@ const kubernetesDeployments = require('./kubernetes.deployments.js');
 const kubernetesReplicasets = require('./kubernetes.replicasets.js');
 const kubernetesPods = require('./kubernetes.pods.js');
 const kubernetesConfigMaps = require('./kubernetes.config_maps.js');
+const urlsUrls = require('./urls.urls.js');
+const urlsCertificates = require('./urls.certificates.js');
 const { grab, cursors, isFavorite } = require('./common.js');
 const search = require('./search.js');
 
@@ -85,6 +87,8 @@ async function init(pgpool, bus, app) {
   await kubernetesReplicasets(pgpool, bus, app);
   await kubernetesPods(pgpool, bus, app);
   await kubernetesConfigMaps(pgpool, bus, app);
+  await urlsUrls(pgpool, bus, app);
+  await urlsCertificates(pgpool, bus, app);
   debug('initialized');
 }
 

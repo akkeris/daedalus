@@ -3,7 +3,7 @@ const debug = require('debug')('daedalus:urls');
 const tls = require('tls');
 
 function mapCertificates(cert, found = []) {
-  if (found.includes(cert.fingerprint)) {
+  if (!cert || found.includes(cert.fingerprint)) {
     return null;
   }
   return {

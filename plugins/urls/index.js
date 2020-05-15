@@ -42,7 +42,6 @@ function getCertificate(url) {
       rej(url);
       return;
     }
-    debug(`Getting certificate for ${url}`);
     const { hostname, port } = new URL(url);
     const options = {
       host: hostname, port: port || 443, ALPNProtocols: ['http/1.1', 'http/1.0'], servername: hostname, rejectUnauthorized: false,

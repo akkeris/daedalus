@@ -11,6 +11,10 @@ module.exports = (req, res, next, data) => res.send(`
         <dl class="facts">
           <dt>Scanned</dt>
           <dd>${new Date(data.observed_on).toLocaleString()}</dd>
+          <dt>Issued</dt>
+          <dd>${new Date(data.issued).toLocaleString()}</dd>
+          <dt>Expires</dt>
+          <dd>${new Date(data.expires).toLocaleString()}</dd>
         </dl>
       </div>
       <x-tabs>

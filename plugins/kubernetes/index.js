@@ -178,7 +178,7 @@ function redactPods(data) {
   return x;
 }
 
-function redactDeployments(data) {
+function redactDeploymentsAndReplicasets(data) {
   const x = JSON.parse(JSON.stringify(data)); // make a copy
   if (x.spec && x.spec.template && x.spec.template.spec && x.spec.template.spec.containers) {
     x.spec.template.spec.containers = x.spec.template.spec.containers.map((y) => {
@@ -228,8 +228,8 @@ async function writeNamespacedObjs(pgpool, bus, type, func, args) {
     if (type === 'pod') {
       redacted = redactPods(redacted);
     }
-    if (type === 'deployment') {
-      redacted = redactDeployments(redacted);
+    if (type === 'deployment' || type === 'replicaset') {
+      redacted = redactDeploymentsAndReplicasets(redacted);
     }
     const dbObj = await pgpool.query(`
       insert into kubernetes.${plural}_log (${type}, name, namespace, context, definition, deleted)

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const debug = require('debug')('daedalus:urls');
 const tls = require('tls');
+const url = require('url');
 
 function mapCertificates(cert, found = []) {
   if (!cert || found.includes(cert.fingerprint)) {
@@ -26,7 +27,7 @@ let certificateCache = {};
 let certificateCacheErrors = {};
 let certificateCacheInterval = null;
 
-function getCertificate(url) {
+function getCertificate(uri) {
   if (!certificateCacheInterval) {
     certificateCacheInterval = setTimeout(() => {
       certificateCache = {};
@@ -34,15 +35,15 @@ function getCertificate(url) {
     }, 5 * 60 * 1000);
   }
   return new Promise((res, rej) => {
-    if (certificateCache[url]) {
-      res(url);
+    if (certificateCache[uri]) {
+      res(uri);
       return;
     }
-    if (certificateCacheErrors[url]) {
-      rej(url);
+    if (certificateCacheErrors[uri]) {
+      rej(uri);
       return;
     }
-    const { hostname, port } = new URL(url);
+    const { hostname, port } = new URL(uri);
     const options = {
       host: hostname, port: port || 443, ALPNProtocols: ['http/1.1', 'http/1.0'], servername: hostname, rejectUnauthorized: false,
     };
@@ -62,10 +63,10 @@ function getCertificate(url) {
     });
     client.once('close', (hasError) => {
       if (hasError) {
-        certificateCacheErrors[url] = error;
+        certificateCacheErrors[uri] = error;
         rej(error);
       } else {
-        certificateCache[url] = response;
+        certificateCache[uri] = response;
         res(response);
       }
     });
@@ -132,7 +133,7 @@ async function addHttpLinkBetween(pgpool, type, node, name, def, uri, urlType, c
     [node, name, type]); // eslint-disable-line camelcase
 
   await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
-    [url_log, `${uri.toString()}`, urlType]); // eslint-disable-line camelcase
+    [url_log, `${url.format(uri, { auth: false, search: false })}`, urlType]); // eslint-disable-line camelcase
 
   if (response && cert.length > 0) {
     await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',

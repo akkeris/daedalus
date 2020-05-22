@@ -2,7 +2,7 @@ module.exports = (req, data) => `
         ${data.uses.length === 0 ? `
           <div class="list-item" style="text-align:center;display:block;">This has no dependencies.</div>
         ` : ''}
-        ${data.uses.reduce((acc, ele) => (!acc.includes(ele.type) ? acc.concat([ele.type]) : acc), []).map((type) => `
+        ${data.uses.reduce((acc, ele) => (!acc.includes(ele.type) ? acc.concat([ele.type]) : acc), []).sort((a, b) => a > b ? 1 : -1).map((type) => `
         <div class="list-item group">
           <a href="#" onclick="this.parentNode.classList.toggle('expanded'); return false">
             ${type.split(/[\/_]/g).map((x) => x[0].toUpperCase() + x.substring(1)).join(' ')}

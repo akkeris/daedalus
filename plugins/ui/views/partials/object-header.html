@@ -22,7 +22,7 @@
             ${id}
             ${req.session.profile ? `
               <form class="action">
-                <button name="favorite" value="${req.params.node}" type="submit" formmethod="post" formaction="/ui/favorites/${req.params.node}">
+                <button name="favorite" value="${req.params.node.node}" type="submit" formmethod="post" formaction="/ui/favorites/${req.params.node.node}">
                   <i class="fa ${data.favorite === false ? 'fa-star-o' : 'fa-star'}" aria-hidden="true"></i>
                 </button>
               </form>

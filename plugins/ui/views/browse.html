@@ -2,7 +2,7 @@ function createUrlWithQueryParams(req, key, value) {
   return `?${key}=${value}&${Object.keys(req.query).filter((x) => x !== key).map((x) => `${x}=${req.query[x]}`).join('&')}`
 }
 module.exports = (req, res, next, data) => res.send(`
-  ${require('./header.html')(req)}
+  ${require('./partials/header.html')(req)}
     <appkit-app>
       <nav-breadcrumb size="small">
         <ul>
@@ -64,7 +64,7 @@ module.exports = (req, res, next, data) => res.send(`
         </div>
       `).join('')}
       </div>
-      ${require('./pagination.html')(req, data)}
+      ${require('./partials/pagination.html')(req, data)}
     </appkit-app>
-  ${require('./footer.html')(req, res)}
+  ${require('./partials/footer.html')(req, res)}
 `);

@@ -2,7 +2,7 @@ function createUrlWithQueryParams(req, key, value) {
   return `?${key}=${value}&${Object.keys(req.query).filter((x) => x !== key).map((x) => `${x}=${req.query[x]}`).join('&')}`
 }
 module.exports = (req, res, next, data) => res.send(`
-  ${require('./header.html')(req)}
+  ${require('./partials/header.html')(req)}
     <appkit-app>
       <nav-breadcrumb size="small">
         <ul>
@@ -18,14 +18,35 @@ module.exports = (req, res, next, data) => res.send(`
             <h4>Browse Labels</h4>
           </div>
           <div class="list-item labels" style="display:flex;justify-content:center">
-          ${data.rows.map((row) => `
+          ${data.labels.map((row) => `
           <a class="pill" href="/ui/browse.html?labels=${row.name}">
             <i class="fa fa-tag" aria-hidden="true"></i> 
             <span class="name">${row.name}</span>
           </a>
-        `).join('')}
+          `).join('')}
+          </div>
+        </div>
+        <div class="panel list">
+          <div class="list-item">
+            <h4>Favorites</h4>
+          </div>
+          ${(!data.favorites || data.favorites.length === 0) ? `
+          <div class="list-item labels" style="display:flex;justify-content:center">
+            No favorites
+          </div>
+          ` : data.favorites.map((favorite) => `
+          <div class="list-item">
+            <div style="align-self:left; display:flex;width:80%;">
+              <img src="/${favorite.icon}" style="max-height:1.5rem;max-width:1.5rem;padding-right:0.5rem"/>
+              <a class="name" style="text-align:left;" href="/ui/${favorite.node_type.replace('.', '/')}/${favorite.node}#changes">
+                ${favorite.name}<br/>
+                <sub>${favorite.node_type}</sub>
+              </a>
+            </div>
+          </div>
+          `).join('')}
         </div>
       </main>
     </appkit-app>
-  ${require('./footer.html')(req, res)}
+  ${require('./partials/footer.html')(req, res)}
 `);

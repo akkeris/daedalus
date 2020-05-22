@@ -76,8 +76,6 @@ class SideMenu extends HTMLElement {
 
       nav-sidemenu > ul > li {
         list-style: none;
-        background-color: var(--divider-background-color);
-        border-bottom: 1px solid var(--divider-color);
       }
 
       nav-sidemenu > ul > li > a:hover {

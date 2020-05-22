@@ -1,8 +1,8 @@
 const {formatBytes} = require('../../../common/format.js');
 module.exports = (req, res, next, data) => res.send(`
-  ${require('./header.html')(req)}
+  ${require('./partials/header.html')(req)}
     <appkit-app>
-      ${require('./object-header.html')(req, data, 'Databases', 'fa-database', `/ui/oracle/databases/${data.database}`, data.database, 'oracle/databases')}
+      ${require('./partials/object-header.html')(req, data, 'Databases', 'fa-database', `/ui/oracle/databases/${data.database}`, data.database, 'oracle/databases')}
       <div>
         <h2>${data.human_name}<sub>${data.human_name !== data.name ? `(${data.name})` : ``}</sub></h2>
         ${data.annotations && data.annotations.description ? `
@@ -43,16 +43,16 @@ module.exports = (req, res, next, data) => res.send(`
         <x-tab><a href="#settings">Settings</a></x-tab>
       </x-tabs>
       <div name="metadata" class="tab-panel">
-        ${require('./metadata.html')(req, data, `/ui/oracle/databases/${data.database}`)}
+        ${require('./partials/metadata.html')(req, data, `/ui/oracle/databases/${data.database}`)}
       </div>
       <div name="changes" class="tab-panel list">
-        ${require('./changes.html')(req, data)}
+        ${require('./partials/changes.html')(req, data)}
       </div>
       <div name="used_by" class="list tab-panel"> 
-        ${require('./used_by.html')(req, data)}
+        ${require('./partials/used_by.html')(req, data)}
       </div>
       <div name="uses" class="list tab-panel"> 
-        ${require('./uses.html')(req, data)}
+        ${require('./partials/uses.html')(req, data)}
       </div>
       <div name="tables" class="list tab-panel">
         ${data.tables.filter((x) => !x.is_view).map((table) => `
@@ -97,5 +97,5 @@ module.exports = (req, res, next, data) => res.send(`
         </div> `).join("")}
       </div>
     </appkit-app>
-  ${require('./footer.html')(req, res)}
+  ${require('./partials/footer.html')(req, res)}
 `);

@@ -1,0 +1,59 @@
+const {formatBytes} = require('../../../common/format.js');
+
+function formatFieldValue(value, format) {
+  if(format === 'date') {
+    return (new Date(value)).toLocaleString();
+  } else if (format === 'percent') {
+    return (value * 100).toFixed(2);
+  } else if (format === 'array_length') {
+    return value.length;
+  } else if (format === 'array_joined') {
+    return value.join(', ');
+  } else {
+    return value;
+  }
+}
+
+module.exports = (req, res, next, type) => res.send(`
+  ${require('./partials/header.html')(req)}
+    <appkit-app>
+      ${require('./partials/object-header.html')(req, req.params.node, type.human_name, type.fa_icon, `/ui/${type.name}/${req.params.node.node}`, req.params.node.node, type.name)}
+      <div>
+        <h2>${req.params.node.human_name || req.params.node.name}</h2>
+        ${req.params.node.annotations && req.params.node.annotations.description ? `
+        <p class="description">${req.params.node.annotations.description}</p>
+        ` : ''}
+        <dl class="facts">
+          <dt>Scanned</dt>
+          <dd>${new Date(req.params.node.observed_on).toLocaleString()}</dd>
+          ${req.params.node.fields.map((field) => `
+          <dt>${field.friendly_name}</dt>
+          <dd>${formatFieldValue(field.value, field.format)}</dd>
+          `).join('')}
+        </dl>
+      </div>
+      <x-tabs>
+        <x-tab><a href="#metadata">Metadata</a></x-tab>
+        <x-tab><a href="#changes">Changes</a></x-tab>
+        <x-tab><a href="#used_by">Used By</a></x-tab>
+        <x-tab><a href="#uses">Uses</a></x-tab>
+        <x-tab><a href="#definition">Definition</a></x-tab>
+      </x-tabs>
+      <div name="metadata" class="tab-panel">
+        ${require('./partials/metadata.html')(req, req.params.node, `/ui/${type.name}/${req.params.node.node}`)}
+      </div>
+      <div name="changes" class="tab-panel list">
+        ${require('./partials/changes.html')(req, req.params.node)}
+      </div>
+      <div name="used_by" class="list tab-panel"> 
+        ${require('./partials/used_by.html')(req, req.params.node)}
+      </div>
+      <div name="uses" class="list tab-panel"> 
+        ${require('./partials/uses.html')(req, req.params.node)}
+      </div>
+      <div name="definition" class="tab-panel">
+        <pre><code class="hljs json">${JSON.stringify(req.params.node.definition, null, 2)}</code></pre>
+      </div>
+    </appkit-app>
+  ${require('./partials/footer.html')(req, res)}
+`);

@@ -6,6 +6,7 @@ begin
 
   create table if not exists urls.certificates_log (
     certificate_log uuid not null primary key,
+    certificate uuid not null,
     fingerprint_hex_160 varchar(40) not null,
     fingerprint_hex_256 varchar(64) not null,
     subject varchar(1024) not null,
@@ -24,6 +25,7 @@ begin
   create or replace view urls.certificates as
     with ordered_list as ( select
       certificate_log,
+      certificate,
       fingerprint_hex_160,
       fingerprint_hex_256,
       subject,
@@ -37,11 +39,12 @@ begin
       deleted,
       row_number() over (partition by fingerprint_hex_160, fingerprint_hex_256 order by observed_on desc) as rn
     from urls.certificates_log)
-    select certificate_log, fingerprint_hex_160, fingerprint_hex_256, subject, alternative_names, serial_number, issued, expires, issuer, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select certificate_log, certificate, fingerprint_hex_160, fingerprint_hex_256, subject, alternative_names, serial_number, issued, expires, issuer, definition, observed_on from ordered_list where rn=1 and deleted = false;
   comment on view urls.certificates IS E'@name urlsCertificates';
 
   create table if not exists urls.urls_log (
     url_log uuid not null primary key,
+    url uuid not null,
     protocol varchar(1024) not null,
     hostname varchar(1024) not null,
     port varchar(1024) not null,
@@ -57,6 +60,7 @@ begin
   create or replace view urls.urls as
     with ordered_list as ( select
       url_log,
+      url,
       protocol,
       hostname,
       port,
@@ -67,7 +71,7 @@ begin
       deleted,
       row_number() over (partition by protocol, hostname, port, pathname order by observed_on desc) as rn
     from urls.urls_log)
-    select url_log, protocol, hostname, port, pathname, definition, certificate, observed_on from ordered_list where rn=1 and deleted = false;
+    select url_log, url, protocol, hostname, port, pathname, definition, certificate, observed_on from ordered_list where rn=1 and deleted = false;
 
 end
 $$;

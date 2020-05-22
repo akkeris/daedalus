@@ -41,13 +41,13 @@ begin
       apps_log.app_log,
       apps_log.app,
       apps_log.name,
-      spaces_log.space,
+      spaces_log.space_log,
       apps_log.definition,
       apps_log.observed_on,
       apps_log.deleted,
-      row_number() over (partition by apps_log.name, spaces_log.space order by apps_log.observed_on desc) as rn
+      row_number() over (partition by apps_log.name, spaces_log.space_log order by apps_log.observed_on desc) as rn
     from akkeris.apps_log join akkeris.spaces_log on apps_log.space_log = spaces_log.space_log) 
-    select app_log, app, name, space, definition, observed_on from ordered_list where rn=1 and deleted = false;
+    select app_log, app, name, space_log, definition, observed_on from ordered_list where rn=1 and deleted = false;
 
 
   create table if not exists akkeris.addon_services_log (
@@ -91,20 +91,20 @@ begin
       addons_log.addon_log,
       addons_log.addon,
       addons_log.name,
-      apps_log.app,
-      addon_services_log.addon_service,
+      apps_log.app_log,
+      addon_services_log.addon_service_log,
       addons_log.definition,
       addons_log.observed_on,
       addons_log.deleted as addon_deleted,
       apps_log.deleted as app_deleted,
       addon_services_log.deleted as addon_service_deleted,
       spaces_log.deleted as space_deleted,
-      row_number() over (partition by addons_log.addon, addons_log.name, apps_log.app, addon_services_log.addon_service order by addons_log.observed_on desc) as rn
+      row_number() over (partition by addons_log.addon, addons_log.name, apps_log.app_log, addon_services_log.addon_service_log order by addons_log.observed_on desc) as rn
     from akkeris.addons_log 
       join akkeris.addon_services_log on addon_services_log.addon_service_log = addons_log.addon_service_log 
       join akkeris.apps_log on apps_log.app_log = addons_log.app_log 
       join akkeris.spaces_log on spaces_log.space_log = apps_log.space_log) 
-    select addon_log, addon, name, app, addon_service, definition, observed_on 
+    select addon_log, addon, name, app_log, addon_service_log, definition, observed_on 
     from ordered_list where rn=1 and addon_deleted = false and app_deleted = false and addon_service_deleted = false and space_deleted = false;
 
 
@@ -128,23 +128,23 @@ begin
       addon_attachments_log.addon_attachment_log,
       addon_attachments_log.addon_attachment,
       addon_attachments_log.name,
-      addons_log.addon,
-      apps_log.app,
-      addon_services_log.addon_service,
+      addons_log.addon_log,
+      apps_log.app_log,
+      addon_services_log.addon_service_log,
       addon_attachments_log.definition,
       addon_attachments_log.observed_on,
       addon_attachments_log.deleted as addon_deleted,
       apps_log.deleted as app_deleted,
       addon_services_log.deleted as addon_service_deleted,
       spaces_log.deleted as space_deleted,
-      row_number() over (partition by addon_attachments_log.name, addons_log.addon, addon_attachments_log.name, apps_log.app, addon_services_log.addon_service order by addon_attachments_log.observed_on desc) as rn
+      row_number() over (partition by addon_attachments_log.name, addons_log.addon, addon_attachments_log.name, apps_log.app_log, addon_services_log.addon_service_log order by addon_attachments_log.observed_on desc) as rn
     from akkeris.addon_attachments_log 
       join akkeris.addons_log on addons_log.addon_log = addon_attachments_log.addon_log
       join akkeris.addon_services_log on addon_services_log.addon_service_log = addon_attachments_log.addon_service_log 
       join akkeris.apps_log on apps_log.app_log = addon_attachments_log.app_log 
       join akkeris.spaces_log on spaces_log.space_log = apps_log.space_log
     ) 
-    select addon_attachment_log, addon_attachment, addon, name, app, addon_service, definition, observed_on 
+    select addon_attachment_log, addon_attachment, addon_log, name, app_log, addon_service_log, definition, observed_on 
     from ordered_list where rn=1 and addon_deleted = false and app_deleted = false and addon_service_deleted = false and space_deleted = false;
 
 
@@ -189,8 +189,8 @@ begin
       select
         routes_log.route_log,
         routes_log.route,
-        sites_log.site,
-        apps_log.app,
+        sites_log.site_log,
+        apps_log.app_log,
         routes_log.source_path,
         routes_log.target_path,
         routes_log.definition,
@@ -202,7 +202,7 @@ begin
         join akkeris.sites_log on routes_log.site_log = sites_log.site_log
         join akkeris.apps_log on apps_log.app_log = routes_log.app_log
   ) 
-  select route_log, route, site, app, source_path, target_path, definition, observed_on from ordered_list where rn=1 and routes_deleted = false and sites_deleted = false;
+  select route_log, route, site_log, app_log, source_path, target_path, definition, observed_on from ordered_list where rn=1 and routes_deleted = false and sites_deleted = false;
 
 end
 $$;

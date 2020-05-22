@@ -861,7 +861,8 @@ p.description {
 }
 
 pre > code.hljs.sql,
-pre > code.hljs.json
+pre > code.hljs.json,
+pre > code.hljs.diff
 {
   background-color: var(--subtle-background-color);
   border-radius: var(--border-radius-containers);
@@ -886,3 +887,38 @@ form.action > button {
   padding: 0 0.25rem;
 }
 
+.popup {
+  display:none;
+  position: fixed;
+  top: 5rem;
+  left: 50vw;
+  transform: translateX(calc(-50%));
+  max-width:80%;
+  max-height:80vh;
+  background-color: var(--default-background);
+  min-width:400px;
+}
+.popup > :not(.close) {
+  overflow:auto;
+  max-height:70vh;
+}
+
+.popup.open {
+  width:auto;
+  display:block;
+}
+
+.popup button.close {
+  outline: none;
+  border:0px;
+  background-image:none;
+}
+
+nav-sidemenu ul li h5 {
+  margin: auto;
+  padding: 0.75em 2em;
+  font-family: var(--font-main-family);
+  color: var(--font-subtle-color);
+  font-weight: 500;
+  margin-top: 1rem;
+}

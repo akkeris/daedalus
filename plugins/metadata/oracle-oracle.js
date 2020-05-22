@@ -13,8 +13,8 @@ function parseOracleTNS(connection) {
 async function writeOracleTablesFromDatabases(pgpool) {
   const { rows: tables } = await pgpool.query(`
     select
-      tables."table",
-      tables.database,
+      tables.table_log,
+      tables.database_log,
       tables.catalog,
       tables.schema,
       tables.name,
@@ -26,34 +26,27 @@ async function writeOracleTablesFromDatabases(pgpool) {
       databases.port as dbport
     from
       oracle.tables
-      join oracle.databases on tables.database = databases.database
+      join oracle.databases on tables.database_log = databases.database_log
   `);
   debug(`Examining ${tables.length} oracle tables.`);
 
-  const databaseType = (await pgpool.query('select "type" from metadata.node_types where name = \'oracle/databases\'')).rows[0].type;
-  const tableType = (await pgpool.query('select "type" from metadata.node_types where name = \'oracle/tables\'')).rows[0].type;
   await Promise.all(tables.map(async (table) => {
     try {
-      await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-        [table.database, `${table.dbhost}:${table.dbport}/${table.dbname}`, databaseType]);
-      await pgpool.query('insert into metadata.nodes (node, name, type, definition) values ($1, $2, $3, $4) on conflict (node) do nothing',
-        [table.table, `${table.catalog}.${table.schema}.${table.name} ${table.is_view ? '(view)' : ''}`, tableType, { ddl: table.definition }]);
       await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-        [table.database, table.table]);
+        [table.database_log, table.table_log]);
     } catch (e) {
-      debug(`Unable to link table ${table.table} to database ${table.database} due to: ${e.message}`);
+      debug(`Unable to link table ${table.table_log} to database ${table.database_log} due to: ${e.message}`);
     }
   }));
-  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select "table" from oracle.tables)', [tableType]);
 }
 
 async function writeOracleColumnsFromTables(pgpool) {
   const { rows: columns } = await pgpool.query(`
     select
-      columns."column",
-      columns."table",
+      columns.column_log,
+      columns.table_log,
       tables.name as table_name,
-      columns.database,
+      columns.database_log,
       columns.catalog,
       columns.schema,
       columns.name,
@@ -61,24 +54,18 @@ async function writeOracleColumnsFromTables(pgpool) {
       columns.observed_on
     from
       oracle.columns
-        join oracle.tables on columns.table = tables.table
+        join oracle.tables on columns.table_log = tables.table_log
   `);
   debug(`Examining ${columns.length} oracle columns.`);
 
-  const columnType = (await pgpool.query('select "type" from metadata.node_types where name = \'oracle/columns\'')).rows[0].type;
-
   await Promise.all(columns.map(async (column) => {
     try {
-      await pgpool.query('insert into metadata.nodes (node, name, type, definition) values ($1, $2, $3, $4) on conflict (node) do nothing',
-        [column.column, `${column.catalog}.${column.schema}.${column.table_name}.${column.name}`, columnType, { type: column.definition }]);
       await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-        [column.table, column.column]);
+        [column.table_log, column.column_log]);
     } catch (e) {
-      debug(`Unable to link column ${column.column} and table ${column.table} due to: ${e.message}`);
+      debug(`Unable to link column ${column.column_log} and table ${column.table_log} due to: ${e.message}`);
     }
   }));
-
-  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select "column" from oracle.columns)', [columnType]);
 }
 
 // Finds and links databases that have dblinks between them.
@@ -86,7 +73,8 @@ async function writeOracleRoleFromDatabases(pgpool) {
   const { rows: foreignServers } = await pgpool.query(`
     select
       foreign_servers.foreign_server_log,
-      foreign_servers.database,
+      foreign_servers.foreign_server,
+      foreign_servers.database_log,
       databases.name as from_name,
       databases.host as from_host,
       databases.port as from_port,
@@ -98,49 +86,37 @@ async function writeOracleRoleFromDatabases(pgpool) {
       foreign_servers.observed_on
     from
       oracle.foreign_servers
-      join oracle.databases on foreign_servers.database = databases.database
+      join oracle.databases on foreign_servers.database_log = databases.database_log
   `, []);
-
-  const databaseType = (await pgpool.query('select "type" from metadata.node_types where name = \'oracle/databases\'')).rows[0].type;
-  const roleType = (await pgpool.query('select "type" from metadata.node_types where name = \'oracle/roles\'')).rows[0].type;
 
   await Promise.all(foreignServers.map(async (server) => {
     try {
       const { name, host, port } = parseOracleTNS(server.connection);
       const { rows: [db] } = await pgpool.query(`
-        insert into oracle.databases_log (database, name, host, port, deleted)
-        values (uuid_generate_v4(), $1, $2, $3, $4)
+        insert into oracle.databases_log (database_log, database, name, host, port, deleted)
+        values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
         on conflict (name, host, port, deleted) 
-        do update set name = $1 
-        returning database, host, port, name
-      `, [name, host, port, false]);
+        do update set name = $2
+        returning database_log, database, host, port
+      `, [host + port + name, name, host, port, false]);
       const { rows: roles } = await pgpool.query(`
-        select role, database, username from oracle.roles_log where database = $1 and username = $2
-      `, [db.database, server.username]);
+        select role_log, database_log, username from oracle.roles_log where database_log = $1 and username = $2
+      `, [db.database_log, server.username]);
       let role = roles[0];
       if (roles.length === 0) {
         const { rows: newRoles } = await pgpool.query(`
-          insert into oracle.roles_log (role, database, username, password, options) values (uuid_generate_v4(), $1, $2, '{}'::jsonb, '{}'::jsonb) returning role, database, username
-        `, [db.database, server.username]);
+          insert into oracle.roles_log (role_log, role, database_log, username, password, options) values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, '{}'::jsonb, '{}'::jsonb) returning role_log, role, database_log, username
+        `, [`${host}.${server.name}.${server.username}`, db.database_log, server.username]);
         role = newRoles[0]; // eslint-disable-line prefer-destructuring
       }
-      await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-        [role.role, role.username, roleType]);
-      await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-        [server.database, `${server.from_host}:${server.from_port}/${server.from_name}`, databaseType]);
-      await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-        [db.database, `${db.host}:${db.port}/${db.name}`, databaseType]);
       await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-        [server.database, role.role]);
+        [server.database_log, role.role_log]);
       await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-        [role.role, db.database]);
+        [role.role_log, db.database_log]);
     } catch (e) {
-      debug(`Unable to link database ${server.database} and foreign server ${server.foreign_server_log} due to: ${e.message}`);
+      debug(`Unable to link database ${server.database_log} and foreign server ${server.foreign_server_log} due to: ${e.message}`);
     }
   }));
-
-  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select database from oracle.databases)', [databaseType]);
-  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select role from oracle.roles)', [roleType]);
 }
 
 async function init() {} // eslint-disable-line no-empty-function

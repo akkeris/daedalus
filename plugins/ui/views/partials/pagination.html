@@ -19,7 +19,7 @@ module.exports = (req, data) => {
           if (item === '...') {
             return `<li class="break">...</li>`;
           } else {
-            return `<li class="${item === page ? 'selected' : ''}"><a href="?page=${item}&${template}">${item}</a></li>`;
+            return `<li class="${item === page ? 'selected' : ''}"><a href="?page=${item}&${template}">${item.toLocaleString()}</a></li>`;
           }
         }).join('')}
         <li><a rel="next" class="${page !== pages ? '' : 'disabled'}" href="?page=${page + 1}&${template}"}>Next</a></li>

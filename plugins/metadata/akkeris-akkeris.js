@@ -1,31 +1,5 @@
 const debug = require('debug')('daedalus:metadata');
 
-async function writeAkkerisApps(pgpool) {
-  const { rows: apps } = await pgpool.query(`
-    select app_log, name, definition from akkeris.apps
-  `);
-  const appType = (await pgpool.query('select "type" from metadata.node_types where name = \'akkeris/apps\'')).rows[0].type;
-  await Promise.all(apps.map((async (app) => {
-    await pgpool.query('insert into metadata.nodes (node, name, type, definition) values ($1, $2, $3, $4) on conflict (node) do update set name = $2, definition = $4',
-      [app.app_log, app.name, appType, app.definition]);
-  })));
-
-  await pgpool.query('delete from metadata.nodes where nodes."type" = $1 and nodes.node not in (select app_log from akkeris.apps)', [appType]);
-}
-
-async function writeAkkerisSites(pgpool) {
-  const { rows: sites } = await pgpool.query(`
-    select site_log, name, definition from akkeris.sites
-  `);
-  const siteType = (await pgpool.query('select "type" from metadata.node_types where name = \'akkeris/sites\'')).rows[0].type;
-  await Promise.all(sites.map((async (site) => {
-    await pgpool.query('insert into metadata.nodes (node, name, type, definition) values ($1, $2, $3, $4) on conflict (node) do update set name = $2, definition = $4',
-      [site.site_log, site.name, siteType, site.definition]);
-  })));
-
-  await pgpool.query('delete from metadata.nodes where nodes."type" = $1 and nodes.node not in (select site_log from akkeris.sites)', [siteType]);
-}
-
 async function writeAkkerisAppsToSites(pgpool) {
   const { rows: routes } = await pgpool.query(`
     select
@@ -42,24 +16,14 @@ async function writeAkkerisAppsToSites(pgpool) {
       akkeris.apps.definition as app_definition,
       akkeris.routes.observed_on
     from akkeris.routes
-      join akkeris.sites on akkeris.routes.site = akkeris.sites.site
-      join akkeris.apps on akkeris.apps.app = akkeris.routes.app
+      join akkeris.sites on akkeris.routes.site_log = akkeris.sites.site_log
+      join akkeris.apps on akkeris.apps.app_log = akkeris.routes.app_log
     where akkeris.apps.definition->>'web_url' is not null
   `);
   debug(`Examining ${routes.length} routes for links from apps to sites.`);
 
-  const appType = (await pgpool.query('select "type" from metadata.node_types where name = \'akkeris/apps\'')).rows[0].type;
-  const sitesType = (await pgpool.query('select "type" from metadata.node_types where name = \'akkeris/sites\'')).rows[0].type;
-  const routeType = (await pgpool.query('select "type" from metadata.node_types where name = \'akkeris/routes\'')).rows[0].type;
-
   await Promise.all(routes.map(async (route) => {
     try {
-      await pgpool.query('insert into metadata.nodes (node, name, type, definition) values ($1, $2, $3, $4) on conflict (node) do update set name = $2, definition = $4',
-        [route.app_log, route.app_name, appType, route.app_definition]);
-      await pgpool.query('insert into metadata.nodes (node, name, type, definition) values ($1, $2, $3, $4) on conflict (node) do update set name = $2, definition = $4',
-        [route.site_log, route.site_name, sitesType, route.site_definition]);
-      await pgpool.query('insert into metadata.nodes (node, name, type, definition) values ($1, $2, $3, $4) on conflict (node) do update set name = $2, definition = $4',
-        [route.route_log, `Proxy https://${route.site_name + route.source_path} to ${route.app_path + route.target_path.substring(1)}`, routeType, route.route_definition]);
       await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
         [route.site_log, route.route_log]);
       await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
@@ -68,15 +32,11 @@ async function writeAkkerisAppsToSites(pgpool) {
       debug(`Error cannot add link between app ${route.app_log} and route ${route.route_log} and site ${route.site_log} due to: ${e.message}`);
     }
   }));
-  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select route_log from akkeris.routes)', [routeType]);
-  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select site_log from akkeris.sites)', [sitesType]);
 }
 
 async function init() {} // eslint-disable-line no-empty-function
 
 async function run(pgpool) {
-  await writeAkkerisApps(pgpool);
-  await writeAkkerisSites(pgpool);
   await writeAkkerisAppsToSites(pgpool);
 }
 

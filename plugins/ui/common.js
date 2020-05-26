@@ -72,9 +72,9 @@ function diffJSON(o, n) {
 }
 
 async function addExpressAnnotationsAndLabelRoutes(pgpool, app, typeName, param) {
-  const { rows: [{ type }] } = await pgpool.query(`select type from metadata.node_types where name='${typeName}'`);
   app.post(`/ui/${typeName}/:${param}/labels`, async (req, res) => {
     try {
+      const { rows: [{ type }] } = await pgpool.query(`select type from metadata.node_types where name='${typeName}'`);
       await pgpool.query(`
         insert into metadata.labels (label, name, value, implicit, node, type) 
         values (uuid_generate_v4(), $1, $2, false, $3, $4) 
@@ -89,6 +89,7 @@ async function addExpressAnnotationsAndLabelRoutes(pgpool, app, typeName, param)
   });
   app.post(`/ui/${typeName}/:${param}/annotations`, async (req, res) => {
     try {
+      const { rows: [{ type }] } = await pgpool.query(`select type from metadata.node_types where name='${typeName}'`);
       await pgpool.query(`
         insert into metadata.annotations (annotation, name, value, implicit, node, type) 
         values (uuid_generate_v4(), $1, $2, false, $3, $4) 
@@ -103,6 +104,7 @@ async function addExpressAnnotationsAndLabelRoutes(pgpool, app, typeName, param)
   });
   app.get(`/ui/${typeName}/:${param}/labels/:label/delete`, async (req, res) => {
     try {
+      const { rows: [{ type }] } = await pgpool.query(`select type from metadata.node_types where name='${typeName}'`);
       await pgpool.query('delete from metadata.labels where node = $1 and name = $2 and type = $3',
         [req.params[param], req.params.label, type]);
       res.redirect(`/ui/${typeName}/${req.params[param]}#metadata`);
@@ -113,6 +115,7 @@ async function addExpressAnnotationsAndLabelRoutes(pgpool, app, typeName, param)
   });
   app.get(`/ui/${typeName}/:${param}/annotations/:annotation/delete`, async (req, res) => {
     try {
+      const { rows: [{ type }] } = await pgpool.query(`select type from metadata.node_types where name='${typeName}'`);
       await pgpool.query('delete from metadata.annotations where node = $1 and name = $2 and type = $3',
         [req.params[param], req.params.annotation, type]);
       res.redirect(`/ui/${typeName}/${req.params[param]}#metadata`);

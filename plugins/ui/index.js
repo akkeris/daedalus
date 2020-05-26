@@ -121,12 +121,14 @@ async function init(pgpool, bus, app) {
   await oracleColumns(pgpool, bus, app);
 
   // Automatically manage aws, akkeris and kubernetes node pages.
-  (await pgpool.query('select * from metadata.node_types where name like \'aws/%\' or name like \'kubernetes/%\' or name like \'akkeris/%\' or name like \'urls/%\''))
-    .rows
-    .forEach((type) => {
-      addExpressAnnotationsAndLabelRoutes(pgpool, app, type.name, 'id');
-      app.get(`/ui/${type.name}/:node`, async (req, res, next) => grab('./views/generic.node.html', req, res, next, type));
-    });
+  setTimeout(async () => {
+    (await pgpool.query('select * from metadata.node_types where name like \'aws/%\' or name like \'kubernetes/%\' or name like \'akkeris/%\' or name like \'urls/%\''))
+      .rows
+      .forEach((type) => {
+        addExpressAnnotationsAndLabelRoutes(pgpool, app, type.name, 'id');
+        app.get(`/ui/${type.name}/:node`, async (req, res, next) => grab('./views/generic.node.html', req, res, next, type));
+      });
+  }, 1000);
   await changes(pgpool, bus, app);
   debug('initialized');
 }

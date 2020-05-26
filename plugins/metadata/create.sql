@@ -598,8 +598,8 @@ begin
   -- Procedures and views for familial relationships in-between nodes
   create table if not exists metadata.families (
     connection uuid not null primary key,
-    parent uuid references metadata.nodes_log_cache("node_log") on delete cascade not null,
-    child uuid references metadata.nodes_log_cache("node_log") on delete cascade not null,
+    parent uuid not null,
+    child uuid not null,
     observed_on timestamp with time zone default now()
   );
   create index if not exists metadata_families_parent on metadata.families(parent);

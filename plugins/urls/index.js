@@ -278,15 +278,15 @@ async function run(pgpool) {
     ...await writeHttpFromAkkerisApps(pgpool, urlType, certificateType),
   ];
   // detect delections
-  const { rows: activeUrls } = await pgpool.query('select url_log, protocol, hostname, port, pathname, definition, certificate from urls.urls');
+  const { rows: activeUrls } = await pgpool.query('select url_log, url, protocol, hostname, port, pathname, definition, certificate from urls.urls');
   activeUrls.filter((u) => !urlsAndCerts.some((v) => u.url_log === v.url_log)).map(async (deadUrl) => { // eslint-disable-line max-len
     await pgpool.query(`
       insert into urls.urls_log 
-        (url_log, protocol, hostname, port, pathname, definition, certificate, deleted) 
+        (url_log, url, protocol, hostname, port, pathname, definition, certificate, deleted) 
       values 
-        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
+        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8)
       on conflict do nothing
-    `, [deadUrl.protocol, deadUrl.hostname, deadUrl.port, deadUrl.pathname, deadUrl.definition, deadUrl.certificate, true]);
+    `, [deadUrl.url, deadUrl.protocol, deadUrl.hostname, deadUrl.port, deadUrl.pathname, deadUrl.definition, deadUrl.certificate, true]);
   });
 
   debug('Running urls plugin... done');

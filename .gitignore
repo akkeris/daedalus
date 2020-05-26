@@ -109,3 +109,4 @@ dist
 coverage/
 instantclient_19_6/
 build.sh
+build-ds1.sh

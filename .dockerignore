@@ -4,3 +4,4 @@ node_modules
 .env*
 coverage
 build.sh
+build-ds1.sh

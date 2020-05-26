@@ -7,7 +7,7 @@ async function writeAkkersAppsFromDeployments(pgpool, type, deployments) {
   debug(`Examining ${deployments.length} deployments for links to apps.`);
 
   await Promise.all(deployments.map(async (deployment) => {
-    if (deployment.definition.metadata.labels['akkeris.io/app-uuid']) {
+    if (deployment.definition.metadata && deployment.definition.metadata.labels && deployment.definition.metadata.labels['akkeris.io/app-uuid']) {
       try {
         const { rows: [{ app_log }] } = await pgpool.query('select app_log, name, definition from akkeris.apps where app = $1', // eslint-disable-line camelcase
           [deployment.definition.metadata.labels['akkeris.io/app-uuid']]);

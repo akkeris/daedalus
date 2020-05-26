@@ -7,11 +7,6 @@ async function writePostgresqlFromConfigMaps(pgpool, bus, type, configMapRecords
     return;
   }
   debug(`Examining ${configMapRecords.length} configMaps for envs that have a postgres string.`);
-
-  const databaseType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/databases\'')).rows[0].type;
-  const roleType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/roles\'')).rows[0].type;
-  const configMapType = (await pgpool.query('select "type" from metadata.node_types where name = \'kubernetes/configmaps\'')).rows[0].type;
-
   await Promise.all(configMapRecords.map(async (configMap) => {
     if (configMap.definition.data) {
       await Promise.all(Object.keys(configMap.definition.data).map(async (env) => {
@@ -39,16 +34,12 @@ async function writePostgresqlFromConfigMaps(pgpool, bus, type, configMapRecords
             assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
             assert.ok(configMap.node_log, 'configMap.config_map was undefined.');
             assert.ok(configMap.name, 'configMap.name was undefined.');
-            assert.ok(configMapType, 'configMapType was undefined.');
             assert.ok(role.rows[0].role, 'role.rows[0].role was undefined.');
             assert.ok(role.rows[0].username, 'role.rows[0].username was undefined.');
-            assert.ok(roleType, 'roleType was undefined.');
             assert.ok(db.rows[0].database, 'db.rows[0].database was undefined.');
             db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
-
-            assert.ok(databaseType, 'databaseType was undefined.');
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-              [role.rows[0].role, db.rows[0].database_log]);
+              [role.rows[0].role_log, db.rows[0].database_log]);
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
               [configMap.node_log, role.rows[0].role_log]);
           } catch (e) {
@@ -112,11 +103,6 @@ async function writePostgresqlFromPods(pgpool, bus, type, podRecords) {
     return;
   }
   debug(`Examining ${podRecords.length} pods for envs that have a postgres string.`);
-
-  const databaseType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/databases\'')).rows[0].type;
-  const roleType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/roles\'')).rows[0].type;
-  const podType = (await pgpool.query('select "type" from metadata.node_types where name = \'kubernetes/pods\'')).rows[0].type;
-
   await Promise.all(podRecords.map(async (pod) => {
     await Promise.all((pod.definition.spec.containers || [])
       .reduce((envs, container) => envs.concat((container.env || []).filter((env) => env.value && env.value.startsWith('postgres://')))
@@ -145,15 +131,12 @@ async function writePostgresqlFromPods(pgpool, bus, type, podRecords) {
               assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
               assert.ok(pod.node_log, 'pod.node_log was undefined.');
               assert.ok(pod.name, 'pod.name was undefined.');
-              assert.ok(podType, 'podType was undefined.');
               assert.ok(role.rows[0].role, 'role.rows[0].role was undefined.');
               assert.ok(role.rows[0].username, 'role.rows[0].username was undefined.');
-              assert.ok(roleType, 'roleType was undefined.');
               assert.ok(db.rows[0].database, 'db.rows[0].database was undefined.');
               db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
-              assert.ok(databaseType, 'databaseType was undefined.');
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [role.rows[0].role, db.rows[0].database_log]);
+                [role.rows[0].role_log, db.rows[0].database_log]);
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
                 [pod.node_log, role.rows[0].role_log]);
             } catch (e) {
@@ -173,9 +156,6 @@ async function writePostgresqlFromDeployments(pgpool, bus, type, deploymentRecor
     return;
   }
   debug(`Examining ${deploymentRecords.length} deployment for envs that have a postgres string.`);
-
-  const databaseType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/databases\'')).rows[0].type;
-
   await Promise.all(deploymentRecords.map(async (deployment) => {
     await Promise.all((deployment.definition.spec.template.spec.containers || [])
       .reduce((envs, container) => envs.concat((container.env || []).filter((env) => env.value && env.value.startsWith('postgres://')))
@@ -203,7 +183,6 @@ async function writePostgresqlFromDeployments(pgpool, bus, type, deploymentRecor
               assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
               assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
               db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
-              assert.ok(databaseType, 'databaseType was undefined.');
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
                 [role.rows[0].role_log, db.rows[0].database_log]);
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',

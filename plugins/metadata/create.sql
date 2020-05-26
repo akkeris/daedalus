@@ -279,7 +279,7 @@ begin
     select node_types.icon as "icon", node_types.type, constraints_log.constraint_log as node_log, constraints_log.constraint as node, constraints_log.name, ('{}')::jsonb as definition, '{}'::jsonb as status, constraints_log.observed_on, false as transient, deleted
         from oracle.constraints_log, metadata.node_types where node_types.name = 'oracle/constraints'
     union all
-    select node_types.icon as "icon", node_types.type, databases_log.database_log as node_log, databases_log.database as node, databases_log.name, databases_log.config as definition, '{}'::jsonb as status, databases_log.observed_on, false as transient, deleted
+    select node_types.icon as "icon", node_types.type, databases_log.database_log as node_log, databases_log.database as node, databases_log.host || '/' || databases_log.name as name, databases_log.config as definition, '{}'::jsonb as status, databases_log.observed_on, false as transient, deleted
         from oracle.databases_log, metadata.node_types where node_types.name = 'oracle/databases'
     union all
     select node_types.icon as "icon", node_types.type, foreign_servers_log.foreign_server_log as node_log, foreign_servers_log.foreign_server as node, foreign_servers_log.name, ('{}')::jsonb as definition, '{}'::jsonb as status, foreign_servers_log.observed_on, false as transient, deleted
@@ -300,7 +300,7 @@ begin
     select node_types.icon as "icon", node_types.type, constraints_log.constraint_log as node_log, constraints_log.constraint as node, constraints_log.name, ('{}')::jsonb as definition, '{}'::jsonb as status, constraints_log.observed_on, false as transient, deleted
         from postgresql.constraints_log, metadata.node_types where node_types.name = 'postgresql/constraints'
     union all
-    select node_types.icon as "icon", node_types.type, databases_log.database_log as node_log, databases_log.database as node, databases_log.name, databases_log.config as definition, '{}'::jsonb as status, databases_log.observed_on, false as transient, deleted
+    select node_types.icon as "icon", node_types.type, databases_log.database_log as node_log, databases_log.database as node, databases_log.host || '/' || databases_log.name as name, databases_log.config as definition, '{}'::jsonb as status, databases_log.observed_on, false as transient, deleted
         from postgresql.databases_log, metadata.node_types where node_types.name = 'postgresql/databases'
     union all
     select node_types.icon as "icon", node_types.type, foreign_servers_log.foreign_server_log as node_log, foreign_servers_log.foreign_server as node, foreign_servers_log.name, ('{}')::jsonb as definition, '{}'::jsonb as status, foreign_servers_log.observed_on, false as transient, deleted
@@ -429,7 +429,7 @@ begin
     select node_types.icon as "icon", node_types.type, constraints.constraint_log as node_log, constraints.constraint as node, constraints.name, ('{}')::jsonb as definition, '{}'::jsonb as status, constraints.observed_on, false as transient
         from oracle.constraints, metadata.node_types where node_types.name = 'oracle/constraints'
     union all
-    select node_types.icon as "icon", node_types.type, databases.database_log as node_log, databases.database as node, databases.name, databases.config as definition, '{}'::jsonb as status, databases.observed_on, false as transient
+    select node_types.icon as "icon", node_types.type, databases.database_log as node_log, databases.database as node, databases.host || '/' || databases.name as name, databases.config as definition, '{}'::jsonb as status, databases.observed_on, false as transient
         from oracle.databases, metadata.node_types where node_types.name = 'oracle/databases'
     union all
     select node_types.icon as "icon", node_types.type, foreign_servers.foreign_server_log as node_log, foreign_servers.foreign_server as node, foreign_servers.name, ('{}')::jsonb as definition, '{}'::jsonb as status, foreign_servers.observed_on, false as transient
@@ -450,7 +450,7 @@ begin
     select node_types.icon as "icon", node_types.type, constraints.constraint_log as node_log, constraints.constraint as node, constraints.name, ('{}')::jsonb as definition, '{}'::jsonb as status, constraints.observed_on, false as transient
         from postgresql.constraints, metadata.node_types where node_types.name = 'postgresql/constraints'
     union all
-    select node_types.icon as "icon", node_types.type, databases.database_log as node_log, databases.database as node, databases.name, databases.config as definition, '{}'::jsonb as status, databases.observed_on, false as transient
+    select node_types.icon as "icon", node_types.type, databases.database_log as node_log, databases.database as node, databases.host || '/' || databases.name as name, databases.config as definition, '{}'::jsonb as status, databases.observed_on, false as transient
         from postgresql.databases, metadata.node_types where node_types.name = 'postgresql/databases'
     union all
     select node_types.icon as "icon", node_types.type, foreign_servers.foreign_server_log as node_log, foreign_servers.foreign_server as node, foreign_servers.name, ('{}')::jsonb as definition, '{}'::jsonb as status, foreign_servers.observed_on, false as transient

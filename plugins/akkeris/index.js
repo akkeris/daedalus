@@ -118,7 +118,7 @@ async function run(pgpool) {
     insert into akkeris.addons_log (addon_log, addon, app_log, addon_service_log, name, definition, observed_on, deleted)
     values (uuid_generate_v4(), $1, $2, $3, $4, $5, now(), false)
     on conflict (addon, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
-    do update set name = EXCLUDED.name, definition = $5
+    do update set name = EXCLUDED.name
     returning addon_log, addon, app_log, addon_service_log, name, definition, observed_on, deleted
   `,
   [item.id, lookupAppById(appsLog, item.app.id), lookupAddonServiceById(addonServicesLog, item.addon_service.id), item.name, item])))) // eslint-disable-line max-len
@@ -132,10 +132,10 @@ async function run(pgpool) {
         insert into akkeris.addon_attachments_log (addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted)
         values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, now(), false)
         on conflict (addon_attachment, addon_log, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
-        do update set name = EXCLUDED.name, definition = $6
+        do update set name = EXCLUDED.name
         returning addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted
       `,
-      [item.id, lookupAddonById(addonsLog, item.addon.id), lookupAppById(appsLog, item.app.id), lookupAddonServiceByPlanId(addonServicesLog, item.addon.plan.id), item.name, item]); // eslint-disable-line max-len
+      [item.id + lookupAppById(appsLog, item.app.id), lookupAddonById(addonsLog, item.addon.id), lookupAppById(appsLog, item.app.id), lookupAddonServiceByPlanId(addonServicesLog, item.addon.plan.id), item.name, item]); // eslint-disable-line max-len
     } catch (e) {
       debug(`ERROR: Cannot process addon-attachment ${item.id} because ${e.stack}`); // eslint-disable-line no-console
       return {};

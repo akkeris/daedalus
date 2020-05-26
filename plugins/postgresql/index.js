@@ -391,7 +391,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       on conflict (database_log, catalog, owner, name, username, connection, deleted)
       do update set deleted = false
       returning foreign_server_log, foreign_server, database_log, catalog, owner, name, username, connection, deleted
-    `, [foreignServer.db_link + foreignServer.username, database.database_log, database.name, foreignServer.owner, foreignServer.db_link, foreignServer.username, foreignServer.connection, false]))))
+    `, [foreignServer.db_link + foreignServer.username + foreignServer.connection, database.database_log, database.name, foreignServer.owner, foreignServer.db_link, foreignServer.username, foreignServer.connection, false]))))
       .map((x) => x.rows).flat();
 
     // Column Statistics

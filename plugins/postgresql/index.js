@@ -308,7 +308,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         `The column UUID was not found for a primary key constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name} ${constraint.from_column_name}`);
       return {
         rows: (await Promise.all(columnUUIDs.map((columnUUID) => {
-          const constraintKey = `${database.host}.${database.name}.${constraint.from_schema}.${tableUUID}.${columnUUID}`;
+          const constraintKey = `${database.host}.${database.name}.${constraint.from_schema}.${tableUUID}.${columnUUID}.${constraint.constraint_name}`;
           return pgpool.query(`
             insert into postgresql.constraints_log 
               (constraint_log, "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column, deleted)
@@ -337,7 +337,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         rows: (await Promise.all(fromColumnUUIDs.map((fromColumnUUID, index) => {
           const toColumnUUID = toColumnUUIDs[index];
           const constraintKey = `${database.host}.${database.name}.${constraint.from_schema}.${fromTableUUID}.${fromColumnUUID
-          }${constraint.to_schema}.${toTableUUID}.${toColumnUUID}`;
+          }${constraint.to_schema}.${toTableUUID}.${toColumnUUID}.${constraint.constraint_name}`;
           return pgpool.query(`
             insert into postgresql.constraints_log 
               (constraint_log, "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted)
@@ -357,7 +357,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       assert(tableUUID, `The table UUID was not found for a check constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
       return {
         rows: (await Promise.all(columnUUIDs.map((columnUUID) => {
-          const constraintKey = `${database.host}.${database.name}.${constraint.from_schema}.${tableUUID}.${columnUUID}.${constraint.definition}`;
+          const constraintKey = `${database.host}.${database.name}.${constraint.from_schema}.${tableUUID}.${columnUUID}.${constraint.definition}.${constraint.constraint_name}`;
           return pgpool.query(`
             insert into postgresql.constraints_log 
               (constraint_log, "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column, check_clause, deleted)

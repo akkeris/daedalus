@@ -37,6 +37,8 @@ async function cursors(req) {
       || req.query.sort === 'observed_on'
       || req.query.sort === 'labels') {
     sql += ` order by ${req.query.sort}`;
+  } else {
+    sql += ' order by observed_on desc';
   }
   let size = req.query.size ? parseInt(req.query.size, 10) : 20;
   if (size > 200) {
@@ -62,17 +64,17 @@ async function cursors(req) {
   };
 }
 
-function diffJSON(a, b) {
-  return diff.diffLines(JSON.stringify(a, null, 2), JSON.stringify(b, null, 2))
-    .filter((p) => p.added || p.removed)
-    .map((p) => `<span style="color:${p.added ? 'green' : (p.removed ? 'red' : 'inherit')}">${p.value}</span>`) // eslint-disable-line no-nested-ternary
-    .join('');
+function diffJSON(o, n) {
+  if (typeof o === 'string') {
+    return diff.diffLines(o, n);
+  }
+  return diff.diffJson(o, n);
 }
 
 async function addExpressAnnotationsAndLabelRoutes(pgpool, app, typeName, param) {
-  const { rows: [{ type }] } = await pgpool.query(`select type from metadata.node_types where name='${typeName}'`);
   app.post(`/ui/${typeName}/:${param}/labels`, async (req, res) => {
     try {
+      const { rows: [{ type }] } = await pgpool.query(`select type from metadata.node_types where name='${typeName}'`);
       await pgpool.query(`
         insert into metadata.labels (label, name, value, implicit, node, type) 
         values (uuid_generate_v4(), $1, $2, false, $3, $4) 
@@ -87,6 +89,7 @@ async function addExpressAnnotationsAndLabelRoutes(pgpool, app, typeName, param)
   });
   app.post(`/ui/${typeName}/:${param}/annotations`, async (req, res) => {
     try {
+      const { rows: [{ type }] } = await pgpool.query(`select type from metadata.node_types where name='${typeName}'`);
       await pgpool.query(`
         insert into metadata.annotations (annotation, name, value, implicit, node, type) 
         values (uuid_generate_v4(), $1, $2, false, $3, $4) 
@@ -101,6 +104,7 @@ async function addExpressAnnotationsAndLabelRoutes(pgpool, app, typeName, param)
   });
   app.get(`/ui/${typeName}/:${param}/labels/:label/delete`, async (req, res) => {
     try {
+      const { rows: [{ type }] } = await pgpool.query(`select type from metadata.node_types where name='${typeName}'`);
       await pgpool.query('delete from metadata.labels where node = $1 and name = $2 and type = $3',
         [req.params[param], req.params.label, type]);
       res.redirect(`/ui/${typeName}/${req.params[param]}#metadata`);
@@ -111,6 +115,7 @@ async function addExpressAnnotationsAndLabelRoutes(pgpool, app, typeName, param)
   });
   app.get(`/ui/${typeName}/:${param}/annotations/:annotation/delete`, async (req, res) => {
     try {
+      const { rows: [{ type }] } = await pgpool.query(`select type from metadata.node_types where name='${typeName}'`);
       await pgpool.query('delete from metadata.annotations where node = $1 and name = $2 and type = $3',
         [req.params[param], req.params.annotation, type]);
       res.redirect(`/ui/${typeName}/${req.params[param]}#metadata`);
@@ -125,6 +130,22 @@ async function isFavorite(pgpool, node, user) {
   const { rows: [{ amount }] } = await pgpool.query('select count(*) as amount from metadata.favorites where node = $1 and "user" = $2',
     [node, user]);
   return amount > 0;
+}
+
+async function getFavorites(pgpool, user) {
+  const { rows: favorites } = await pgpool.query(`
+    select 
+      favorites.node,
+      nodes_cache.*,
+      node_types.name as node_type
+    from 
+      metadata.favorites 
+      join metadata.nodes_cache on favorites.node = nodes_cache.node
+      join metadata.node_types on nodes_cache.type = node_types.type
+    where favorites.user = $1
+  `,
+  [user]);
+  return favorites;
 }
 
 async function usersAndWatchers(pgpool, node) {
@@ -144,39 +165,76 @@ async function usersAndWatchers(pgpool, node) {
   return users;
 }
 
-async function findMetaData(pgpool, id) {
+async function findMetaData(pgpool, node) {
   const { rows: metadata } = await pgpool.query(
     'select * from metadata.objects where node = $1',
-    [id],
+    [node],
   );
   return metadata[0];
 }
 
-async function findUsedBy(pgpool, id) {
+async function findUsedBy(pgpool, node_log) { // eslint-disable-line camelcase
   const { rows: usedBy } = await pgpool.query(`
       select 
-        child_icon as "$icon",
-        child_type as "$type",
-        child as id,
-        child_name as name,
-        parent as owner,
-        parent_name as owner_name,
-        parent_type as "$owner_type",
-        parent_icon as "$owner_icon"
+        a.child_icon as "$icon",
+        a.child_type as "$type",
+        a.child as node_log,
+        b.node,
+        c.node as parent_node,
+        a.child_name as name,
+        a.parent as owner,
+        a.parent_name as owner_name,
+        a.parent_type as "$owner_type",
+        a.parent_icon as "$owner_icon"
       from 
-        metadata.find_ancestors_graph($1)
-    `, [id]);
+        metadata.find_ancestors_graph($1) a
+        join metadata.nodes_log_cache b on a.child = b.node_log
+        join metadata.nodes_log_cache c on a.parent = c.node_log
+    `, [node_log]); // eslint-disable-line camelcase
   return usedBy;
 }
 
-async function findUses(pgpool, id) {
+async function findUses(pgpool, node_log) { // eslint-disable-line camelcase
   let uses = [];
   let depth = 5;
   do {
-    uses = (await pgpool.query('select * from metadata.find_descendants_with_depth($1, $2)', // eslint-disable-line no-await-in-loop
-      [id, depth--])).rows; // eslint-disable-line no-plusplus
+    uses = (await pgpool.query('select a.*, b.node from metadata.find_descendants_with_depth($1, $2) a join metadata.nodes_log_cache b on a.node_log = b.node_log', // eslint-disable-line no-await-in-loop
+      [node_log, depth--])).rows; // eslint-disable-line no-plusplus,camelcase
   } while (uses.length > 500 && depth !== -1);
   return uses;
+}
+
+async function findChanges(pgpool, node) {
+  return (await pgpool.query(`
+    select
+      change_log_cache.*,
+      node_types.name as type_name,
+      node_types.fa_icon,
+      node_types.icon,
+      node_types.human_name as
+      type_human_name
+    from 
+      metadata.change_log_cache 
+        join metadata.node_types on change_log_cache.type = node_types.type
+    where
+      change_log_cache.node = $1`, [node])).rows;
+}
+
+async function findNodeFields(pgpool, node_log) { // eslint-disable-line camelcase
+  return (await pgpool.query(`
+    select
+      jsonb_path_query(nodes.definition, node_types_fields.jsonpath::jsonpath) as value,
+      node_types_fields.name,
+      node_types_fields.friendly_name,
+      node_types_fields.highlighted,
+      node_types_fields.format
+    from
+      metadata.nodes
+      join metadata.node_types on nodes.type = node_types.type
+      join metadata.node_types_fields on node_types_fields.type = metadata.node_types.type
+    where
+      nodes.node_log = $1
+    `, [node_log])).rows; // eslint-disable-line camelcase
 }
 
 module.exports = {
@@ -187,6 +245,9 @@ module.exports = {
   findUses,
   findUsedBy,
   findMetaData,
+  findChanges,
+  findNodeFields,
+  getFavorites,
   isFavorite,
   usersAndWatchers,
 };

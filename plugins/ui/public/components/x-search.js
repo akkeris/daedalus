@@ -117,7 +117,7 @@ class Search extends HTMLElement {
       }
 
       nav-bar > form > x-search {
-        margin: 0 5em 0 10em;
+        margin: 0 5em 0 5em;
       }
 
       @media only screen and (max-width: 660px) {
@@ -159,7 +159,7 @@ class Search extends HTMLElement {
         position:relative;
         text-align: center;
         align-content:center;
-        max-width:35vw;
+        max-width:50vw;
       }
 
       x-search * {

@@ -1,0 +1,29 @@
+module.exports = (req, data, url) => `
+      ${req.session.profile ? `
+        <div class="panel left list">
+          <div class="list-item"><h4>Users &amp; Watchers</h4></div>
+          ${data.users ? data.users.map((user) => `
+          <div class="list-item">
+            <div class="uno">
+              <img src="${user.photo_url}" class="avatar" />
+              <a style="flex-grow:1" href="${user.profile_url}">${user.name}</a>
+            </div>
+          </div>
+          `).join('') : ''}
+          ${data.users.length === 0 ? `
+          <div class="list-item">
+            <i>No watchers or users found.</i>
+          </div>
+          ` : ``}
+        </div>
+        <div class="panel list right">
+          ${require('./labels.html')(req, data, url)}
+          ${require('./annotations.html')(req, data, url)}
+        </div>
+      ` : `
+        <div class="panel list">
+          ${require('./labels.html')(req, data, url)}
+          ${require('./annotations.html')(req, data, url)}
+        </div>
+      `}
+`;

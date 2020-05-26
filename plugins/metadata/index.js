@@ -20,8 +20,17 @@ async function run(pgpool, bus) {
   await pp.run(pgpool, bus);
   await ko.run(pgpool, bus);
   await oo.run(pgpool, bus);
+  debug('Refreshing nodes_log cache...');
+  await pgpool.query('refresh materialized view concurrently metadata.nodes_log_cache');
+  debug('Refreshing nodes cache...');
+  await pgpool.query('refresh materialized view concurrently metadata.nodes_cache');
+  debug('Refreshing change log cache...');
+  await pgpool.query('refresh materialized view concurrently metadata.change_log_cache');
+  debug('Re-indexing parent familial relationships...');
   await pgpool.query('reindex index metadata.metadata_families_parent');
+  debug('Re-indexing child familial relationships...');
   await pgpool.query('reindex index metadata.metadata_families_child');
+  debug('Re-indexing parent-child familial relationships...');
   await pgpool.query('reindex index metadata.families_node_idx');
 }
 
@@ -48,6 +57,7 @@ async function init(pgpool, bus) {
 }
 
 module.exports = {
+  name: 'metadata',
   run,
   init,
 };

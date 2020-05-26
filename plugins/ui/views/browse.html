@@ -2,34 +2,19 @@ function createUrlWithQueryParams(req, key, value) {
   return `?${key}=${value}&${Object.keys(req.query).filter((x) => x !== key).map((x) => `${x}=${req.query[x]}`).join('&')}`
 }
 module.exports = (req, res, next, data) => res.send(`
-  ${require('./header.html')(req)}
+  ${require('./partials/header.html')(req)}
     <appkit-app>
       <nav-breadcrumb size="small">
         <ul>
-          <li>
-              <i class="fa fa-cubes" aria-hidden="true"></i> 
-              Home
-          </li>
+          <li><i class="fa fa-cubes" aria-hidden="true"></i> Home</li>
         </ul>
-        <button class="passive sort-filter">
-          Sort
-          <i class="fa fa-sort" aria-hidden="true"></i>
-        </button>
+        <button class="passive sort-filter">Sort <i class="fa fa-sort" aria-hidden="true"></i></button>
         <x-dropdown target=".sort-filter">
           <nav>
             <ul>
-              <li>
-                <a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'name')}">Name</a>
-              </li>
-              <li>
-                <a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'type')}">Type</a>
-              </li>
-              <li>
-                <a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'observed_on')}">Observed On</a>
-              </li>
-              <!-- TODO: <li>
-                <a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'labels')}">Labels</a>
-              </li> -->
+              <li><a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'name')}">Name</a></li>
+              <li><a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'type')}">Type</a></li>
+              <li><a tabindex="0" href="${createUrlWithQueryParams(req, 'sort', 'observed_on')}">Observed On</a></li>
           </nav>
         </x-dropdown>
       </nav-breadcrumb>
@@ -41,8 +26,8 @@ module.exports = (req, res, next, data) => res.send(`
           </div>
           <div>
             <a class="name" href="/ui/${row.type.replace('.', '/')}/${row.node}">
-              ${row.labels && row.labels.name ? row.labels.name : row.name}
-              ${row.labels && row.labels.name ? `<sub>(${row.name})</sub>` : ``}
+              ${row.labels && row.labels.name ? row.labels.name : (row.name || `<i>unknown</i>`)}
+              ${row.labels && row.labels.name ? `<sub>${row.name}</sub>` : ``}
             </a>
             <sub class="last-seen">Last seen ${row.observed_on.toLocaleString()}</sub>
           </div>
@@ -64,7 +49,7 @@ module.exports = (req, res, next, data) => res.send(`
         </div>
       `).join('')}
       </div>
-      ${require('./pagination.html')(req, data)}
+      ${require('./partials/pagination.html')(req, data)}
     </appkit-app>
-  ${require('./footer.html')(req, res)}
+  ${require('./partials/footer.html')(req, res)}
 `);

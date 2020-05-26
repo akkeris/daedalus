@@ -7,11 +7,6 @@ async function writePostgresqlFromConfigMaps(pgpool, bus, type, configMapRecords
     return;
   }
   debug(`Examining ${configMapRecords.length} configMaps for envs that have a postgres string.`);
-
-  const databaseType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/databases\'')).rows[0].type;
-  const roleType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/roles\'')).rows[0].type;
-  const configMapType = (await pgpool.query('select "type" from metadata.node_types where name = \'kubernetes/config_maps\'')).rows[0].type;
-
   await Promise.all(configMapRecords.map(async (configMap) => {
     if (configMap.definition.data) {
       await Promise.all(Object.keys(configMap.definition.data).map(async (env) => {
@@ -19,56 +14,45 @@ async function writePostgresqlFromConfigMaps(pgpool, bus, type, configMapRecords
           try {
             const dbUrl = new URL(configMap.definition.data[env]);
             const db = await pgpool.query(`
-              insert into postgresql.databases_log (database, name, host, port, deleted)
-              values (uuid_generate_v4(), $1, $2, $3, $4)
+              insert into postgresql.databases_log (database_log, database, name, host, port, deleted)
+              values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
               on conflict (name, host, port, deleted) 
-              do update set name = $1 
-              returning database, host, port, name`,
-            [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
+              do update set name = $2
+              returning database_log, database, host, port, name`,
+            [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
             assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
             assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
+            const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
             const role = await pgpool.query(`
-              insert into postgresql.roles_log (role, database, username, password, options, deleted)
-              values (uuid_generate_v4(), $1, $2, $3, $4, $5)
-              on conflict (database, username, (password->>'hash'), deleted) 
-              do update set username = $2 
-              returning role, username`,
-            [db.rows[0].database, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
+              insert into postgresql.roles_log (role_log, role, database_log, username, password, options, deleted)
+              values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
+              on conflict (database_log, username, (password->>'hash'), deleted) 
+              do update set username = $3 
+              returning role_log, role, username`,
+            [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
             assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
             assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
-            assert.ok(configMap.config_map, 'configMap.config_map was undefined.');
+            assert.ok(configMap.node_log, 'configMap.config_map was undefined.');
             assert.ok(configMap.name, 'configMap.name was undefined.');
-            assert.ok(configMapType, 'configMapType was undefined.');
             assert.ok(role.rows[0].role, 'role.rows[0].role was undefined.');
             assert.ok(role.rows[0].username, 'role.rows[0].username was undefined.');
-            assert.ok(roleType, 'roleType was undefined.');
             assert.ok(db.rows[0].database, 'db.rows[0].database was undefined.');
             db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
-
-            assert.ok(databaseType, 'databaseType was undefined.');
-            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name=$2',
-              [configMap.config_map, `${configMap.definition.metadata.namespace}/${configMap.name}`, configMapType]);
-            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name=$2',
-              [role.rows[0].role, role.rows[0].username, roleType]);
-            await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name=$2',
-              [db.rows[0].database, `${db.rows[0].host}:${db.rows[0].port}/${db.rows[0].name}`, databaseType]);
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-              [role.rows[0].role, db.rows[0].database]);
+              [role.rows[0].role_log, db.rows[0].database_log]);
             await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-              [configMap.config_map, role.rows[0].role]);
+              [configMap.node_log, role.rows[0].role_log]);
           } catch (e) {
             if (e.message.includes('Invalid URL')) {
-              bus.emit('kubernetes.config_map.error', [configMap.config_map, 'bad-postgresql-url-error', e.message]);
+              bus.emit('kubernetes.configmap.error', [configMap.node_log, 'bad-postgresql-url-error', e.message]);
             } else {
-              debug(`Error adding link from ${configMap.config_map} to postgresql role found inside, due to: ${e.message}`); // eslint-disable-line no-console
+              debug(`Error adding link from ${configMap.node_log} to postgresql role found inside, due to: ${e.message}`); // eslint-disable-line no-console
             }
           }
         }
       }), []);
     }
   }));
-
-  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select role from postgresql.roles)', [roleType]);
 }
 
 async function writePostgresqlFromReplicaSets(pgpool, bus, type, replicaSetRecords) {
@@ -84,28 +68,29 @@ async function writePostgresqlFromReplicaSets(pgpool, bus, type, replicaSetRecor
             try {
               const dbUrl = new URL(env.value);
               const db = await pgpool.query(`
-                insert into postgresql.databases_log (database, name, host, port, deleted)
-                values (uuid_generate_v4(), $1, $2, $3, $4)
+                insert into postgresql.databases_log (database_log, database, name, host, port, deleted)
+                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
                 on conflict (name, host, port, deleted) 
-                do update set name = $1 
-                returning database`,
-              [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
+                do update set name = $2
+                returning database_log, database`,
+              [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
               assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
               assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
+              const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
               const role = await pgpool.query(`
-                insert into postgresql.roles_log (role, database, username, password, options, deleted)
-                values (uuid_generate_v4(), $1, $2, $3, $4, $5)
-                on conflict (database, username, (password->>'hash'), deleted) 
-                do update set username = $2 
-                returning role, username`,
-              [db.rows[0].database, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
+                insert into postgresql.roles_log (role_log, role, database_log, username, password, options, deleted)
+                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
+                on conflict (database_log, username, (password->>'hash'), deleted) 
+                do update set username = $3 
+                returning role_log, role, username`,
+              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
               assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
               assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
             } catch (e) {
               if (e.message.includes('Invalid URL')) {
-                bus.emit('kubernetes.replicaset.error', [replicaSet.replicaset, 'bad-postgresql-url-error', e.message]);
+                bus.emit('kubernetes.replicaset.error', [replicaSet.node_log, 'bad-postgresql-url-error', e.message]);
               } else {
-                debug(`Error adding postgresql entry from replicaset ${replicaSet.replicaset} due to: ${e.message}`); // eslint-disable-line no-console
+                debug(`Error adding postgresql entry from replicaset ${replicaSet.node_log} due to: ${e.message}`); // eslint-disable-line no-console
               }
             }
           }
@@ -118,11 +103,6 @@ async function writePostgresqlFromPods(pgpool, bus, type, podRecords) {
     return;
   }
   debug(`Examining ${podRecords.length} pods for envs that have a postgres string.`);
-
-  const databaseType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/databases\'')).rows[0].type;
-  const roleType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/roles\'')).rows[0].type;
-  const podType = (await pgpool.query('select "type" from metadata.node_types where name = \'kubernetes/pods\'')).rows[0].type;
-
   await Promise.all(podRecords.map(async (pod) => {
     await Promise.all((pod.definition.spec.containers || [])
       .reduce((envs, container) => envs.concat((container.env || []).filter((env) => env.value && env.value.startsWith('postgres://')))
@@ -131,54 +111,44 @@ async function writePostgresqlFromPods(pgpool, bus, type, podRecords) {
             try {
               const dbUrl = new URL(env.value);
               const db = await pgpool.query(`
-                insert into postgresql.databases_log (database, name, host, port, deleted)
-                values (uuid_generate_v4(), $1, $2, $3, $4)
+                insert into postgresql.databases_log (database_log, database, name, host, port, deleted)
+                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
                 on conflict (name, host, port, deleted) 
-                do update set name = $1 
-                returning database, name, host, port`,
-              [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
+                do update set name = $2 
+                returning database_log, database, name, host, port`,
+              [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
               assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
               assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
+              const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
               const role = await pgpool.query(`
-                insert into postgresql.roles_log (role, database, username, password, options, deleted)
-                values (uuid_generate_v4(), $1, $2, $3, $4, $5)
-                on conflict (database, username, (password->>'hash'), deleted) 
-                do update set username = $2 
-                returning role, username`,
-              [db.rows[0].database, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
+                insert into postgresql.roles_log (role_log, role, database_log, username, password, options, deleted)
+                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
+                on conflict (database_log, username, (password->>'hash'), deleted) 
+                do update set username = $3 
+                returning role_log, role, username`,
+              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
               assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
               assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
-              assert.ok(pod.pod, 'pod.pod was undefined.');
+              assert.ok(pod.node_log, 'pod.node_log was undefined.');
               assert.ok(pod.name, 'pod.name was undefined.');
-              assert.ok(podType, 'podType was undefined.');
               assert.ok(role.rows[0].role, 'role.rows[0].role was undefined.');
               assert.ok(role.rows[0].username, 'role.rows[0].username was undefined.');
-              assert.ok(roleType, 'roleType was undefined.');
               assert.ok(db.rows[0].database, 'db.rows[0].database was undefined.');
               db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
-              assert.ok(databaseType, 'databaseType was undefined.');
-              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
-                [pod.pod, `${pod.definition.metadata.namespace}/${pod.name}`, podType]);
-              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
-                [db.rows[0].database, `${db.rows[0].host}:${db.rows[0].port}/${db.rows[0].name}`, databaseType]);
-              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
-                [role.rows[0].role, role.rows[0].username, roleType]);
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [role.rows[0].role, db.rows[0].database]);
+                [role.rows[0].role_log, db.rows[0].database_log]);
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [pod.pod, role.rows[0].role]);
+                [pod.node_log, role.rows[0].role_log]);
             } catch (e) {
               if (e.message.includes('Invalid URL')) {
-                bus.emit('kubernetes.pod.error', [pod.pod, 'bad-postgresql-url-error', e.message]);
+                bus.emit('kubernetes.pod.error', [pod.node_log, 'bad-postgresql-url-error', e.message]);
               } else {
-                debug(`Error adding postgresql entry from pod ${pod.pod} due to: ${e.message}`); // eslint-disable-line no-console
+                debug(`Error adding postgresql entry from pod ${pod.node_log} due to: ${e.message}`); // eslint-disable-line no-console
               }
             }
           }
         }), []));
   }));
-
-  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select database from postgresql.databases)', [databaseType]);
 }
 
 async function writePostgresqlFromDeployments(pgpool, bus, type, deploymentRecords) {
@@ -186,11 +156,6 @@ async function writePostgresqlFromDeployments(pgpool, bus, type, deploymentRecor
     return;
   }
   debug(`Examining ${deploymentRecords.length} deployment for envs that have a postgres string.`);
-
-  const databaseType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/databases\'')).rows[0].type;
-  const roleType = (await pgpool.query('select "type" from metadata.node_types where name = \'postgresql/roles\'')).rows[0].type;
-  const deploymentType = (await pgpool.query('select "type" from metadata.node_types where name = \'kubernetes/deployments\'')).rows[0].type;
-
   await Promise.all(deploymentRecords.map(async (deployment) => {
     await Promise.all((deployment.definition.spec.template.spec.containers || [])
       .reduce((envs, container) => envs.concat((container.env || []).filter((env) => env.value && env.value.startsWith('postgres://')))
@@ -199,52 +164,44 @@ async function writePostgresqlFromDeployments(pgpool, bus, type, deploymentRecor
             try {
               const dbUrl = new URL(env.value);
               const db = await pgpool.query(`
-                insert into postgresql.databases_log (database, name, host, port, deleted)
-                values (uuid_generate_v4(), $1, $2, $3, $4)
+                insert into postgresql.databases_log (database_log, database, name, host, port, deleted)
+                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
                 on conflict (name, host, port, deleted) 
-                do update set name = $1 
-                returning database, name, host, port`,
-              [dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
+                do update set name = $2 
+                returning database_log, database, name, host, port`,
+              [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
               assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
               assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
+              const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
               const role = await pgpool.query(`
-                insert into postgresql.roles_log (role, database, username, password, options, deleted)
-                values (uuid_generate_v4(), $1, $2, $3, $4, $5)
-                on conflict (database, username, (password->>'hash'), deleted) 
-                do update set username = $2 
-                returning role, username`,
-              [db.rows[0].database, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
+                insert into postgresql.roles_log (role_log, role, database_log, username, password, options, deleted)
+                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
+                on conflict (database_log, username, (password->>'hash'), deleted) 
+                do update set username = $3 
+                returning role_log, role, username`,
+              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
               assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
               assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
               db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
-              assert.ok(databaseType, 'databaseType was undefined.');
-              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
-                [deployment.deployment, `${deployment.definition.metadata.namespace}/${deployment.name}`, deploymentType]);
-              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do update set name = $2',
-                [db.rows[0].database, `${db.rows[0].host}:${db.rows[0].port}/${db.rows[0].name}`, databaseType]);
-              await pgpool.query('insert into metadata.nodes (node, name, type) values ($1, $2, $3) on conflict (node) do nothing',
-                [role.rows[0].role, role.rows[0].username, roleType]);
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [role.rows[0].role, db.rows[0].database]);
+                [role.rows[0].role_log, db.rows[0].database_log]);
               await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [deployment.deployment, role.rows[0].role]);
+                [deployment.node_log, role.rows[0].role_log]);
             } catch (e) {
               if (e.message.includes('Invalid URL')) {
-                bus.emit('kubernetes.deployment.error', [deployment.deployment, 'bad-postgresql-url-error', e.message]);
+                bus.emit('kubernetes.deployment.error', [deployment.node_log, 'bad-postgresql-url-error', e.message]);
               } else {
-                debug(`Error adding postgresql entry from deployment ${deployment.deployment} due to: ${e.message}`); // eslint-disable-line no-console
+                debug(`Error adding postgresql entry from deployment ${deployment.node_log} due to: ${e.message}`); // eslint-disable-line no-console
               }
             }
           }
         }), []));
   }));
-
-  await pgpool.query('delete from only metadata.nodes where nodes."type" = $1 and nodes.node not in (select database from postgresql.databases)', [databaseType]);
 }
 
 async function init(pgpool, bus) {
   bus.on('kubernetes.pod', writePostgresqlFromPods.bind(null, pgpool, bus));
-  bus.on('kubernetes.config_map', writePostgresqlFromConfigMaps.bind(null, pgpool, bus));
+  bus.on('kubernetes.configmap', writePostgresqlFromConfigMaps.bind(null, pgpool, bus));
   bus.on('kubernetes.deployment', writePostgresqlFromDeployments.bind(null, pgpool, bus));
   bus.on('kubernetes.replicaset', writePostgresqlFromReplicaSets.bind(null, pgpool, bus));
 }

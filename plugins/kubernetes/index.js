@@ -1,4 +1,5 @@
 const assert = require('assert');
+const crypto = require('crypto');
 const k8s = require('@kubernetes/client-node');
 const fs = require('fs');
 const debug = require('debug')('daedalus:kubernetes');
@@ -6,6 +7,61 @@ const security = require('../../common/security.js');
 
 // TODO: Add watch functionality and increase
 // rate at which it pulls the world.
+
+async function createDatabaseDefinition(pgpool, plural, hasNamespace = true) {
+  const sql = `
+    do $$
+    begin
+      create table if not exists kubernetes.${plural}_log (
+        node_log uuid not null primary key,
+        node uuid not null,
+        name varchar(128) not null,
+        ${hasNamespace ? 'namespace varchar(128) not null,' : ''}
+        context varchar(128) not null,
+        definition jsonb not null,
+        status jsonb not null,
+        hash varchar(64) not null,
+        observed_on timestamp with time zone default now(),
+        deleted boolean not null default false
+      );
+      comment on table kubernetes.${plural}_log is E'@name kubernetes${plural.split('_').map((x) => (x.substring(0, 1).toUpperCase() + x.substring(1))).join('')}Log';
+      create unique index if not exists ${plural}_changed on kubernetes.${plural}_log (hash, deleted);
+      create index if not exists ${plural}_partition_ndx on kubernetes.${plural}_log (name, ${hasNamespace ? 'namespace,' : ''} context, observed_on desc);
+      create or replace view kubernetes.${plural} as
+        with ordered_list as ( select
+          node_log,
+          node,
+          name,
+          ${hasNamespace ? 'namespace,' : ''}
+          context,
+          definition,
+          status,
+          hash,
+          observed_on,
+          deleted,
+          row_number() over (partition by name, ${hasNamespace ? 'namespace,' : ''} context order by observed_on desc) as row_number
+        from kubernetes.${plural}_log) 
+      select 
+        node_log,
+        node,
+        name,
+        ${hasNamespace ? 'namespace,' : ''}
+        context,
+        definition,
+        status,
+        hash,
+        observed_on 
+      from
+        ordered_list 
+      where
+        row_number = 1 and 
+        deleted = false;
+      comment on view kubernetes.${plural} is E'@name kubernetes${plural.split('_').map((x) => (x.substring(0, 1).toUpperCase() + x.substring(1))).join('')}';
+    end
+    $$;
+  `;
+  await pgpool.query(sql);
+}
 
 async function checkPermissions(kc) {
   const accessPods = { spec: { resourceAttributes: { verb: 'watch', resource: 'pods' } } };
@@ -122,6 +178,25 @@ async function loadFromServiceAccount(kc) {
 async function init(pgpool) {
   debug('Initializing kubernetes plugin...');
   await pgpool.query(fs.readFileSync('./plugins/kubernetes/create.sql').toString());
+  await createDatabaseDefinition(pgpool, 'configmaps');
+  await createDatabaseDefinition(pgpool, 'deployments');
+  await createDatabaseDefinition(pgpool, 'replicasets');
+  await createDatabaseDefinition(pgpool, 'services');
+  await createDatabaseDefinition(pgpool, 'nodes', false);
+  await createDatabaseDefinition(pgpool, 'pods');
+  await createDatabaseDefinition(pgpool, 'persistentvolumes', false);
+  await createDatabaseDefinition(pgpool, 'persistentvolumeclaims');
+  await createDatabaseDefinition(pgpool, 'events');
+  await createDatabaseDefinition(pgpool, 'ingress');
+  await createDatabaseDefinition(pgpool, 'daemonsets');
+  await createDatabaseDefinition(pgpool, 'statefulsets');
+  await createDatabaseDefinition(pgpool, 'jobs');
+  await createDatabaseDefinition(pgpool, 'virtualservices');
+  await createDatabaseDefinition(pgpool, 'gateways');
+  await createDatabaseDefinition(pgpool, 'policies');
+  await createDatabaseDefinition(pgpool, 'certificates');
+  await createDatabaseDefinition(pgpool, 'issuers');
+  await createDatabaseDefinition(pgpool, 'clusterissuers', false);
   debug('Initializing kubernetes plugin... done');
 }
 
@@ -214,15 +289,24 @@ function redactDeploymentsAndReplicasets(data) {
   return x;
 }
 
+function getDefinitionHash(item) {
+  const i = JSON.parse(JSON.stringify(item));
+  delete i.metadata.resourceVersion;
+  const hash = crypto.createHash('sha256');
+  hash.update(JSON.stringify(i, null, 2));
+  return hash.digest('hex');
+}
+
 async function writeNamespacedObjs(pgpool, bus, type, func, args) {
   const plural = type.endsWith('cy') ? `${type.substring(0, type.length - 1)}ies` : (type.endsWith('ss') ? type : `${type}s`); // eslint-disable-line no-nested-ternary
   const { body } = await func(args);
   assert.ok(body.items, 'The items field on the returned kube response was not there.');
   assert.ok(Array.isArray(body.items), 'The items field on the returned kube response was not an array');
   debug(`Received ${body.items.length} items for ${type}`);
+  // TODO: flip this from a promise all to for loop
   const dbObjs = await Promise.all(body.items.map(async (definition) => {
     let redacted = JSON.parse(JSON.stringify(definition));
-    if (type === 'config_map') {
+    if (type === 'configmap') {
       redacted = redactConfigMaps(redacted);
     }
     if (type === 'pod') {
@@ -232,12 +316,12 @@ async function writeNamespacedObjs(pgpool, bus, type, func, args) {
       redacted = redactDeploymentsAndReplicasets(redacted);
     }
     const dbObj = await pgpool.query(`
-      insert into kubernetes.${plural}_log (${type}, name, namespace, context, definition, deleted)
-      values (uuid_generate_v4(), $1, $2, $3, $4, $5)
-      on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
-      do update set name = $1, definition = $4
-      returning ${type}, name, context, definition, deleted
-    `, [definition.metadata.name, definition.metadata.namespace, process.env.KUBERNETES_CONTEXT, JSON.stringify(redacted, null, 2), false]);
+      insert into kubernetes.${plural}_log (node_log, node, name, namespace, context, definition, status, hash, deleted)
+      values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8)
+      on conflict (hash, deleted) 
+      do update set name = $2, status = $6
+      returning node_log, node, name, namespace, context, definition, status, hash, deleted
+    `, [definition.metadata.uid, definition.metadata.name, definition.metadata.namespace, process.env.KUBERNETES_CONTEXT, redacted, redacted.status || {}, getDefinitionHash(definition), false]);
     dbObj.rows[0].definition = definition;
     return dbObj;
   }));
@@ -256,13 +340,14 @@ async function writeObjs(pgpool, bus, type, func, args) {
   assert.ok(Array.isArray(body.items),
     'The items field on the returned kube response was not an array');
   debug(`Received ${body.items.length} items for ${type}`);
+  // TODO: flip this from a promise all to for loop
   const dbObjs = await Promise.all(body.items.map((item) => pgpool.query(`
-    insert into kubernetes.${plural}_log (${type}, name, context, definition, deleted)
-    values (uuid_generate_v4(), $1, $2, $3, $4)
-    on conflict (name, context, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
-    do update set name = $1
-    returning ${type}, name, context, definition, deleted
-  `, [item.metadata.name, process.env.KUBERNETES_CONTEXT, JSON.stringify(item, null, 2), false])));
+    insert into kubernetes.${plural}_log (node_log, node, name, context, definition, status, hash, deleted)
+    values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
+    on conflict (hash, deleted) 
+    do update set name = $2, status = $5
+    returning node_log, node, name, context, definition, status, hash, deleted
+  `, [item.metadata.uid, item.metadata.name, process.env.KUBERNETES_CONTEXT, item, item.status || {}, getDefinitionHash(item), false])));
   debug(`Wrote ${body.items.length} items for ${type}`);
   bus.emit(`kubernetes.${type}`, 'sync', dbObjs.map((x) => x.rows).flat(), body.items);
   if (body.metadata.continue) {
@@ -273,32 +358,32 @@ async function writeObjs(pgpool, bus, type, func, args) {
 
 async function writeDeletedNamespacedObjs(pgpool, type, items) {
   const plural = type.endsWith('cy') ? `${type.substring(0, type.length - 1)}ies` : (type.endsWith('ss') ? type : `${type}s`); // eslint-disable-line no-nested-ternary
-  (await pgpool.query(`select ${type}, name, namespace, context, definition from kubernetes.${plural}`, []))
+  (await pgpool.query(`select node_log, node, name, namespace, context, definition, status, hash from kubernetes.${plural}`, []))
     .rows
     .filter((entry) => !items.some((item) => entry.namespace === item.metadata.namespace
           && entry.name === item.metadata.name
           && entry.context === process.env.KUBERNETES_CONTEXT))
     .map((item) => pgpool.query(`
-      insert into kubernetes.${plural}_log (${type}, name, namespace, context, definition, deleted)
-      values (uuid_generate_v4(), $1, $2, $3, $4, $5)
-      on conflict (name, context, namespace, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
+      insert into kubernetes.${plural}_log (node_log, node, name, namespace, context, definition, status, hash, deleted)
+      values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8)
+      on conflict (hash, deleted) 
       do nothing
-    `, [item.definition.metadata.name, item.definition.metadata.namespace, process.env.KUBERNETES_CONTEXT, JSON.stringify(item.definition, null, 2), true]));
+    `, [item.node, item.definition.metadata.name, item.definition.metadata.namespace, process.env.KUBERNETES_CONTEXT, item.definition, item.status, item.hash, true]));
   return items;
 }
 
 async function writeDeletedObjs(pgpool, type, items) {
   const plural = type.endsWith('cy') ? `${type.substring(0, type.length - 1)}ies` : (type.endsWith('ss') ? type : `${type}s`); // eslint-disable-line no-nested-ternary
-  (await pgpool.query(`select ${type}, name, context, definition from kubernetes.${plural}`, []))
+  (await pgpool.query(`select node_log, node, name, context, definition, status, hash from kubernetes.${plural}`, []))
     .rows
     .filter((entry) => !items.some((item) => entry.name === item.metadata.name
       && entry.context === process.env.KUBERNETES_CONTEXT))
     .map((item) => pgpool.query(`
-      insert into kubernetes.${plural}_log (${type}, name, context, definition, deleted)
-      values (uuid_generate_v4(), $1, $2, $3, $4)
-      on conflict (name, context, ((definition -> 'metadata') ->> 'resourceVersion'), deleted) 
+      insert into kubernetes.${plural}_log (node_log, node, name, context, definition, status, hash, deleted)
+      values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
+      on conflict (hash, deleted) 
       do nothing
-    `, [item.definition.metadata.name, process.env.KUBERNETES_CONTEXT, JSON.stringify(item.definition, null, 2), true]));
+    `, [item.node, item.definition.metadata.name, process.env.KUBERNETES_CONTEXT, item.definition, item.status, item.hash, true]));
   return items;
 }
 
@@ -336,8 +421,8 @@ async function run(pgpool, bus) {
 
   // The order of these do matter.
   debug(`Refreshing config maps from ${process.env.KUBERNETES_CONTEXT}`);
-  await writeDeletedNamespacedObjs(pgpool, 'config_map',
-    await writeNamespacedObjs(pgpool, bus, 'config_map',
+  await writeDeletedNamespacedObjs(pgpool, 'configmap',
+    await writeNamespacedObjs(pgpool, bus, 'configmap',
       k8sCoreApi.listConfigMapForAllNamespaces.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 4096), labelSelector }));
   debug(`Refreshing deployments from ${process.env.KUBERNETES_CONTEXT}`);
@@ -366,13 +451,13 @@ async function run(pgpool, bus) {
       k8sCoreApi.listPodForAllNamespaces.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 4096), labelSelector }));
   debug(`Refreshing persistent volumes from ${process.env.KUBERNETES_CONTEXT}`);
-  await writeDeletedObjs(pgpool, 'persistent_volume',
-    await writeObjs(pgpool, bus, 'persistent_volume',
+  await writeDeletedObjs(pgpool, 'persistentvolume',
+    await writeObjs(pgpool, bus, 'persistentvolume',
       k8sCoreApi.listPersistentVolume.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 2048), labelSelector }));
   debug(`Refreshing persistent volume claims from ${process.env.KUBERNETES_CONTEXT}`);
-  await writeDeletedNamespacedObjs(pgpool, 'persistent_volume_claim',
-    await writeNamespacedObjs(pgpool, bus, 'persistent_volume_claim',
+  await writeDeletedNamespacedObjs(pgpool, 'persistentvolumeclaim',
+    await writeNamespacedObjs(pgpool, bus, 'persistentvolumeclaim',
       k8sCoreApi.listPersistentVolumeClaimForAllNamespaces.bind(k8sCoreApi),
       { limit: Math.floor(maxMemory / 2048), labelSelector }));
   debug(`Refreshing events from ${process.env.KUBERNETES_CONTEXT}`);
@@ -386,13 +471,13 @@ async function run(pgpool, bus) {
       k8sExtensionsApi.listIngressForAllNamespaces.bind(k8sExtensionsApi),
       { limit: Math.floor(maxMemory / 2048), labelSelector }));
   debug(`Refreshing daemon sets from ${process.env.KUBERNETES_CONTEXT}`);
-  await writeDeletedNamespacedObjs(pgpool, 'daemon_set',
-    await writeNamespacedObjs(pgpool, bus, 'daemon_set',
+  await writeDeletedNamespacedObjs(pgpool, 'daemonset',
+    await writeNamespacedObjs(pgpool, bus, 'daemonset',
       k8sAppsApi.listDaemonSetForAllNamespaces.bind(k8sAppsApi),
       { limit: Math.floor(maxMemory / 2048), labelSelector }));
   debug(`Refreshing stateful sets from ${process.env.KUBERNETES_CONTEXT}`);
-  await writeDeletedNamespacedObjs(pgpool, 'stateful_set',
-    await writeNamespacedObjs(pgpool, bus, 'stateful_set',
+  await writeDeletedNamespacedObjs(pgpool, 'statefulset',
+    await writeNamespacedObjs(pgpool, bus, 'statefulset',
       k8sAppsApi.listStatefulSetForAllNamespaces.bind(k8sAppsApi),
       { limit: Math.floor(maxMemory / 2048), labelSelector }));
   debug(`Refreshing jobs from ${process.env.KUBERNETES_CONTEXT}`);
@@ -436,6 +521,20 @@ async function run(pgpool, bus) {
           k8sCustomApi.listClusterCustomObject.bind(k8sCustomApi, 'cert-manager.io', 'v1alpha2', 'certificates'),
           {
             limit: Math.floor(maxMemory / 2048), labelSelector, group: 'cert-manager.io', version: 'v1alpha2', plural: 'certificates',
+          }));
+      debug(`Refreshing cluster issuers from ${process.env.KUBERNETES_CONTEXT}`);
+      await writeDeletedObjs(pgpool, 'clusterissuer',
+        await writeObjs(pgpool, bus, 'clusterissuer',
+          k8sCustomApi.listClusterCustomObject.bind(k8sCustomApi, 'cert-manager.io', 'v1alpha2', 'clusterissuers'),
+          {
+            limit: Math.floor(maxMemory / 2048), labelSelector, group: 'cert-manager.io', version: 'v1alpha2', plural: 'clusterissuers',
+          }));
+      debug(`Refreshing issuers from ${process.env.KUBERNETES_CONTEXT}`);
+      await writeDeletedObjs(pgpool, 'issuer',
+        await writeObjs(pgpool, bus, 'issuer',
+          k8sCustomApi.listClusterCustomObject.bind(k8sCustomApi, 'cert-manager.io', 'v1alpha2', 'issuers'),
+          {
+            limit: Math.floor(maxMemory / 2048), labelSelector, group: 'cert-manager.io', version: 'v1alpha2', plural: 'issuers',
           }));
     } catch (e) {
       debug(`Failed to get custom objects in kubernetes: ${e.stack}`);

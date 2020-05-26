@@ -1,0 +1,33 @@
+  module.exports = (req, data, title, icon, url, id, objname) => `
+      ${req.query.error ? `
+        <dialog class="error" open>
+          <h4>Oops!</h4>
+          <form method="get" action="${url}">
+            <p>${req.query.error}</p> 
+            <fieldset class="actions">
+              <button class="primary full">Ok</button>
+            </fieldset>
+          </form>
+        </dialog>
+      ` : ''}
+      <nav-breadcrumb size="small">
+        <ul>
+          <li><a href="/ui/"> <i class="fa fa-cubes" aria-hidden="true"></i> Home</a></li>
+          <li>
+            <a href="/ui/browse.html?type=${objname}"> <i class="fa ${icon}" style="margin-right:0.25rem;" aria-hidden="true"></i>
+              ${title}
+            </a>
+          </li>
+          <li>
+            ${id}
+            ${req.session.profile ? `
+              <form class="action">
+                <button name="favorite" value="${req.params.node.node}" type="submit" formmethod="post" formaction="/ui/favorites/${req.params.node.node}">
+                  <i class="fa ${data.favorite === false ? 'fa-star-o' : 'fa-star'}" aria-hidden="true"></i>
+                </button>
+              </form>
+            ` : ''}
+          </li>
+        </ul>
+      </nav-breadcrumb>
+`;

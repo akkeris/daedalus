@@ -73,6 +73,22 @@ Nodes are an abstract concept of a specific object in daedalus. The specifics of
 
 Adding nodes to this immediately makes it available to graph search tools, notifications and searches.
 
+### Common Fields
+
+All "things" in daedalus have a `log` table that expresses the state of a node. It also contains a rolled up view with the latest state for convenience.  Each log table must have:
+
+* `node_log` - This must express the individual uuid of the change, NOT the node.
+* `node` - This must express the individual uuid of the node and be the same across all changes. 
+* `name` - A globally unique name for the object no more than 256 characters and alpha numeric (can have dashes and periods).
+* `definition` - A JSON object containing the raw definition of the node in question.
+* `status` - A JSON object containing the raw status of the node in question.
+* `observed_on` - The date and time when an observation was made. NOT the date a changed happened. 
+* `deleted` - Whether the node was no longer there on the `observed_on` date/time.
+
+If the raw definition or status contains the following, do not consider it as a change:
+
+* The current time
+* A system global version or lock
 
 ### Relationships
 

@@ -144,7 +144,7 @@ async function run(pgpool) {
 
 
   debug('Checking for routes deletions');
-  (await pgpool.query('select routes.route_log, routes.route, routes.site, routes.app, routes.source_path, routes.target_path, routes.definition, routes.observed_on from akkeris.routes'))
+  (await pgpool.query('select routes.route_log, routes.route, routes.site_log, routes.app_log, routes.source_path, routes.target_path, routes.definition, routes.observed_on from akkeris.routes'))
     .rows
     .filter((route) => !routes.map((x) => x.id).includes(route.route))
     .map(async (route) => {
@@ -155,7 +155,7 @@ async function run(pgpool) {
           on conflict (route, site_log, app_log, (definition->>'updated_at'), deleted)
           do update set route = EXCLUDED.route
           returning route_log, route, site_log, app_log, definition, observed_on, deleted
-      `, [route.route, lookupSiteById(sitesLog, route.site), lookupAppById(appsLog, route.app), route.definition, route.source_path, route.target_path]);
+      `, [route.route, route.site_log, route.app_log, route.definition, route.source_path, route.target_path]);
       } catch (e) {
         // TODO: this introduces a logical falicy, how do we detect whether a route is deleted if a
         // site is deleted?...
@@ -202,7 +202,7 @@ async function run(pgpool) {
     `, [space.space, space.name, space.definition])))).map((x) => x.rows).flat());
 
   debug('Checking for apps deletions');
-  appsLog = appsLog.concat((await Promise.all((await pgpool.query('select app_log, app, name, space, definition, observed_on from akkeris.apps'))
+  appsLog = appsLog.concat((await Promise.all((await pgpool.query('select app_log, app, name, space_log, definition, observed_on from akkeris.apps'))
     .rows
     .filter((app) => !apps.map((x) => x.id).includes(app.app))
     .map((app) => pgpool.query(`
@@ -211,11 +211,11 @@ async function run(pgpool) {
       on conflict (app, name, space_log, (definition->>'updated_at'), deleted)
       do update set name = EXCLUDED.name
       returning app_log, app, name, space_log, definition, observed_on, deleted
-    `, [app.app, app.name, lookupSpaceById(spacesLog, app.space), app.definition]))))
+    `, [app.app, app.name, app.space_log, app.definition]))))
     .map((x) => x.rows).flat());
 
   debug('Checking for addons deletions');
-  addonsLog = addonsLog.concat((await Promise.all((await pgpool.query('select addon_log, addon, app, addon_service, name, definition, observed_on from akkeris.addons'))
+  addonsLog = addonsLog.concat((await Promise.all((await pgpool.query('select addon_log, addon, app_log, addon_service_log, name, definition, observed_on from akkeris.addons'))
     .rows
     .filter((addon) => !addons.map((x) => x.id).includes(addon.addon))
     .map((addon) => pgpool.query(`
@@ -224,11 +224,11 @@ async function run(pgpool) {
       on conflict (addon, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
       do update set name = EXCLUDED.name
       returning addon_log, addon, app_log, addon_service_log, name, definition, observed_on, deleted
-    `, [addon.addon, lookupAppById(appsLog, addon.app), lookupAddonServiceById(addonServicesLog, addon.addon_service), addon.name, addon.definition]))))
+    `, [addon.addon, addon.app_log, addon.addon_service_log, addon.name, addon.definition]))))
     .map((x) => x.rows).flat());
 
   debug('Checking for addon attachments deletions');
-  (await pgpool.query('select addon_attachment_log, addon_attachment, addon, app, addon_service, name, definition, observed_on from akkeris.addon_attachments'))
+  (await pgpool.query('select addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on from akkeris.addon_attachments'))
     .rows
     .filter((addonAttachment) => !addonAttachments.map((x) => x.id).includes(addonAttachment.addon_attachment)) // eslint-disable-line max-len
     .map((addonAttachment) => pgpool.query(`
@@ -237,7 +237,7 @@ async function run(pgpool) {
       on conflict (addon_attachment, addon_log, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
       do update set name = EXCLUDED.name
       returning addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted
-    `, [addonAttachment.addon_attachment, lookupAddonById(addonsLog, addonAttachment.addon), lookupAppById(appsLog, addonAttachment.app), lookupAddonServiceById(addonServicesLog, addonAttachment.addon_service), addonAttachment.name, addonAttachment.definition]));
+    `, [addonAttachment.addon_attachment, addonAttachment.addon_log, addonAttachment.app_log, addonAttachment.addon_service_log, addonAttachment.name, addonAttachment.definition]));
 
   // TODO: releases? builds? slugs? log-drains?
 }

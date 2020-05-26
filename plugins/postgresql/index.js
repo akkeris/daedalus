@@ -11,7 +11,7 @@ async function init(pgpool) {
 }
 
 function findConstraintId(constraints, database, name, type, fromCatalog, fromSchema, fromTable, fromColumn) { // eslint-disable-line max-len
-  return constraints.filter((constraint) => constraint.database === database.database
+  return constraints.filter((constraint) => constraint.database_log === database.database_log
     && database.name === fromCatalog
     && constraint.from_schema === fromSchema
     && constraint.from_table === fromTable
@@ -20,38 +20,38 @@ function findConstraintId(constraints, database, name, type, fromCatalog, fromSc
     && constraint.name === name)[0];
 }
 
-function findIndexId(indexes, database, catalog, schema, table, name) {
-  return indexes.filter((index) => index.database === database
+function findIndexId(indexes, database, catalog, schema, table_log, name) { // eslint-disable-line camelcase,max-len
+  return indexes.filter((index) => index.database_log === database
     && index.catalog === catalog
     && index.schema === schema
-    && index.table === table
+    && index.table_log === table_log // eslint-disable-line camelcase
     && index.name === name)[0];
 }
 
-function findColumnId(columns, database, catalog, schema, table, name) {
-  return columns.filter((column) => column.database === database
+function findColumnId(columns, database, catalog, schema, table_log, name) { // eslint-disable-line camelcase,max-len
+  return columns.filter((column) => column.database_log === database
     && column.catalog === catalog
     && column.schema === schema
-    && column.table === table
+    && column.table_log === table_log // eslint-disable-line camelcase
     && column.name === name)[0];
 }
 
 function findTableOrViewId(tables, views, database, catalog, schema, name) {
-  return tables.filter((table) => table.database === database
+  return tables.filter((table) => table.database_log === database
     && table.catalog === catalog
     && table.schema === schema
     && table.name === name)
-    .concat(views.filter((view) => view.database === database
+    .concat(views.filter((view) => view.database_log === database
       && view.catalog === catalog
       && view.schema === schema
       && view.name === name))[0];
 }
 
 function findForeignTable(tables, database, catalog, schema, table_in, foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host) { // eslint-disable-line max-len,camelcase
-  return tables.filter((table) => table.database === database
+  return tables.filter((table) => table.database_log === database
     && table.catalog === catalog
     && table.schema === schema
-    && table.table === table_in // eslint-disable-line max-len,camelcase
+    && table.table_log === table_in // eslint-disable-line max-len,camelcase
     && table.foreign_schema_name === foreign_schema_name // eslint-disable-line max-len,camelcase
     && table.foreign_table_name === foreign_table_name // eslint-disable-line max-len,camelcase
     && table.foreign_database_name === foreign_database_name // eslint-disable-line max-len,camelcase
@@ -60,7 +60,7 @@ function findForeignTable(tables, database, catalog, schema, table_in, foreign_s
 
 
 function findForeignServer(foreignServers, database, catalog, owner, name, username, connection) {
-  return foreignServers.filter((server) => server.database === database
+  return foreignServers.filter((server) => server.database_log === database
     && server.catalog === catalog
     && server.owner === owner
     && server.name === name
@@ -79,10 +79,10 @@ function findForeignServer(foreignServers, database, catalog, owner, name, usern
 
 async function writeTablesViewsAndColumns(pgpool, bus, database) {
   assert.ok(database, 'A database parameter was not provided!');
-  assert.ok(database.database, 'A database uuid was not provided!');
+  assert.ok(database.database_log, 'A database uuid was not provided!');
   if (!database.name) {
-    await pgpool.query('insert into postgresql.errors("error", database, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database, "type", message) do update set observed_on = now()',
-      [database.database, 'database-name-missing', 'The database name was not defined.']);
+    await pgpool.query('insert into postgresql.errors("error", database_log, "type", message, observed_on) values (uuid_generate_v4(), $1, $2, $3, now()) on conflict (database_log, "type", message) do update set observed_on = now()',
+      [database.database_log, 'database-name-missing', 'The database name was not defined.']);
     return;
   }
   const client = new pg.Client({
@@ -102,7 +102,6 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
      * Failing to do so would cause connection leaks.
      */
     await client.connect();
-
     const tables = (await Promise.all((await client.query(`
       select 
         schemaname,
@@ -136,13 +135,13 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         array_length(pg_foreign_server.srvoptions, 1) > 0
     `, [])).rows.map((table) => pgpool.query(`
       insert into postgresql.tables_log 
-        ("table", database, catalog, schema, name, is_view, is_foreign, definition, hash, deleted)
+        (table_log, "table", database_log, catalog, schema, name, is_view, is_foreign, definition, hash, deleted)
       values 
-        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, encode(digest($7::text, 'sha1'), 'hex'), $8)
-      on conflict (database, catalog, schema, name, is_view, hash, deleted)
-      do update set name = $4
-      returning "table", database, catalog, schema, name, is_view, is_foreign, definition, hash
-    `, [database.database, database.name, table.schemaname, table.tablename, false, table.is_foreign, '', false]))))
+        (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6, $7, $8, encode(digest($8::text, 'sha1'), 'hex'), $9)
+      on conflict (database_log, catalog, schema, name, is_view, hash, deleted)
+      do update set deleted = false
+      returning table_log, "table", database_log, catalog, schema, name, is_view, is_foreign, definition, hash
+    `, [`${database.host}.${database.name}.${table.schemaname}.${table.tablename}`, database.database_log, database.name, table.schemaname, table.tablename, false, table.is_foreign, '', false]))))
       .map((x) => x.rows).flat();
 
     const views = (await Promise.all((await client.query(`
@@ -156,16 +155,14 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         pg_views.schemaname <> 'sys'
     `, [])).rows.map((view) => pgpool.query(`
       insert into postgresql.tables_log 
-        ("table", database, catalog, schema, name, is_view, is_foreign, definition, hash, deleted)
+        (table_log, "table", database_log, catalog, schema, name, is_view, is_foreign, definition, hash, deleted)
       values 
-        (uuid_generate_v4(), $1, $2, $3, $4, $5, false, $6, encode(digest($6::text, 'sha1'), 'hex'), $7)
-      on conflict (database, catalog, schema, name, is_view, hash, deleted)
-      do update set name = $4
-      returning "table", database, catalog, schema, name, is_foreign
-    `, [database.database, database.name, view.schemaname, view.viewname, true, view.definition || '', false]))))
+        (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6, false, $7, encode(digest($7::text, 'sha1'), 'hex'), $8)
+      on conflict (database_log, catalog, schema, name, is_view, hash, deleted)
+      do update set deleted = false
+      returning table_log, "table", database_log, catalog, schema, name, is_foreign
+    `, [`${database.host}.${database.name}.${view.schemaname}.${view.viewname}`, database.database_log, database.name, view.schemaname, view.viewname, true, view.definition || '', false]))))
       .map((x) => x.rows).flat();
-
-    // Foreign Tables
     const foreigns = (await Promise.all((await client.query(`
       select
         pg_foreign_data_wrapper.fdwname as foreign_data_wrapper_name,
@@ -189,14 +186,14 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         array_length(pg_foreign_server.srvoptions, 1) > 0
     `, [])).rows.map((table) => pgpool.query(`
       insert into postgresql.foreign_tables_log
-        (foreign_table_log, database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, deleted)
+        (foreign_table_log, foreign_table, database_log, catalog, schema, table_log, foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, deleted)
       values
-        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, false)
-      on conflict (database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, deleted)
-      do update set foreign_database_host = $8
+        (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6, $7, $8, $9, false)
+      on conflict (database_log, catalog, schema, table_log, foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, deleted)
+      do update set foreign_database_host = $9
       returning
-        foreign_table_log, database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host
-    `, [database.database, database.name, table.local_schema_name, findTableOrViewId(tables, views, database.database, database.name, table.local_schema_name, table.local_table_name).table, table.foreign_schema_name, table.foreign_table_name, table.foreign_database_name, table.foreign_database_host]))))
+        foreign_table_log, foreign_table, database_log, catalog, schema, table_log, foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host
+    `, [`${database.host}.${database.name}.${table.local_schema_name}.${table.local_table_name}`, database.database_log, database.name, table.local_schema_name, findTableOrViewId(tables, views, database.database_log, database.name, table.local_schema_name, table.local_table_name).table_log, table.foreign_schema_name, table.foreign_table_name, table.foreign_database_name, table.foreign_database_host]))))
       .map((x) => x.rows).flat();
 
     const columns = (await Promise.all((await client.query(`
@@ -231,13 +228,13 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       order by attnum
     `, [])).rows.map(async (column) => pgpool.query(`
         insert into postgresql.columns_log 
-          ("column", database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted)
+          (column_log, "column", database_log, catalog, schema, table_log, name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted)
         values 
-          (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-        on conflict (database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted) 
-        do update set name = $5
-        returning "column", database, catalog, schema, "table", name
-        `, [database.database, database.name, column.table_schema, findTableOrViewId(tables, views, database.database, database.name, column.table_schema, column.table_name).table, column.column_name, column.ordinal_position, column.column_default || '', column.is_nullable, column.data_type, column.character_maximum_length || 0, column.character_octet_length || 0, column.numeric_precision || 0, column.numeric_precision_radix || 0, column.numeric_scale || 0, column.datetime_precision || 0, column.is_updatable || true, false]))))
+          (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        on conflict (database_log, catalog, schema, table_log, name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted) 
+        do update set name = $6
+        returning column_log, "column", database_log, catalog, schema, table_log, name
+        `, [`${database.host}.${database.name}.${column.table_schema}.${column.table_name}.${column.column_name}`, database.database_log, database.name, column.table_schema, findTableOrViewId(tables, views, database.database_log, database.name, column.table_schema, column.table_name).table_log, column.column_name, column.ordinal_position, column.column_default || '', column.is_nullable, column.data_type, column.character_maximum_length || 0, column.character_octet_length || 0, column.numeric_precision || 0, column.numeric_precision_radix || 0, column.numeric_scale || 0, column.datetime_precision || 0, column.is_updatable || true, false]))))
       .map((x) => x.rows).flat();
 
     const indexes = (await Promise.all((await client.query(`
@@ -260,13 +257,13 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         pg_indexes.schemaname <> 'sys'
     `, [])).rows.map(async (index) => pgpool.query(`
         insert into postgresql.indexes_log 
-          ("index", "table", database, catalog, schema, name, definition, hash, deleted)
+          (index_log, "index", table_log, database_log, catalog, schema, name, definition, hash, deleted)
         values 
-          (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6::text, 'sha1'), 'hex'), $7)
-        on conflict (database, catalog, schema, "table", name, hash, deleted) 
-        do update set name = $5
-        returning "index", "table", database, catalog, schema, name, definition
-      `, [findTableOrViewId(tables, views, database.database, database.name, index.schemaname, index.tablename).table, database.database, database.name, index.schemaname, index.indexname, index.indexdef, false]))))
+          (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6, $7, encode(digest($7::text, 'sha1'), 'hex'), $8)
+        on conflict (database_log, catalog, schema, table_log, name, hash, deleted) 
+        do update set name = $6
+        returning index_log, "index", table_log, database_log, catalog, schema, name, definition
+      `, [`${database.host}.${database.name}.${index.schemaname}.${index.tablename}.${index.indexname}`, findTableOrViewId(tables, views, database.database_log, database.name, index.schemaname, index.tablename).table_log, database.database_log, database.name, index.schemaname, index.indexname, index.indexdef, false]))))
       .map((x) => x.rows).flat();
 
     const constraints = (await client.query(`
@@ -304,29 +301,32 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
     `, [])).rows;
 
     const primaryKeyConstraints = (await Promise.all(constraints.filter((x) => x.constraint_type === 'PRIMARY KEY').map(async (constraint) => {
-      const tableUUID = findTableOrViewId(tables, views, database.database, database.name, constraint.from_schema, constraint.from_table_name).table; // eslint-disable-line max-len
+      const tableUUID = findTableOrViewId(tables, views, database.database_log, database.name, constraint.from_schema, constraint.from_table_name).table_log; // eslint-disable-line max-len
       assert(tableUUID, `The table UUID was not found for a primary key constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
-      const columnUUIDs = constraint.from_columns.map((x) => findColumnId(columns, database.database, database.name, constraint.from_schema, tableUUID, x).column); // eslint-disable-line max-len
+      const columnUUIDs = constraint.from_columns.map((x) => findColumnId(columns, database.database_log, database.name, constraint.from_schema, tableUUID, x).column_log); // eslint-disable-line max-len
       assert(columnUUIDs.length > 0,
         `The column UUID was not found for a primary key constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name} ${constraint.from_column_name}`);
       return {
-        rows: (await Promise.all(columnUUIDs.map((columnUUID) => pgpool.query(`
+        rows: (await Promise.all(columnUUIDs.map((columnUUID) => {
+          const constraintKey = `${database.host}.${database.name}.${constraint.from_schema}.${tableUUID}.${columnUUID}`;
+          return pgpool.query(`
             insert into postgresql.constraints_log 
-              ("constraint", database, name, type, from_catalog, from_schema, from_table, from_column, deleted)
+              (constraint_log, "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column, deleted)
             values 
-              (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8)
-            on conflict (database, name, "type", from_catalog, from_schema, from_table, from_column, deleted) where "type" = 'PRIMARY KEY'
-            do update set name = $2
-            returning "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, deleted
-          `, [database.database, constraint.constraint_name, constraint.constraint_type, database.name, constraint.from_schema, tableUUID, columnUUID, false])))).map((x) => x.rows).flat(),
+              (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6, $7, $8, $9)
+            on conflict (database_log, name, "type", from_catalog, from_schema, from_table, from_column, deleted) where "type" = 'PRIMARY KEY'
+            do update set name = $3
+            returning constraint_log, "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column, deleted
+          `, [constraintKey, database.database_log, constraint.constraint_name, constraint.constraint_type, database.name, constraint.from_schema, tableUUID, columnUUID, false]);
+        }))).map((x) => x.rows).flat(),
       };
     }))).map((x) => x.rows).flat();
 
     const foreignKeyConstraints = (await Promise.all(constraints.filter((x) => x.constraint_type === 'FORIEGN KEY').map(async (constraint) => {
-      const fromTableUUID = findTableOrViewId(tables, views, database.database, database.name, constraint.from_schema, constraint.from_table_name).table; // eslint-disable-line max-len
-      const fromColumnUUIDs = constraint.from_columns.map((x) => findColumnId(columns, database.database, database.name, constraint.from_schema, fromTableUUID, x).column); // eslint-disable-line max-len
-      const toTableUUID = findTableOrViewId(tables, views, database.database, database.name, constraint.to_schema, constraint.to_table_name).table; // eslint-disable-line max-len
-      const toColumnUUIDs = constraint.to_columns.map((x) => findColumnId(columns, database.database, database.name, constraint.to_schema, toTableUUID, x).column); // eslint-disable-line max-len
+      const fromTableUUID = findTableOrViewId(tables, views, database.database_log, database.name, constraint.from_schema, constraint.from_table_name).table_log; // eslint-disable-line max-len
+      const fromColumnUUIDs = constraint.from_columns.map((x) => findColumnId(columns, database.database_log, database.name, constraint.from_schema, fromTableUUID, x).column_log); // eslint-disable-line max-len
+      const toTableUUID = findTableOrViewId(tables, views, database.database_log, database.name, constraint.to_schema, constraint.to_table_name).table_log; // eslint-disable-line max-len
+      const toColumnUUIDs = constraint.to_columns.map((x) => findColumnId(columns, database.database_log, database.name, constraint.to_schema, toTableUUID, x).column_log); // eslint-disable-line max-len
       assert(fromTableUUID, `The table UUID was not found for a foreign key constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
       assert(fromColumnUUIDs.length > 0, `The column UUID was not found for a foreign key constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
       assert(toTableUUID, `The table UUID was not found for a foreign key constraint on catalog: ${database.name} schema: ${constraint.to_schema} table: ${constraint.to_table_name}`);
@@ -336,37 +336,40 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       return {
         rows: (await Promise.all(fromColumnUUIDs.map((fromColumnUUID, index) => {
           const toColumnUUID = toColumnUUIDs[index];
+          const constraintKey = `${database.host}.${database.name}.${constraint.from_schema}.${fromTableUUID}.${fromColumnUUID
+          }${constraint.to_schema}.${toTableUUID}.${toColumnUUID}`;
           return pgpool.query(`
             insert into postgresql.constraints_log 
-              ("constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted)
+              (constraint_log, "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted)
             values 
-              (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-            on conflict (database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted) where "type" = 'FORIEGN KEY'
-            do update set name = $2
-            returning "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted
-          `, [database.database, constraint.constraint_name, constraint.constraint_type, database.name, constraint.from_schema, fromTableUUID, fromColumnUUID, database.name, constraint.to_schema, toTableUUID, toColumnUUID, false]);
+              (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            on conflict (database_log, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted) where "type" = 'FORIEGN KEY'
+            do update set name = $3
+            returning constraint_log, "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted
+          `, [constraintKey, database.database_log, constraint.constraint_name, constraint.constraint_type, database.name, constraint.from_schema, fromTableUUID, fromColumnUUID, database.name, constraint.to_schema, toTableUUID, toColumnUUID, false]);
         }))).map((x) => x.rows).flat(),
       };
     }))).map((x) => x.rows).flat();
 
     const checkConstraints = (await Promise.all(constraints.filter((x) => x.constraint_type === 'CHECK').map(async (constraint) => {
-      const tableUUID = findTableOrViewId(tables, views, database.database, database.name, constraint.from_schema, constraint.from_table_name).table; // eslint-disable-line max-len
-      const columnUUIDs = constraint.from_columns.map((x) => findColumnId(columns, database.database, database.name, constraint.from_schema, tableUUID, x).column); // eslint-disable-line max-len
+      const tableUUID = findTableOrViewId(tables, views, database.database_log, database.name, constraint.from_schema, constraint.from_table_name).table_log; // eslint-disable-line max-len
+      const columnUUIDs = constraint.from_columns.map((x) => findColumnId(columns, database.database_log, database.name, constraint.from_schema, tableUUID, x).column_log); // eslint-disable-line max-len
       assert(tableUUID, `The table UUID was not found for a check constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
       return {
-        rows: (await Promise.all(columnUUIDs.map((columnUUID) => pgpool.query(`
+        rows: (await Promise.all(columnUUIDs.map((columnUUID) => {
+          const constraintKey = `${database.host}.${database.name}.${constraint.from_schema}.${tableUUID}.${columnUUID}.${constraint.definition}`;
+          return pgpool.query(`
             insert into postgresql.constraints_log 
-              ("constraint", database, name, type, from_catalog, from_schema, from_table, from_column, check_clause, deleted)
-            values 
-              (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
-            on conflict (database, name, type, from_catalog, from_schema, from_table, check_clause, deleted) where "type" = 'CHECK'
-            do update set name = $2
-            returning "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, check_clause, deleted
-          `, [database.database, constraint.constraint_name, constraint.constraint_type, database.name, constraint.from_schema, tableUUID, columnUUID, constraint.definition, false])))).map((x) => x.rows).flat(),
+              (constraint_log, "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column, check_clause, deleted)
+            values
+              (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            on conflict (database_log, name, type, from_catalog, from_schema, from_table, check_clause, deleted) where "type" = 'CHECK'
+            do update set name = $3
+            returning constraint_log, "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, check_clause, deleted
+          `, [constraintKey, database.database_log, constraint.constraint_name, constraint.constraint_type, database.name, constraint.from_schema, tableUUID, columnUUID, constraint.definition, false]);
+        }))).map((x) => x.rows).flat(),
       };
     }))).map((x) => x.rows).flat();
-
-    // Get foreign servers
     const foreignServers = (await Promise.all((await client.query(`
       select
         pg_roles.rolname as owner,
@@ -382,13 +385,13 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         pg_foreign_server.srvoptions is not null
     `, [])).rows.map((foreignServer) => pgpool.query(`
       insert into postgresql.foreign_servers_log 
-        (foreign_server_log, database, catalog, owner, name, username, connection, deleted)
+        (foreign_server_log, foreign_server, database_log, catalog, owner, name, username, connection, deleted)
       values 
-        (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
-      on conflict (database, catalog, owner, name, username, connection, deleted)
+        (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6, $7, $8)
+      on conflict (database_log, catalog, owner, name, username, connection, deleted)
       do update set deleted = false
-      returning foreign_server_log, database, catalog, owner, name, username, connection, deleted
-    `, [database.database, database.name, foreignServer.owner, foreignServer.db_link, foreignServer.username, foreignServer.connection, false]))))
+      returning foreign_server_log, foreign_server, database_log, catalog, owner, name, username, connection, deleted
+    `, [foreignServer.db_link + foreignServer.username, database.database_log, database.name, foreignServer.owner, foreignServer.db_link, foreignServer.username, foreignServer.connection, false]))))
       .map((x) => x.rows).flat();
 
     // Column Statistics
@@ -420,17 +423,17 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         attname <> 'expr' --ignore indexes
     `, [])).rows.map((estimate) => { // eslint-disable-line array-callback-return,consistent-return
       try {
-        const tableUUID = findTableOrViewId(tables, views, database.database, database.name, estimate.schema, estimate.table_name).table; // eslint-disable-line max-len
-        const columnUUID = findColumnId(columns, database.database, database.name, estimate.schema, tableUUID, estimate.column_name).column; // eslint-disable-line max-len
+        const tableUUID = findTableOrViewId(tables, views, database.database_log, database.name, estimate.schema, estimate.table_name).table_log; // eslint-disable-line max-len
+        const columnUUID = findColumnId(columns, database.database_log, database.name, estimate.schema, tableUUID, estimate.column_name).column_log; // eslint-disable-line max-len
         return pgpool.query(`
           insert into postgresql.column_statistics_log 
-            ("column_statistic", database, catalog, schema, "table", "column", inherited, null_frac, avg_width, n_distinct, most_common_vals, most_common_freqs, histogram_bounds, correlation, most_common_elems, most_common_elem_freqs, deleted)
+            ("column_statistic", database_log, catalog, schema, table_log, column_log, inherited, null_frac, avg_width, n_distinct, most_common_vals, most_common_freqs, histogram_bounds, correlation, most_common_elems, most_common_elem_freqs, deleted)
           values
             (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
           on conflict do nothing
-        `, [database.database, database.name, estimate.schema, tableUUID, columnUUID, estimate.inherited, estimate.null_frac, estimate.avg_width, estimate.n_distinct, estimate.most_common_vals ? estimate.most_common_vals.split('|,|::') : null, estimate.most_common_freqs, estimate.histogram_bounds ? estimate.histogram_bounds.split('|,|::') : null, estimate.correlation, estimate.most_common_elems ? estimate.most_common_elems.split('|,|::') : null, estimate.most_common_elem_freqs ? estimate.most_common_elem_freqs.split('|,|::') : null, false]);
+        `, [database.database_log, database.name, estimate.schema, tableUUID, columnUUID, estimate.inherited, estimate.null_frac, estimate.avg_width, estimate.n_distinct, estimate.most_common_vals ? estimate.most_common_vals.split('|,|::') : null, estimate.most_common_freqs, estimate.histogram_bounds ? estimate.histogram_bounds.split('|,|::') : null, estimate.correlation, estimate.most_common_elems ? estimate.most_common_elems.split('|,|::') : null, estimate.most_common_elem_freqs ? estimate.most_common_elem_freqs.split('|,|::') : null, false]);
       } catch (e) {
-        debug(`Failed to import column statistc for ${database.database} and %o due to ${e.message}`, estimate);
+        debug(`Failed to import column statistc for ${database.database_log} and %o due to ${e.message}`, estimate);
       }
     })));
 
@@ -464,11 +467,11 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
           pg_namespace.nspname <> 'information_schema'
     `, [])).rows.map((estimate) => pgpool.query(`
       insert into postgresql.table_statistics_log 
-        ("table_statistic", database, catalog, schema, "table", row_amount_estimate, index_size, table_size, sequential_scans, percent_of_times_index_used, index_hit_rate, table_hit_rate, deleted)
+        ("table_statistic", database_log, catalog, schema, table_log, row_amount_estimate, index_size, table_size, sequential_scans, percent_of_times_index_used, index_hit_rate, table_hit_rate, deleted)
       values
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       on conflict do nothing
-    `, [database.database, database.name, estimate.schema, findTableOrViewId(tables, views, database.database, database.name, estimate.schema, estimate.table_name).table, estimate.rows, estimate.index_size, estimate.table_size, estimate.seq_scan, estimate.percent_of_times_index_used, estimate.index_hit_rate || 0, estimate.table_hit_rate || 0, false]))));
+    `, [database.database_log, database.name, estimate.schema, findTableOrViewId(tables, views, database.database_log, database.name, estimate.schema, estimate.table_name).table_log, estimate.rows, estimate.index_size, estimate.table_size, estimate.seq_scan, estimate.percent_of_times_index_used, estimate.index_hit_rate || 0, estimate.table_hit_rate || 0, false]))));
 
     // Database Connection Statistics
     (await Promise.all((await client.query(`
@@ -483,18 +486,17 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         (select setting::int max_connections from pg_settings where name=$$max_connections$$) c
     `, [database.name])).rows.map((estimate) => pgpool.query(`
       insert into postgresql.database_statistics_log
-        ("database_statistic", database, max_connections, used_connections, reserved_connections, available_connections, deleted)
+        ("database_statistic", database_log, max_connections, used_connections, reserved_connections, available_connections, deleted)
       values
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6)
       on conflict do nothing
-    `, [database.database, estimate.max_connections, estimate.used_connections, estimate.reserved_connections, estimate.available_connections, false]))));
-
+    `, [database.database_log, estimate.max_connections, estimate.used_connections, estimate.reserved_connections, estimate.available_connections, false]))));
 
     // TODO: This is not tracking changes to the config, it should.
     //       Probably should be its own log table.
     const config = (await client.query('show all')).rows.reduce((acc, x) => ({ ...acc, [x.name]: { value: x.setting, description: x.description } }), {});
-    await pgpool.query('update postgresql.databases_log set config = $2 where database = $1',
-      [database.database, config]);
+    await pgpool.query('update postgresql.databases_log set config = $2 where database_log = $1',
+      [database.database_log, config]);
 
     // TODO: User defined data types
     // TODO: Vaccuum statistics, pg_settings Add blocking queries,
@@ -502,147 +504,147 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
     // TODO: snapshot pg_catalog.pg_available_extensions
 
     // Check for table deletion
-    await Promise.all((await pgpool.query('select "table", database, catalog, schema, name, is_view, definition from postgresql.tables where database = $1', [database.database]))
+    await Promise.all((await pgpool.query('select table_log, "table", database_log, catalog, schema, name, is_view, definition from postgresql.tables where database_log = $1', [database.database_log]))
       .rows
       .map(async (tableOrView) => {
-        if (!findTableOrViewId(tables, views, database.database, tableOrView.catalog, tableOrView.schema, tableOrView.name)) { // eslint-disable-line max-len
+        if (!findTableOrViewId(tables, views, database.database_log, tableOrView.catalog, tableOrView.schema, tableOrView.name)) { // eslint-disable-line max-len
           await pgpool.query(`
             insert into postgresql.tables_log 
-              ("table", database, catalog, schema, name, is_view, definition, hash, deleted)
+              (table_log, "table", database_log, catalog, schema, name, is_view, definition, hash, deleted)
             values 
-              (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6, 'sha1'), 'hex'), $7)
-            on conflict (database, catalog, schema, name, is_view, hash, deleted)
+              (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, encode(digest($7, 'sha1'), 'hex'), $8)
+            on conflict (database_log, catalog, schema, name, is_view, hash, deleted)
             do update set deleted = true`,
-          [tableOrView.database, tableOrView.catalog, tableOrView.schema, tableOrView.name, tableOrView.is_view, tableOrView.definition, true]); // eslint-disable-line max-len
+          [tableOrView.table, tableOrView.database_log, tableOrView.catalog, tableOrView.schema, tableOrView.name, tableOrView.is_view, tableOrView.definition, true]); // eslint-disable-line max-len
         }
       }));
 
     // Check for column deletion
-    await Promise.all((await pgpool.query('select "column", database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable from postgresql.columns where database = $1', [database.database]))
+    await Promise.all((await pgpool.query('select "column", database_log, catalog, schema, table_log, name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable from postgresql.columns where database_log = $1', [database.database_log]))
       .rows
       .map(async (column) => {
-        if (!findColumnId(columns, database.database, column.catalog, column.schema, column.table, column.name)) { // eslint-disable-line max-len
+        if (!findColumnId(columns, database.database_log, column.catalog, column.schema, column.table_log, column.name)) { // eslint-disable-line max-len
           await pgpool.query(`
           insert into postgresql.columns_log 
-            ("column", database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted)
+            (column_log, "column", database_log, catalog, schema, table_log, name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted)
           values 
-            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-          on conflict (database, catalog, schema, "table", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted) 
+            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+          on conflict (database_log, catalog, schema, table_log, name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted) 
           do update set deleted = true`,
-          [column.database, column.catalog, column.schema, column.table, column.name, column.position, column.default, column.is_nullable, column.data_type, column.character_maximum_length, column.character_octet_length, column.numeric_precision, column.numeric_precision_radix, column.numeric_scale, column.datetime_precision, column.is_updatable, true]); // eslint-disable-line max-len
+          [column.column, column.database_log, column.catalog, column.schema, column.table_log, column.name, column.position, column.default, column.is_nullable, column.data_type, column.character_maximum_length, column.character_octet_length, column.numeric_precision, column.numeric_precision_radix, column.numeric_scale, column.datetime_precision, column.is_updatable, true]); // eslint-disable-line max-len
         }
       }));
 
     // Check for index deletion
-    await Promise.all((await pgpool.query('select "index", database, catalog, schema, "table", name, definition from postgresql.indexes where database = $1', [database.database]))
+    await Promise.all((await pgpool.query('select "index", database_log, catalog, schema, table_log, name, definition from postgresql.indexes where database_log = $1', [database.database_log]))
       .rows
       .map(async (index) => {
-        if (!findIndexId(indexes, database.database, index.catalog, index.schema, index.table, index.name)) { // eslint-disable-line max-len
+        if (!findIndexId(indexes, database.database_log, index.catalog, index.schema, index.table_log, index.name)) { // eslint-disable-line max-len
           await pgpool.query(`
           insert into postgresql.indexes_log 
-            ("index", database, catalog, schema, "table", name, definition, hash, deleted)
+            (index_log, "index", database_log, catalog, schema, table_log, name, definition, hash, deleted)
           values 
-            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, encode(digest($6, 'sha1'), 'hex'), $7)
-          on conflict (database, catalog, schema, "table", name, hash, deleted) 
+            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, encode(digest($7, 'sha1'), 'hex'), $8)
+          on conflict (database_log, catalog, schema, table_log, name, hash, deleted) 
           do update set deleted = true`,
-          [database.database, index.catalog, index.schema, index.table, index.name, index.definition, true]); // eslint-disable-line max-len
+          [index.index, database.database_log, index.catalog, index.schema, index.table_log, index.name, index.definition, true]); // eslint-disable-line max-len
         }
       }));
 
     // Check for primary key deletion
-    await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column from postgresql.constraints where database = $1 and type = \'PRIMARY KEY\'', [database.database]))
+    await Promise.all((await pgpool.query('select "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column from postgresql.constraints where database_log = $1 and type = \'PRIMARY KEY\'', [database.database_log]))
       .rows
       .map(async (constraint) => {
         if (!findConstraintId(primaryKeyConstraints, database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column)) { // eslint-disable-line max-len
           await pgpool.query(`
           insert into postgresql.constraints_log 
-            ("constraint", database, name, "type", from_catalog, from_schema, from_table, from_column, deleted)
+            (constraint_log, "constraint", database_log, name, "type", from_catalog, from_schema, from_table, from_column, deleted)
           values 
-            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8)
-          on conflict (database, name, "type", from_catalog, from_schema, from_table, from_column, deleted) where "type" = 'PRIMARY KEY'
+            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
+          on conflict (database_log, name, "type", from_catalog, from_schema, from_table, from_column, deleted) where "type" = 'PRIMARY KEY'
           do update set deleted = true`,
-          [database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, true]); // eslint-disable-line max-len
+          [constraint.constraint, database.database_log, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, true]); // eslint-disable-line max-len
         }
       }));
 
     // Check for foreign key deletion
-    await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column from postgresql.constraints where database = $1 and type = \'FOREIGN KEY\'', [database.database]))
+    await Promise.all((await pgpool.query('select "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column from postgresql.constraints where database_log = $1 and type = \'FOREIGN KEY\'', [database.database_log]))
       .rows
       .map(async (constraint) => {
         if (!findConstraintId(foreignKeyConstraints, database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, database.name, constraint.to_schema, constraint.to_table, constraint.to_column)) { // eslint-disable-line max-len
           await pgpool.query(`
           insert into postgresql.constraints_log 
-            ("constraint", database, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted) 
+            (constraint_log, "constraint", database_log, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted) 
           values 
-            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-          on conflict (database, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted) where "type" = 'FOREIGN KEY'
+            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          on conflict (database_log, name, "type", from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted) where "type" = 'FOREIGN KEY'
           do update set deleted = true`,
-          [database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, database.name, constraint.to_schema, constraint.to_table, constraint.to_column, true]); // eslint-disable-line max-len
+          [constraint.constraint, database.database_log, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, database.name, constraint.to_schema, constraint.to_table, constraint.to_column, true]); // eslint-disable-line max-len
         }
       }));
 
     // Check for check constraint deletion
-    await Promise.all((await pgpool.query('select "constraint", database, name, type, from_catalog, from_schema, from_table, from_column, check_clause from postgresql.constraints where database = $1 and type = \'CHECK\'', [database.database]))
+    await Promise.all((await pgpool.query('select "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column, check_clause from postgresql.constraints where database_log = $1 and type = \'CHECK\'', [database.database_log]))
       .rows
       .map(async (constraint) => {
         if (!findConstraintId(checkConstraints, database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, database.name, constraint.to_schema, constraint.to_table, constraint.to_column)) { // eslint-disable-line max-len
           await pgpool.query(`
           insert into postgresql.constraints_log 
-            ("constraint", database, name, "type", from_catalog, from_schema, from_table, from_column, check_clause, deleted) 
+            (constraint_log, "constraint", database_log, name, "type", from_catalog, from_schema, from_table, from_column, check_clause, deleted) 
           values 
-            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9)
-          on conflict (database, name, "type", from_catalog, from_schema, from_table, check_clause, deleted) where "type" = 'CHECK'
+            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          on conflict (database_log, name, "type", from_catalog, from_schema, from_table, check_clause, deleted) where "type" = 'CHECK'
           do update set deleted = true`,
-          [database.database, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, constraint.check_clause, true]); // eslint-disable-line max-len
+          [constraint.constraint, database.database_log, constraint.name, constraint.type, database.name, constraint.from_schema, constraint.from_table, constraint.from_column, constraint.check_clause, true]); // eslint-disable-line max-len
         }
       }));
 
     // Check for foreign table deletion
-    await Promise.all((await pgpool.query('select foreign_table_log, database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host from postgresql.foreign_tables where database = $1', [database.database]))
+    await Promise.all((await pgpool.query('select foreign_table_log, foreign_table, database_log, catalog, schema, table_log, foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host from postgresql.foreign_tables where database_log = $1', [database.database_log]))
       .rows
       .map(async (table) => {
-        if (!findForeignTable(foreigns, database.database, table.catalog, table.schema, table.table, table.foreign_schema_name, table.foreign_table_name, table.foreign_database_name, table.foreign_database_host)) { // eslint-disable-line max-len
+        if (!findForeignTable(foreigns, database.database_log, table.catalog, table.schema, table.table_log, table.foreign_schema_name, table.foreign_table_name, table.foreign_database_name, table.foreign_database_host)) { // eslint-disable-line max-len
           await pgpool.query(`
           insert into postgresql.foreign_tables_log 
-            (foreign_table_log, database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, deleted) 
+            (foreign_table_log, foreign_table, database_log, catalog, schema, table_log, foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, deleted) 
           values 
-            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, true)
-          on conflict (database, catalog, schema, "table", foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, deleted)
+            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, true)
+          on conflict (database_log, catalog, schema, table_log, foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, deleted)
           do update set deleted = true`,
-          [database.database, table.catalog, table.schema, table.table, table.foreign_schema_name, table.foreign_table_name, table.foreign_database_name, table.foreign_database_host]); // eslint-disable-line max-len
+          [table.foreign_table, database.database_log, table.catalog, table.schema, table.table_log, table.foreign_schema_name, table.foreign_table_name, table.foreign_database_name, table.foreign_database_host]); // eslint-disable-line max-len
         }
       }));
 
     // Check for foreign server deletion
-    await Promise.all((await pgpool.query('select foreign_server_log, database, catalog, owner, name, username, connection from postgresql.foreign_servers_log where database = $1', [database.database]))
+    await Promise.all((await pgpool.query('select foreign_server_log, foreign_server, database_log, catalog, owner, name, username, connection from postgresql.foreign_servers_log where database_log = $1', [database.database_log]))
       .rows
       .map(async (foreignServer) => {
-        if (!findForeignServer(foreignServers, database.database, foreignServer.catalog, foreignServer.owner, foreignServer.name, foreignServer.username, foreignServer.connection)) { // eslint-disable-line max-len
+        if (!findForeignServer(foreignServers, database.database_log, foreignServer.catalog, foreignServer.owner, foreignServer.name, foreignServer.username, foreignServer.connection)) { // eslint-disable-line max-len
           await pgpool.query(`
           insert into postgresql.foreign_servers_log 
-            (foreign_server_log, database, catalog, owner, name, username, connection, deleted) 
+            (foreign_server_log, foreign_server, database_log, catalog, owner, name, username, connection, deleted) 
           values 
-            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7)
-          on conflict (database, catalog, owner, name, username, connection, deleted)
+            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8)
+          on conflict (database_log, catalog, owner, name, username, connection, deleted)
           do update set deleted = true`,
-          [database.database, foreignServer.catalog, foreignServer.owner, foreignServer.name, foreignServer.username, foreignServer.connection, true]); // eslint-disable-line max-len
+          [foreignServer.foreign_server, database.database_log, foreignServer.catalog, foreignServer.owner, foreignServer.name, foreignServer.username, foreignServer.connection, true]); // eslint-disable-line max-len
         }
       }));
   } catch (e) {
     if (e.message.includes('password authentication failed')) {
-      bus.emit('postgresql.error', [database.database, 'authentication-failed', e.message]);
+      bus.emit('postgresql.error', [database.database_log, 'authentication-failed', e.message]);
     } else if (e.message.includes('getaddrinfo ENOTFOUND')) {
-      bus.emit('postgresql.error', [database.database, 'host-not-found', e.message]);
+      bus.emit('postgresql.error', [database.database_log, 'host-not-found', e.message]);
     } else if (e.message.includes('connect ETIMEDOUT')) {
-      bus.emit('postgresql.error', [database.database, 'connection-timeout', e.message]);
+      bus.emit('postgresql.error', [database.database_log, 'connection-timeout', e.message]);
     } else if (e.message.includes('no pg_hba.conf entry for host')) {
-      bus.emit('postgresql.error', [database.database, 'forbidden-by-pg-hba-conf-policy', e.message]);
+      bus.emit('postgresql.error', [database.database_log, 'forbidden-by-pg-hba-conf-policy', e.message]);
     } else {
       // TODO: Check for db deletion?
       // How do we do this, if the host is unavailalbe we shouldn't assume the db is unavailable,
       // if the password is changed, what should we do? if the database no longer exists should
       // we remove it?
-      debug(`Error examining database uuid ${database.database}: ${e.stack}`); // eslint-disable-line no-console
+      debug(`Error examining database uuid ${database.database_log}: ${e.stack}`); // eslint-disable-line no-console
     }
   } finally {
     await client.end();
@@ -654,11 +656,11 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
 async function exec(pgpool, bus, secret) {
   const databases = (await Promise.all((await pgpool.query(`
     select 
-      databases.database, databases.name, databases.host, databases.port,
+      databases.database_log, databases.database, databases.name, databases.host, databases.port,
       roles.username, roles.password, roles.options
     from 
       postgresql.databases 
-      join postgresql.roles on roles.database = databases.database`, []))
+      join postgresql.roles on roles.database_log = databases.database_log`, []))
     .rows
     .filter((database) => database.password && database.password.cipher && database.password.encrypted) // eslint-disable-line max-len
     .map((database) => ({ ...database, password: security.decryptValue(secret, database.password).toString('utf8') }))));

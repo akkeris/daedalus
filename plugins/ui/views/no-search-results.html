@@ -1,5 +1,5 @@
 module.exports = (req, res, next, data) => res.send(`
-  ${require('./header.html')(req)}
+  ${require('./partials/header.html')(req)}
   <appkit-app>
     <nav-breadcrumb size="small">
       <ul>
@@ -15,5 +15,5 @@ module.exports = (req, res, next, data) => res.send(`
       </div>
     </main>
   </appkit-app>
-  ${require('./footer.html')(req, res)}
+  ${require('./partials/footer.html')(req, res)}
 `);

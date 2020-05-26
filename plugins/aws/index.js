@@ -111,7 +111,7 @@ async function writeObjs(pgpool, awsType, func, returnProperty, uniqueIdProperty
         on conflict (hash, deleted) 
         do update set name = $2, status = $5
         returning node_log, node, name, region, definition, status, hash, deleted
-      `, [item[uniqueIdProperty], item[nameProperty], region, item, findStatus(item), getDefinitionHash(item)]);
+      `, [`${awsType}.${item[uniqueIdProperty]}`, item[nameProperty], region, item, findStatus(item), getDefinitionHash(item)]);
     }))).map((x) => x.rows).flat());
     await new Promise((res) => setTimeout(res, 10 * 1000)); // eslint-disable-line no-await-in-loop
     marker = resp.Marker;

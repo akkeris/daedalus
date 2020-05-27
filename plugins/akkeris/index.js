@@ -34,7 +34,7 @@ function lookupSiteById(sites, id) {
 }
 
 function lookupAddonById(addons, id) {
-  return addons.filter((addon) => addon.addon === id)[0].addon_log;
+  return addons.filter((addon) => addon.definition.id === id)[0].addon_log;
 }
 
 async function run(pgpool) {
@@ -116,12 +116,12 @@ async function run(pgpool) {
   const { data: addons } = await get('/addons');
   let addonsLog = (await Promise.all(addons.map((item) => pgpool.query(`
     insert into akkeris.addons_log (addon_log, addon, app_log, addon_service_log, name, definition, observed_on, deleted)
-    values (uuid_generate_v4(), $1, $2, $3, $4, $5, now(), false)
+    values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, now(), false)
     on conflict (addon, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
     do update set name = EXCLUDED.name
     returning addon_log, addon, app_log, addon_service_log, name, definition, observed_on, deleted
   `,
-  [item.id, lookupAppById(appsLog, item.app.id), lookupAddonServiceById(addonServicesLog, item.addon_service.id), item.name, item])))) // eslint-disable-line max-len
+  [item.id + lookupAppById(appsLog, item.app.id), lookupAppById(appsLog, item.app.id), lookupAddonServiceById(addonServicesLog, item.addon_service.id), item.name, item])))) // eslint-disable-line max-len
     .map((x) => x.rows).flat();
 
   debug('Getting addon attachments');
@@ -130,7 +130,7 @@ async function run(pgpool) {
     try {
       return pgpool.query(`
         insert into akkeris.addon_attachments_log (addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted)
-        values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, now(), false)
+        values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6, now(), false)
         on conflict (addon_attachment, addon_log, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
         do update set name = EXCLUDED.name
         returning addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted

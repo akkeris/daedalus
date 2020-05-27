@@ -44,7 +44,11 @@ function getCertificate(uri) {
     }
     const { hostname, port } = new URL(uri);
     const options = {
-      host: hostname, port: port || 443, ALPNProtocols: ['http/1.1', 'http/1.0'], servername: hostname, rejectUnauthorized: false,
+      host: hostname,
+      port: port || 443,
+      ALPNProtocols: ['http/1.1', 'http/1.0'],
+      servername: hostname,
+      rejectUnauthorized: false,
     };
     let error = null;
     let response = null;

@@ -58,7 +58,7 @@ module.exports = (req, res, next, data) => res.send(`
         ${data.tables.filter((x) => !x.is_view).map((table) => `
         <div class="list-item">
           <div><a href="/ui/oracle/tables/${table.table}">${table.schema}.${table.name}</a></div>
-          <div>${data.tableStatistics.filter((x) => x.table === table.table).map((ts) => `
+          <div>${data.tableStatistics.filter((x) => x.table_log === table.table_log).map((ts) => `
             <dl class="facts">
               <dt>Rows</dt><dd>${ts.row_amount_estimate}</dd>
               <dt>Size</dt><dd>${formatBytes(parseInt(ts.table_size, 10) + parseInt(ts.index_size, 10))}</dd>

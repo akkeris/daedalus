@@ -168,7 +168,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         on conflict (database_log, catalog, schema, "table_log", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted) 
         do update set name = $6
         returning column_log, "column", database_log, catalog, schema, "table_log", name
-        `, [`${database.host}.${database.name}.${column.TABLE_SCHEMA}.${column.TABLE_NAME}.${column.COLUMN_NAME}`, database.database_log, database.name, column.TABLE_SCHEMA, findTableOrViewId(tables, views, database.database_log, database.name, column.TABLE_SCHEMA, column.TABLE_NAME).table_log, column.COLUMN_NAME, column.ORDINAL_POSITION, column.COLUMN_DEFAULT || '', column.IS_NULLABLE, column.DATA_TYPE, column.CHARACTER_MAXIMUM_LENGTH || 0, column.CHARACTER_OCTET_LENGTH || 0, column.NUMERIC_PRECISION || 0, column.NUMERIC_PRECISION_RADIX || 0, column.NUMERIC_SCALE || 0, column.DATETIME_PRECISION || 0, column.IS_UPDATABLE || true, false]))))
+        `, [`${database.host}.${database.name}.${column.TABLE_SCHEMA}.${column.TABLE_NAME}.${column.COLUMN_NAME}.column`, database.database_log, database.name, column.TABLE_SCHEMA, findTableOrViewId(tables, views, database.database_log, database.name, column.TABLE_SCHEMA, column.TABLE_NAME).table_log, column.COLUMN_NAME, column.ORDINAL_POSITION, column.COLUMN_DEFAULT || '', column.IS_NULLABLE, column.DATA_TYPE, column.CHARACTER_MAXIMUM_LENGTH || 0, column.CHARACTER_OCTET_LENGTH || 0, column.NUMERIC_PRECISION || 0, column.NUMERIC_PRECISION_RADIX || 0, column.NUMERIC_SCALE || 0, column.DATETIME_PRECISION || 0, column.IS_UPDATABLE || true, false]))))
       .map((x) => x.rows).flat();
 
     const indexes = (await Promise.all((await client.execute(`
@@ -188,7 +188,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         on conflict (database_log, catalog, schema, "table_log", name, hash, deleted) 
         do update set name = $6
         returning index_log, table_log, database_log, catalog, schema, name, definition
-      `, [`${database.host}.${database.name}.${index.SCHEMANAME}.${index.TABLENAME}.${index.INDEXNAME}`, findTableOrViewId(tables, views, database.database_log, database.name, index.SCHEMANAME, index.TABLENAME).table_log, database.database_log, database.name, index.SCHEMANAME, index.INDEXNAME, index.INDEXDEF, false]))))
+      `, [`${database.host}.${database.name}.${index.SCHEMANAME}.${index.TABLENAME}.${index.INDEXNAME}.index`, findTableOrViewId(tables, views, database.database_log, database.name, index.SCHEMANAME, index.TABLENAME).table_log, database.database_log, database.name, index.SCHEMANAME, index.INDEXNAME, index.INDEXDEF, false]))))
       .map((x) => x.rows).flat();
 
     const constraints = (await client.execute(`
@@ -248,7 +248,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         `The column UUID was not found for a primary key constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name} ${constraint.from_column_name}`);
       return {
         rows: (await Promise.all(columnUUIDs.map((columnUUID) => {
-          const constraintKey = `${database.host}.${database.name}.${constraint.from_schema}.${tableUUID}.${columnUUID}`;
+          const constraintKey = `${database.host}.${database.name}.${constraint.from_schema}.${tableUUID}.${columnUUID}.${constraint.constraint_name}`;
           return pgpool.query(`
             insert into oracle.constraints_log 
               ("constraint_log", "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column, deleted)
@@ -277,7 +277,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         rows: (await Promise.all(fromColumnUUIDs.map((fromColumnUUID, index) => {
           const toColumnUUID = toColumnUUIDs[index];
           const constraintKey = `${database.host}.${database.name}.${constraint.from_schema}.${fromTableUUID}.${fromColumnUUID
-          }${constraint.to_schema}.${toTableUUID}.${toColumnUUID}`;
+          }${constraint.to_schema}.${toTableUUID}.${toColumnUUID}.${constraint.constraint_name}`;
           return pgpool.query(`
             insert into oracle.constraints_log 
               ("constraint_log", "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column, to_catalog, to_schema, to_table, to_column, deleted)
@@ -297,7 +297,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       assert(tableUUID, `The table UUID was not found for a check constraint on catalog: ${database.name} schema: ${constraint.from_schema} table: ${constraint.from_table_name}`);
       return {
         rows: (await Promise.all(columnUUIDs.map((columnUUID) => {
-          const constraintKey = `${database.host}.${database.name}.${constraint.from_schema}.${tableUUID}.${columnUUID}.${constraint.definition}`;
+          const constraintKey = `${database.host}.${database.name}.${constraint.from_schema}.${tableUUID}.${columnUUID}.${constraint.constraint_name}`;
           return pgpool.query(`
             insert into oracle.constraints_log 
               ("constraint_log", "constraint", database_log, name, type, from_catalog, from_schema, from_table, from_column, check_clause, deleted)
@@ -328,7 +328,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       on conflict (database_log, catalog, owner, name, username, connection, deleted)
       do update set deleted = false
       returning foreign_server_log, foreign_server, database_log, catalog, owner, name, username, connection, deleted
-    `, [database.name + foreignServer.OWNER + foreignServer.DB_LINK + foreignServer.USERNAME + foreignServer.HOST, database.database_log, database.name, foreignServer.OWNER, foreignServer.DB_LINK, foreignServer.USERNAME, foreignServer.HOST, false]))))
+    `, [database.database_log + database.name + foreignServer.OWNER + foreignServer.DB_LINK + foreignServer.USERNAME + foreignServer.HOST, database.database_log, database.name, foreignServer.OWNER, foreignServer.DB_LINK, foreignServer.USERNAME, foreignServer.HOST, false]))))
       .map((x) => x.rows).flat();
 
     // Column Statistics

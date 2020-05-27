@@ -70,13 +70,14 @@ async function writeOracleFromConfigMaps(pgpool, bus, type, configMapRecords) {
             [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '1521' : dbUrl.port, false]);
             assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
             assert.ok(db.rows[0].database_log, 'Database was not set on return after insertion');
+            const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
             const role = await pgpool.query(`
               insert into oracle.roles_log (role_log, role, database_log, username, password, options, deleted)
               values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
               on conflict (database_log, username, (password->>'hash'), deleted) 
               do update set username = $3 
               returning role_log, role, username`,
-            [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}`, db.rows[0].database_log, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
+            [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
             assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
             assert.ok(role.rows[0].role_log, 'Role was not set on return after insertion');
             assert.ok(configMap.node_log, 'configMap.node_log was undefined.');
@@ -123,13 +124,14 @@ async function writeOracleFromReplicaSets(pgpool, bus, type, replicaSetRecords) 
               [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '1521' : dbUrl.port, false]);
               assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
               assert.ok(db.rows[0].database_log, 'Database was not set on return after insertion');
+              const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
               const role = await pgpool.query(`
                 insert into oracle.roles_log (role_log, role, database_log, username, password, options, deleted)
                 values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
                 on conflict (database_log, username, (password->>'hash'), deleted) 
                 do update set username = $3 
                 returning role_log, role, username`,
-              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}`, db.rows[0].database_log, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
+              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
               assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
               assert.ok(role.rows[0].role_log, 'Role was not set on return after insertion');
             } catch (e) {
@@ -165,13 +167,14 @@ async function writeOracleFromPods(pgpool, bus, type, podRecords) {
               [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '1521' : dbUrl.port, false]);
               assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
               assert.ok(db.rows[0].database_log, 'Database was not set on return after insertion');
+              const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
               const role = await pgpool.query(`
                 insert into oracle.roles_log (role_log, role, database_log, username, password, options, deleted)
                 values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
                 on conflict (database_log, username, (password->>'hash'), deleted) 
                 do update set username = $3 
                 returning role_log, role, username`,
-              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}`, db.rows[0].database_log, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
+              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
               assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
               assert.ok(role.rows[0].role_log, 'Role was not set on return after insertion');
               assert.ok(pod.node_log, 'pod.node_log was undefined.');
@@ -217,13 +220,14 @@ async function writeOracleFromDeployments(pgpool, bus, type, deploymentRecords) 
               [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '1521' : dbUrl.port, false]);
               assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
               assert.ok(db.rows[0].database_log, 'Database was not set on return after insertion');
+              const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
               const role = await pgpool.query(`
                 insert into oracle.roles_log (role_log, role, database_log, username, password, options, deleted)
                 values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
                 on conflict (database_log, username, (password->>'hash'), deleted) 
                 do update set username = $3 
                 returning role_log, role, username`,
-              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}`, db.rows[0].database_log, dbUrl.username, security.encryptValue(process.env.SECRET, dbUrl.password), dbUrl.search.replace(/\?/, ''), false]);
+              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
               assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
               assert.ok(role.rows[0].role_log, 'Role was not set on return after insertion');
               db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';

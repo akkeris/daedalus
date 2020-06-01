@@ -1,11 +1,14 @@
 const debug = require('debug')('daedalus:metadata');
 
 function parseOracleTNS(connection) {
-  const host = connection.match(/\(HOST=([A-Za-z0-9.-]+)\)/);
-  const port = connection.match(/\(PORT=([0-9]+)\)/);
-  const service = connection.match(/\(SERVICE_NAME=([A-Za-z0-9.-]+)\)/);
+  const host = connection.match(/\([Hh][Oo][Ss][Tt][ ]*=[ ]*([A-Za-z0-9.-]+)\)/);
+  const port = connection.match(/\([Pp][Oo][Rr][Tt][ ]*=[ ]*([0-9]+)\)/);
+  const service = connection.match(/\([Ss][Ee][Rr][Vv][Ii][Cc][Ee]_[Nn][Aa][Mm][Ee][ ]*=[ ]*([A-Za-z0-9.-]+)\)/);
   if (host && port && service) {
     return { host: host[1], port: port[1], name: service[1] };
+  }
+  if ((/[A-Za-z0-9]+/).test(connection)) {
+    return { host: connection, port: '1521', name: connection };
   }
   return null;
 }

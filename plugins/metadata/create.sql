@@ -541,8 +541,14 @@ begin
   
   -- This view is intended to aggregate up the node, type info and labels/annotations
   -- as a convenience for the UI and other systems. It doesn't actually hold any new information.
+  
+  if not exists (select 1 from information_schema.columns where table_schema='metadata' and table_name='objects' and column_name='node_log') then
+    drop view if exists metadata.objects;
+  end if;
+
   create or replace view metadata.objects as
     select
+      nodes_cache.node_log,
       nodes_cache.node,
       nodes_cache.name,
       coalesce(name_label.value, nodes_cache.name) as "human_name",
@@ -559,6 +565,7 @@ begin
       left join metadata.labels as name_label on nodes_cache.node = name_label.node and nodes_cache.type = name_label.type and name_label.name = 'name'
       left join metadata.annotations on nodes_cache.node = annotations.node and nodes_cache.type = annotations.type
     group by
+      nodes_cache.node_log,
       nodes_cache.node,
       nodes_cache.name,
       name_label.value,

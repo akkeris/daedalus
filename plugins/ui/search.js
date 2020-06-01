@@ -68,6 +68,7 @@ module.exports = function expressRegister(pgpool) {
       });
       const { rows: [data] } = (await client.query(`
         select
+          node_log,
           node,
           name,
           human_name,
@@ -80,16 +81,16 @@ module.exports = function expressRegister(pgpool) {
         from
           metadata.objects
         where node = $1
-      `, [nodes[0].node]));
+      `, [req.query.node]));
       /*
        * Get all of the items that have this as a dependency (in-directly or directly)
        * Then group them by type and order them by amount (or maybe last used?)
        */
-      const { rows: dependents } = (await client.query('select * from metadata.find_ancestors($1)', [nodes[0].node_log]));
+      const { rows: dependents } = (await client.query('select * from metadata.find_ancestors($1)', [data.node_log]));
       grab('./views/search.html', req, res, next, {
         ...data,
         dependents,
-        dependencies: await findUses(pgpool, nodes[0].node_log),
+        dependencies: await findUses(pgpool, data.node_log),
         nodes,
       });
       if (!closed) {

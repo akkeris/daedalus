@@ -81,7 +81,9 @@ All "things" in daedalus have a `log` table that expresses the state of a node. 
 * `node` - This must express the individual uuid of the node and be the same across all changes. 
 * `name` - A globally unique name for the object no more than 256 characters and alpha numeric (can have dashes and periods).
 * `definition` - A JSON object containing the raw definition of the node in question.
-* `status` - A JSON object containing the raw status of the node in question.
+* `status` - A JSON object containing any information that a system can modify and changes (or reports) the behaviour of the object.
+* `metadata` - A JSON object containing any information in the definition that has no affect on the behaviour of the object.
+* `specification` - A JSON object containing any information modifiable by humans that changes behaviour of the object.
 * `observed_on` - The date and time when an observation was made. NOT the date a changed happened. 
 * `deleted` - Whether the node was no longer there on the `observed_on` date/time.
 
@@ -89,6 +91,14 @@ If the raw definition or status contains the following, do not consider it as a 
 
 * The current time
 * A system global version or lock
+
+Notes on dealing with definitions of nodes: 
+
+1. Each plugin must determine how to pull in the definition (must be JSON formatted) and delete anything from the definition that is A) sensitive, or B) changes incidentally from the object (current time, token, global transaction ids)
+2. Each plugin must pull out parts of the definition that the system can change, copy this to status object (not mutually exclusive from specification)
+3. Each plugin must pull out parts of the defintion that the user changes, copy this to the specification object (not mutually exclusive from status) 
+4. Each plugin must pull out parts of the definition that if changed, would have no affect on internal systems or external systems. Copy this to the metadata object 
+5. Any fields which may need to be indexed or perhaps used to refer to a foreign constraint should be pulled out as a column, and likewise a references for foreign keys.
 
 ### Relationships
 

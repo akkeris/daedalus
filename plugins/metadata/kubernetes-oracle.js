@@ -4,7 +4,7 @@ const security = require('../../common/security.js');
 
 
 function parseJDBC(value, name, map) {
-  const components = (/^jdbc:oracle:thin:(.*)@([A-Za-z0-9\-\.]+):([0-9]*):([A-Za-z0-9\-\.]+)(.*)$/g).exec(value); // eslint-disable-line no-useless-escape
+  const components = (/^jdbc:oracle:thin:(.*)@([A-Za-z0-9\-\.]+):([0-9]*)[:/]([A-Za-z0-9\-\.]+)(.*)$/g).exec(value); // eslint-disable-line no-useless-escape
   const auth = components[1];
   let user = auth.split('/')[0];
   let pass = auth.split('/')[1];
@@ -138,7 +138,7 @@ async function writeOracleFromReplicaSets(pgpool, bus, type, replicaSetRecords) 
               if (e.message.includes('Invalid URL')) {
                 bus.emit('kubernetes.replicaset.error', [replicaSet.node_log, 'bad-oracle-url-error', e.message]);
               } else {
-                debug(`Error adding oracle entry from replicaset ${replicaSet.node_log} due to: ${e.message}`); // eslint-disable-line no-console
+                debug(`Warning adding oracle entry from replicaset ${replicaSet.node_log} due to: ${e.message}`); // eslint-disable-line no-console
               }
             }
           }
@@ -191,7 +191,7 @@ async function writeOracleFromPods(pgpool, bus, type, podRecords) {
               if (e.message.includes('Invalid URL')) {
                 bus.emit('kubernetes.pod.error', [pod.node_log, 'bad-oracle-url-error', e.message]);
               } else {
-                debug(`Error adding oracle entry from pod ${pod.node_log} due to: ${e.message}`); // eslint-disable-line no-console
+                debug(`Warning adding oracle entry from pod ${pod.node_log} due to: ${e.message}`); // eslint-disable-line no-console
               }
             }
           }
@@ -239,7 +239,7 @@ async function writeOracleFromDeployments(pgpool, bus, type, deploymentRecords) 
               if (e.message.includes('Invalid URL')) {
                 bus.emit('kubernetes.deployment.error', [deployment.node_log, 'bad-oracle-url-error', e.message]);
               } else {
-                debug(`Error adding oracle entry from deployment ${deployment.node_log} due to: ${e.message}`); // eslint-disable-line no-console
+                debug(`Warning adding oracle entry from deployment ${deployment.node_log} due to: ${e.message}`); // eslint-disable-line no-console
               }
             }
           }

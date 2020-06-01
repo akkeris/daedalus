@@ -184,7 +184,9 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         pg_foreign_server.srvoptions is not null and
         array_length(pg_foreign_table.ftoptions, 1) > 0 and
         array_length(pg_foreign_server.srvoptions, 1) > 0
-    `, [])).rows.map((table) => pgpool.query(`
+    `, [])).rows
+      .filter((x) => x.foreign_schema_name && x.foreign_table_name && x.foreign_database_name)
+      .map((table) => pgpool.query(`
       insert into postgresql.foreign_tables_log
         (foreign_table_log, foreign_table, database_log, catalog, schema, table_log, foreign_schema_name, foreign_table_name, foreign_database_name, foreign_database_host, deleted)
       values
@@ -433,7 +435,9 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
           on conflict do nothing
         `, [database.database_log, database.name, estimate.schema, tableUUID, columnUUID, estimate.inherited, estimate.null_frac, estimate.avg_width, estimate.n_distinct, estimate.most_common_vals ? estimate.most_common_vals.split('|,|::') : null, estimate.most_common_freqs, estimate.histogram_bounds ? estimate.histogram_bounds.split('|,|::') : null, estimate.correlation, estimate.most_common_elems ? estimate.most_common_elems.split('|,|::') : null, estimate.most_common_elem_freqs ? estimate.most_common_elem_freqs.split('|,|::') : null, false]);
       } catch (e) {
-        debug(`Failed to import column statistc for ${database.database_log} and %o due to ${e.message}`, estimate);
+        if (!(e.message && e.message.startsWith('Cannot read property'))) {
+          debug(`Failed to import column statistic for ${database.database_log} and due to ${e.message}`);
+        }
       }
     })));
 
@@ -499,6 +503,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       [database.database_log, config]);
 
     // TODO: User defined data types
+    // TODO: Redundant, unused, rarely used indexes, non-indexed foreign keys
     // TODO: Vaccuum statistics, pg_settings Add blocking queries,
     // long running queries? locks? outliers (requires pg_stat_statments)?
     // TODO: snapshot pg_catalog.pg_available_extensions

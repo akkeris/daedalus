@@ -1,47 +1,108 @@
 const debug = require('debug')('daedalus:akkeris');
 const fs = require('fs');
 const axios = require('axios');
+const crawler = require('../../common/crawler.js');
 
-async function init(pgpool) {
-  debug('Initializing akkeris plugin...');
-  await pgpool.query(fs.readFileSync('./plugins/akkeris/create.sql').toString());
-  debug('Initializing akkeris plugin... done');
-}
+const siteNode = (def) => def.id;
+const siteSpec = (def) => ({ domain: def.domain, compliance: def.compliance });
+const siteStatus = (def) => ({
+  region: def.region,
+  created_at: def.created_at,
+  updated_at: def.updated_at,
+});
+const siteMetadata = (def) => ({ labels: def.labels });
 
-function lookupSpaceById(spaces, id) {
-  return spaces.filter((space) => space.space === id)[0].space_log;
-}
+const routeNode = (def) => def.id;
+const routeSpec = (def) => ({
+  app: def.app,
+  space: def.space,
+  source_path: def.source_path,
+  target_path: def.target_path,
+  site: def.site,
+});
+const routeStatus = (def) => ({
+  pending: def.pending,
+  created_at: def.created_at,
+  updated_at: def.updated_at,
+});
 
-function lookupAppById(apps, id) {
-  return apps.filter((app) => app.app === id)[0].app_log;
-}
+const spaceNode = (def) => def.id;
+const spaceSpec = (def) => ({
+  apps: def.apps,
+  name: def.domain,
+  compliance: def.compliance,
+});
+const spaceStatus = (def) => ({
+  region: def.region,
+  stack: def.stack,
+  updated_at: def.updated_at,
+  created_at: def.created_at,
+  state: def.state,
+});
 
-function lookupAddonServiceById(addonServices, id) {
-  return addonServices
-    .filter((addonService) => addonService.addon_service === id)[0]
-    .addon_service_log;
-}
+const addonServiceNode = (def) => def.id;
+const addonServiceSpec = (def) => ({
+  actions: def.actions,
+  available_regions: def.available_regions,
+  supports_multiple_installations: def.supports_multiple_installations,
+  supports_sharing: def.supports_sharing,
+  plans: def.plans,
+});
+const addonServiceStatus = (def) => ({
+  state: def.state,
+  updated_at: def.updated_at,
+  created_at: def.created_at,
+});
+const addonServiceMetadata = (def) => ({
+  human_name: def.human_name,
+  description: def.description,
+});
 
-function lookupAddonServiceByPlanId(addonServices, id) {
-  return addonServices
-    .filter((addonService) => addonService.definition.plans
-      .filter((plan) => plan.id === id).length !== 0)[0]
-    .addon_service_log;
-}
+const appNode = (def) => def.id;
+const appSpec = (def) => ({
+  git_url: def.git_url,
+  git_branch: def.git_branch,
+  maintenance: def.maintenance,
+  formation: def.formation,
+  region: def.region,
+  released_at: def.released_at,
+});
+const appStatus = (def) => ({
+  web_url: def.web_url,
+  stack: def.stack,
+  space: def.space,
+  updated_at: def.updated_at,
+  created_at: def.created_at,
+});
+const appMetadata = (def) => ({
+  description: def.description,
+  labels: def.labels,
+  owner: def.owner,
+  organization: def.organization,
+});
 
-function lookupSiteById(sites, id) {
-  return sites.filter((site) => site.site === id)[0].site_log;
-}
+const addonNode = (def) => def.id;
+const addonSpec = (def) => ({
+  plan: def.plan,
+  name: def.name,
+  primary: def.primary,
+});
+const addonStatus = (def) => ({
+  created_at: def.created_at,
+  updated_at: def.updated_at,
+  provider_id: def.provider_id,
+  state: def.state,
+  state_description: def.state_description,
+});
+const addonMetadata = (def) => ({ web_url: def.web_url, billed_price: def.billed_price });
 
-function lookupAddonById(addons, id) {
-  return addons.filter((addon) => addon.definition.id === id)[0].addon_log;
-}
+const addonAttachmentNode = (def) => def.id;
+const addonAttachmentSpec = (def) => ({ addon: def.addon, app: def.app });
+const addonAttachmentStatus = (def) => ({ created_at: def.created_at, updated_at: def.updated_at });
+const addonAttachmentMetadata = (def) => ({ web_url: def.web_url });
 
 async function run(pgpool) {
-  if (process.env.AKKERIS !== 'true') {
-    return;
-  }
-  if (!process.env.AKKERIS_URL || !process.env.AKKERIS_TOKEN) {
+  if (process.env.AKKERIS !== 'true' || !process.env.AKKERIS_URL || !process.env.AKKERIS_TOKEN) {
     return;
   }
   debug('Running akkeris plugin...');
@@ -51,195 +112,48 @@ async function run(pgpool) {
     headers: { authorization: `Bearer ${process.env.AKKERIS_TOKEN}` },
   });
 
-
   debug('Getting sites');
   const { data: sites } = await get('/sites');
-  let sitesLog = (await Promise.all(sites.map((item) => pgpool.query(`
-    insert into akkeris.sites_log (site_log, site, name, definition, observed_on, deleted)
-    values (uuid_generate_v4(), $1, $2, $3, now(), false)
-    on conflict (site, name, (definition->>'updated_at'), deleted)
-    do update set name = EXCLUDED.name
-    returning site_log, site, name, definition, observed_on, deleted
-  `,
-  [item.id, item.domain, item]))))
-    .map((x) => x.rows).flat();
-
-  debug('Getting addon services');
-  const { data: addonServices } = await get('/addon-services');
-  let addonServicesLog = (await Promise.all(addonServices.map((item) => pgpool.query(`
-    insert into akkeris.addon_services_log (addon_service_log, addon_service, name, definition, observed_on, deleted)
-    values (uuid_generate_v4(), $1, $2, $3, now(), false)
-    on conflict (addon_service, name, (definition->>'updated_at'), deleted)
-    do update set name = EXCLUDED.name, definition = $3
-    returning addon_service_log, addon_service, name, definition, observed_on, deleted
-  `,
-  [item.id, item.name, item]))))
-    .map((x) => x.rows).flat();
+  await crawler.writeDeletedObjs(pgpool, 'akkeris', 'site', (await Promise.all(sites.map((def) => crawler.writeObj(pgpool, 'akkeris', 'site', siteNode(def), def, siteSpec(def), siteStatus(def), siteMetadata(def), { name: def.domain })))).map((x) => x.rows).flat()); // eslint-disable-line max-len
 
   debug('Getting spaces');
   const { data: spaces } = await get('/spaces');
-  let spacesLog = (await Promise.all(spaces.map((item) => pgpool.query(`
-    insert into akkeris.spaces_log (space_log, space, name, definition, observed_on, deleted)
-    values (uuid_generate_v4(), $1, $2, $3, now(), false)
-    on conflict (space, name, (definition->>'updated_at'), deleted)
-    do update set name = EXCLUDED.name, definition = $3
-    returning space_log, space, name, definition, observed_on, deleted
-  `,
-  [item.id, item.name, item]))))
-    .map((x) => x.rows).flat();
+  await crawler.writeDeletedObjs(pgpool, 'akkeris', 'space', (await Promise.all(spaces.map((def) => crawler.writeObj(pgpool, 'akkeris', 'space', spaceNode(def), def, spaceSpec(def), spaceStatus(def), {}, { name: def.name })))).map((x) => x.rows).flat()); // eslint-disable-line max-len
+
+  debug('Getting addon-services');
+  const { data: addonServices } = await get('/addon-services');
+  await crawler.writeDeletedObjs(pgpool, 'akkeris', 'addon_service', (await Promise.all(addonServices.map((def) => crawler.writeObj(pgpool, 'akkeris', 'addon_service', addonServiceNode(def), def, addonServiceSpec(def), addonServiceStatus(def), addonServiceMetadata(def), { name: def.name })))).map((x) => x.rows).flat()); // eslint-disable-line max-len,no-await-in-loop
 
   debug('Getting apps');
   const { data: apps } = await get('/apps');
-  let appsLog = (await Promise.all(apps.map((item) => pgpool.query(`
-    insert into akkeris.apps_log (app_log, app, name, space_log, definition, observed_on, deleted)
-    values (uuid_generate_v4(), $1, $2, $3, $4, now(), false)
-    on conflict (app, name, space_log, (definition->>'updated_at'), deleted)
-    do update set name = EXCLUDED.name, definition = $4
-    returning app_log, app, name, space_log, definition, observed_on, deleted
-  `,
-  [item.id, item.name, lookupSpaceById(spacesLog, item.space.id), item]))))
-    .map((x) => x.rows).flat();
+  await crawler.writeDeletedObjs(pgpool, 'akkeris', 'app', (await Promise.all(apps.map((def) => crawler.writeObj(pgpool, 'akkeris', 'app', appNode(def), def, appSpec(def), appStatus(def), appMetadata(def), { name: def.name }, { space: { node: def.space.id } })))).map((x) => x.rows).flat()); // eslint-disable-line max-len
 
   debug('Getting routes');
   const { data: routes } = await get('/routes');
-  (await Promise.all(routes.map((item) => pgpool.query(`
-    insert into akkeris.routes_log (route_log, route, site_log, app_log, target_path, source_path, definition, observed_on, deleted)
-    values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, now(), false)
-    on conflict (route, site_log, app_log, (definition->>'updated_at'), deleted)
-    do update set route = EXCLUDED.route, definition = $6
-    returning route_log, route, site_log, app_log, target_path, source_path, definition, observed_on, deleted
-  `,
-  [item.id, lookupSiteById(sitesLog, item.site.id), lookupAppById(appsLog, item.app.id), item.source_path, item.target_path, item])))) // eslint-disable-line max-len
-    .map((x) => x.rows).flat();
+  await crawler.writeDeletedObjs(pgpool, 'akkeris', 'route', (await Promise.all(routes.map((def) => crawler.writeObj(pgpool, 'akkeris', 'route', routeNode(def), def, routeSpec(def), routeStatus(def), {}, { target_path: def.target_path, source_path: def.source_path }, { app: { node: def.app.id }, site: { node: def.site.id } })))).map((x) => x.rows).flat()); // eslint-disable-line max-len
 
   debug('Getting addons');
   const { data: addons } = await get('/addons');
-  let addonsLog = (await Promise.all(addons.map((item) => pgpool.query(`
-    insert into akkeris.addons_log (addon_log, addon, app_log, addon_service_log, name, definition, observed_on, deleted)
-    values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, now(), false)
-    on conflict (addon, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
-    do update set name = EXCLUDED.name
-    returning addon_log, addon, app_log, addon_service_log, name, definition, observed_on, deleted
-  `,
-  [item.id + lookupAppById(appsLog, item.app.id), lookupAppById(appsLog, item.app.id), lookupAddonServiceById(addonServicesLog, item.addon_service.id), item.name, item])))) // eslint-disable-line max-len
-    .map((x) => x.rows).flat();
+  await crawler.writeDeletedObjs(pgpool, 'akkeris', 'addon', (await Promise.all(addons.map((def) => crawler.writeObj(pgpool, 'akkeris', 'addon', addonNode(def), def, addonSpec(def), addonStatus(def), addonMetadata(def), { name: def.name }, { app: { node: def.app.id }, addon_service: { node: def.addon_service.id } })))).map((x) => x.rows).flat()); // eslint-disable-line max-len
 
-  debug('Getting addon attachments');
+  debug('Getting addon-attachments');
   const { data: addonAttachments } = await get('/addon-attachments');
-  await Promise.all(addonAttachments.map(async (item) => {
-    try {
-      return pgpool.query(`
-        insert into akkeris.addon_attachments_log (addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted)
-        values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6, now(), false)
-        on conflict (addon_attachment, addon_log, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
-        do update set name = EXCLUDED.name
-        returning addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted
-      `,
-      [item.id + lookupAppById(appsLog, item.app.id), lookupAddonById(addonsLog, item.addon.id), lookupAppById(appsLog, item.app.id), lookupAddonServiceByPlanId(addonServicesLog, item.addon.plan.id), item.name, item]); // eslint-disable-line max-len
-    } catch (e) {
-      debug(`ERROR: Cannot process addon-attachment ${item.id} because ${e.stack}`); // eslint-disable-line no-console
-      return {};
-    }
-  }));
+  await crawler.writeDeletedObjs(pgpool, 'akkeris', 'addon_attachment', (await Promise.all(addonAttachments.map((def) => crawler.writeObj(pgpool, 'akkeris', 'addon_attachment', addonAttachmentNode(def), def, addonAttachmentSpec(def), addonAttachmentStatus(def), addonAttachmentMetadata(def), { name: def.name }, { app: { node: def.app.id }, addon: { node: def.addon.id } })))).map((x) => x.rows).flat()); // eslint-disable-line max-len
 
+  debug('Running akkeris plugin... done');
+}
 
-  debug('Checking for routes deletions');
-  (await pgpool.query('select routes.route_log, routes.route, routes.site_log, routes.app_log, routes.source_path, routes.target_path, routes.definition, routes.observed_on from akkeris.routes'))
-    .rows
-    .filter((route) => !routes.map((x) => x.id).includes(route.route))
-    .map(async (route) => {
-      try {
-        return await pgpool.query(`
-          insert into akkeris.routes_log (route_log, route, site_log, app_log, definition, source_path, target_path, observed_on, deleted)
-          values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, now(), true)
-          on conflict (route, site_log, app_log, (definition->>'updated_at'), deleted)
-          do update set route = EXCLUDED.route
-          returning route_log, route, site_log, app_log, definition, observed_on, deleted
-      `, [route.route, route.site_log, route.app_log, route.definition, route.source_path, route.target_path]);
-      } catch (e) {
-        // TODO: this introduces a logical falicy, how do we detect whether a route is deleted if a
-        // site is deleted?...
-        debug(`ERROR: Unable to insert route deletion ${route.route} with ${route.site} due to: ${e.stack}`);
-        return {};
-      }
-    });
-
-  debug('Checking for site deletions');
-  sitesLog = sitesLog.concat((await Promise.all((await pgpool.query('select site_log, site, name, definition, observed_on from akkeris.sites'))
-    .rows
-    .filter((site) => !sites.map((x) => x.id).includes(site.site))
-    .map(async (site) => pgpool.query(`
-      insert into akkeris.sites_log (site_log, site, name, definition, observed_on, deleted)
-      values (uuid_generate_v4(), $1, $2, $3, now(), true)
-      on conflict (site, name, (definition->>'updated_at'), deleted)
-      do update set name = EXCLUDED.name
-      returning site_log, site, name, definition, observed_on, deleted
-    `, [site.site, site.name, site.definition]))))
-    .map((x) => x.rows).flat());
-
-  debug('Checking for addon service deletions');
-  addonServicesLog = addonServicesLog.concat((await Promise.all((await pgpool.query('select addon_service_log, addon_service, name, definition, observed_on from akkeris.addon_services'))
-    .rows
-    .filter((addonService) => !addonServices.map((x) => x.id).includes(addonService.addon_service))
-    .map((addonService) => pgpool.query(`
-      insert into akkeris.addon_services_log (addon_service_log, addon_service, name, definition, observed_on, deleted)
-      values (uuid_generate_v4(), $1, $2, $3, now(), true)
-      on conflict (addon_service, name, (definition->>'updated_at'), deleted)
-      do update set name = EXCLUDED.name
-      returning addon_service_log, addon_service, name, definition, observed_on, deleted
-    `, [addonService.addon_service, addonService.name, addonService.definition])))).map((x) => x.rows).flat());
-
-  debug('Checking for spaces deletions');
-  spacesLog = spacesLog.concat((await Promise.all((await pgpool.query('select space_log, space, name, definition, observed_on from akkeris.spaces'))
-    .rows
-    .filter((space) => !spaces.map((x) => x.id).includes(space.space))
-    .map((space) => pgpool.query(`
-      insert into akkeris.spaces_log (space_log, space, name, definition, observed_on, deleted)
-      values (uuid_generate_v4(), $1, $2, $3, now(), true)
-      on conflict (space, name, (definition->>'updated_at'), deleted)
-      do update set name = EXCLUDED.name
-      returning space_log, space, name, definition, observed_on, deleted
-    `, [space.space, space.name, space.definition])))).map((x) => x.rows).flat());
-
-  debug('Checking for apps deletions');
-  appsLog = appsLog.concat((await Promise.all((await pgpool.query('select app_log, app, name, space_log, definition, observed_on from akkeris.apps'))
-    .rows
-    .filter((app) => !apps.map((x) => x.id).includes(app.app))
-    .map((app) => pgpool.query(`
-      insert into akkeris.apps_log (app_log, app, name, space_log, definition, observed_on, deleted)
-      values (uuid_generate_v4(), $1, $2, $3, $4, now(), true)
-      on conflict (app, name, space_log, (definition->>'updated_at'), deleted)
-      do update set name = EXCLUDED.name
-      returning app_log, app, name, space_log, definition, observed_on, deleted
-    `, [app.app, app.name, app.space_log, app.definition]))))
-    .map((x) => x.rows).flat());
-
-  debug('Checking for addons deletions');
-  addonsLog = addonsLog.concat((await Promise.all((await pgpool.query('select addon_log, addon, app_log, addon_service_log, name, definition, observed_on from akkeris.addons'))
-    .rows
-    .filter((addon) => !addons.map((x) => x.id).includes(addon.addon))
-    .map((addon) => pgpool.query(`
-      insert into akkeris.addons_log (addon_log, addon, app_log, addon_service_log, name, definition, observed_on, deleted)
-      values (uuid_generate_v4(), $1, $2, $3, $4, $5, now(), true)
-      on conflict (addon, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
-      do update set name = EXCLUDED.name
-      returning addon_log, addon, app_log, addon_service_log, name, definition, observed_on, deleted
-    `, [addon.addon, addon.app_log, addon.addon_service_log, addon.name, addon.definition]))))
-    .map((x) => x.rows).flat());
-
-  debug('Checking for addon attachments deletions');
-  (await pgpool.query('select addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on from akkeris.addon_attachments'))
-    .rows
-    .filter((addonAttachment) => !addonAttachments.map((x) => x.id).includes(addonAttachment.addon_attachment)) // eslint-disable-line max-len
-    .map((addonAttachment) => pgpool.query(`
-      insert into akkeris.addon_attachments_log (addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted)
-      values (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, now(), true)
-      on conflict (addon_attachment, addon_log, app_log, addon_service_log, name, (definition->>'updated_at'), deleted)
-      do update set name = EXCLUDED.name
-      returning addon_attachment_log, addon_attachment, addon_log, app_log, addon_service_log, name, definition, observed_on, deleted
-    `, [addonAttachment.addon_attachment, addonAttachment.addon_log, addonAttachment.app_log, addonAttachment.addon_service_log, addonAttachment.name, addonAttachment.definition]));
-
-  // TODO: releases? builds? slugs? log-drains?
+async function init(pgpool) {
+  debug('Initializing akkeris plugin...');
+  await pgpool.query(fs.readFileSync('./plugins/akkeris/create.sql').toString());
+  await crawler.createTableDefinition(pgpool, 'akkeris', 'site', { name: { type: 'text' } });
+  await crawler.createTableDefinition(pgpool, 'akkeris', 'space', { name: { type: 'text' } });
+  await crawler.createTableDefinition(pgpool, 'akkeris', 'addon_service', { name: { type: 'text' } });
+  await crawler.createTableDefinition(pgpool, 'akkeris', 'app', { name: { type: 'text' } }, ['space']);
+  await crawler.createTableDefinition(pgpool, 'akkeris', 'route', { target_path: { type: 'text' }, source_path: { type: 'text' } }, ['site', 'app']);
+  await crawler.createTableDefinition(pgpool, 'akkeris', 'addon', { name: { type: 'text' } }, ['app', 'addon_service']);
+  await crawler.createTableDefinition(pgpool, 'akkeris', 'addon_attachment', { name: { type: 'text' } }, ['app', 'addon']);
+  debug('Initializing akkeris plugin... done');
 }
 
 module.exports = {

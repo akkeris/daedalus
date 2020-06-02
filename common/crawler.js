@@ -98,6 +98,17 @@ function computeHash(def) {
   return hash.digest('hex');
 }
 
+function writeDeletedObjs(pgpool, schema, name, nodes) {
+  return pgpool.query(`
+    insert into "${schema}"."${plural(name)}_log" 
+      select *, true as deleted
+      from "${schema}"."${plural(name)}" 
+      ${nodes.length !== 0 ? `
+      where node_log not in (${nodes.map((x) => `'${x.node_log}'`).join(',')})
+      ` : ''}
+  `);
+}
+
 function writeObj(pgpool, schema, name, node, definition, spec, status, metadata, columns = {}, references = {}) { // eslint-disable-line max-len
   const refColumns = Object.keys(references);
   const refNames = refColumns.length !== 0 ? `${refColumns.join(', ')},` : '';
@@ -109,13 +120,15 @@ function writeObj(pgpool, schema, name, node, definition, spec, status, metadata
 
   const colCount = colColumns.length;
 
+  const isNodeUUID = node.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i) !== null;
+
   const query = `${refColumns.length !== 0 ? `
     with` : ''}${refColumns.map((ref, i) => `
     q${i} as ( select node_log from ${schema}.${plural(ref)}_log where ${Object.keys(references[ref]).map((refCol) => `${refCol} = '${references[ref][refCol]}'`)} )`).join(',')}
-    insert into ${schema}.${plural(name)}_log (node_log, node, ${refNames} ${colNames} definition, metadata, specification, status, hash, observed_on, deleted)
+    insert into "${schema}"."${plural(name)}_log" (node_log, node, ${refNames} ${colNames} definition, metadata, specification, status, hash, observed_on, deleted)
     select 
       uuid_generate_v4(),
-      uuid_generate_v5(uuid_ns_url(), $1),
+      ${isNodeUUID ? '$1' : 'uuid_generate_v5(uuid_ns_url(), $1)'},
       ${refWithVals}
       ${colMapIndex}
       $${colCount + 2},
@@ -123,12 +136,12 @@ function writeObj(pgpool, schema, name, node, definition, spec, status, metadata
       $${colCount + 4},
       $${colCount + 5},
       $${colCount + 6},
-      now(), 
+      now(),
       false
     ${refColumns.length !== 0 ? `from ${refColumns.map((ref, i) => `q${i}`).join(', ')}` : ''}
     on conflict (hash, deleted)
-    do nothing
-    returning node_log, node, ${refNames} ${colNames} definition, metadata, specification, status, hash, observed_on, deleted
+    do update set deleted = false
+    returning node_log
   `;
   return pgpool.query(query, [node, ...colColumns.map((x) => columns[x]), definition, metadata, spec, status, computeHash(definition)]); // eslint-disable-line max-len
 }
@@ -140,5 +153,6 @@ function wait(time) {
 module.exports = {
   wait,
   writeObj,
+  writeDeletedObjs,
   createTableDefinition,
 };

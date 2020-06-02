@@ -174,26 +174,26 @@ begin
     (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/persistentvolumeclaims' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
 
   create or replace view metadata.nodes_log as
-    select node_types.icon as "icon", node_types.type, spaces_log.space_log as node_log, spaces_log.space as node, spaces_log.name, spaces_log.definition, '{}'::jsonb as status, spaces_log.observed_on, false as transient, spaces_log.deleted
+    select node_types.icon as "icon", node_types.type, spaces_log.node_log, spaces_log.node, spaces_log.name, spaces_log.definition, '{}'::jsonb as status, spaces_log.observed_on, false as transient, spaces_log.deleted
         from akkeris.spaces_log, metadata.node_types where node_types.name = 'akkeris/spaces'
     union all
-    select node_types.icon as "icon", node_types.type, apps_log.app_log as node_log, apps_log.app as node, apps_log.name, apps_log.definition, '{}'::jsonb as status, apps_log.observed_on, false as transient, deleted
+    select node_types.icon as "icon", node_types.type, apps_log.node_log, apps_log.node, apps_log.name, apps_log.definition, '{}'::jsonb as status, apps_log.observed_on, false as transient, deleted
         from akkeris.apps_log, metadata.node_types where node_types.name = 'akkeris/apps'
     union all
-    select node_types.icon as "icon", node_types.type, addon_attachments_log.addon_attachment_log as node_log, addon_attachments_log.addon_attachment as node, addon_attachments_log.name, addon_attachments_log.definition, '{}'::jsonb as status, addon_attachments_log.observed_on, false as transient, deleted
+    select node_types.icon as "icon", node_types.type, addon_attachments_log.node_log, addon_attachments_log.node, addon_attachments_log.name, addon_attachments_log.definition, '{}'::jsonb as status, addon_attachments_log.observed_on, false as transient, deleted
         from akkeris.addon_attachments_log, metadata.node_types where node_types.name = 'akkeris/addon_attachments'
     union all
-    select node_types.icon as "icon", node_types.type, addon_services_log.addon_service_log as node_log, addon_services_log.addon_service as node, addon_services_log.name, addon_services_log.definition, '{}'::jsonb as status, addon_services_log.observed_on, false as transient, deleted
+    select node_types.icon as "icon", node_types.type, addon_services_log.node_log, addon_services_log.node, addon_services_log.name, addon_services_log.definition, '{}'::jsonb as status, addon_services_log.observed_on, false as transient, deleted
         from akkeris.addon_services_log, metadata.node_types where node_types.name = 'akkeris/addon_services'
     union all
-    select node_types.icon as "icon", node_types.type, addons_log.addon_log as node_log, addons_log.addon as node, addons_log.name, addons_log.definition, '{}'::jsonb as status, addons_log.observed_on, false as transient, deleted
+    select node_types.icon as "icon", node_types.type, addons_log.node_log, addons_log.node, addons_log.name, addons_log.definition, '{}'::jsonb as status, addons_log.observed_on, false as transient, deleted
         from akkeris.addons_log, metadata.node_types where node_types.name = 'akkeris/addons'
     union all
-    select node_types.icon as "icon", node_types.type, sites_log.site_log as node_log, sites_log.site as node, sites_log.name, sites_log.definition, '{}'::jsonb as status, sites_log.observed_on, false as transient, deleted
+    select node_types.icon as "icon", node_types.type, sites_log.node_log, sites_log.node, sites_log.name, sites_log.definition, '{}'::jsonb as status, sites_log.observed_on, false as transient, deleted
         from akkeris.sites_log, metadata.node_types where node_types.name = 'akkeris/sites'
     union all
-    select node_types.icon as "icon", node_types.type, routes_log.route_log as node_log, routes_log.route as node, 'https://' || sites_log.name || routes_log.source_path || ' -> ' || rtrim(rtrim(ltrim((apps_log.definition->'web_url')::text, '"'), '"'), '/') || routes_log.target_path as name, routes_log.definition, '{}'::jsonb as status, routes_log.observed_on, false as transient, routes_log.deleted
-        from akkeris.routes_log join akkeris.sites_log on routes_log.site_log = sites_log.site_log join akkeris.apps_log on routes_log.app_log = apps_log.app_log, metadata.node_types where node_types.name = 'akkeris/routes'
+    select node_types.icon as "icon", node_types.type, routes_log.node_log, routes_log.node, 'https://' || sites_log.name || routes_log.source_path || ' -> ' || rtrim(rtrim(ltrim((apps_log.definition->'web_url')::text, '"'), '"'), '/') || routes_log.target_path as name, routes_log.definition, '{}'::jsonb as status, routes_log.observed_on, false as transient, routes_log.deleted
+        from akkeris.routes_log join akkeris.sites_log on routes_log.site = sites_log.node_log join akkeris.apps_log on routes_log.app = apps_log.node_log, metadata.node_types where node_types.name = 'akkeris/routes'
     union all
     select node_types.icon as "icon", node_types.type, es_clusters_log.node_log, es_clusters_log.node, es_clusters_log.name, es_clusters_log.definition, '{}'::jsonb as status, es_clusters_log.observed_on, false as transient, deleted
         from aws.es_clusters_log, metadata.node_types where node_types.name = 'aws/elastic_search'
@@ -324,26 +324,26 @@ begin
   comment on view "metadata"."nodes_log" is E'@name metadataNodesLog';
 
   create or replace view metadata.nodes as
-    select node_types.icon as "icon", node_types.type, spaces.space_log as node_log, spaces.space as node, spaces.name, spaces.definition, '{}'::jsonb as status, spaces.observed_on, false as transient
+    select node_types.icon as "icon", node_types.type, spaces.node_log, spaces.node, spaces.name, spaces.definition, '{}'::jsonb as status, spaces.observed_on, false as transient
         from akkeris.spaces, metadata.node_types where node_types.name = 'akkeris/spaces'
     union all
-    select node_types.icon as "icon", node_types.type, apps.app_log as node_log, apps.app as node, apps.name, apps.definition, '{}'::jsonb as status, apps.observed_on, false as transient
+    select node_types.icon as "icon", node_types.type, apps.node_log, apps.node, apps.name, apps.definition, '{}'::jsonb as status, apps.observed_on, false as transient
         from akkeris.apps, metadata.node_types where node_types.name = 'akkeris/apps'
     union all
-    select node_types.icon as "icon", node_types.type, addon_attachments.addon_attachment_log as node_log, addon_attachments.addon_attachment as node, addon_attachments.name, addon_attachments.definition, '{}'::jsonb as status, addon_attachments.observed_on, false as transient
+    select node_types.icon as "icon", node_types.type, addon_attachments.node_log, addon_attachments.node, addon_attachments.name, addon_attachments.definition, '{}'::jsonb as status, addon_attachments.observed_on, false as transient
         from akkeris.addon_attachments, metadata.node_types where node_types.name = 'akkeris/addon_attachments'
     union all
-    select node_types.icon as "icon", node_types.type, addon_services.addon_service_log as node_log, addon_services.addon_service as node, addon_services.name, addon_services.definition, '{}'::jsonb as status, addon_services.observed_on, false as transient
+    select node_types.icon as "icon", node_types.type, addon_services.node_log, addon_services.node, addon_services.name, addon_services.definition, '{}'::jsonb as status, addon_services.observed_on, false as transient
         from akkeris.addon_services, metadata.node_types where node_types.name = 'akkeris/addon_services'
     union all
-    select node_types.icon as "icon", node_types.type, addons.addon_log as node_log, addons.addon as node, addons.name, addons.definition, '{}'::jsonb as status, addons.observed_on, false as transient
+    select node_types.icon as "icon", node_types.type, addons.node_log, addons.node, addons.name, addons.definition, '{}'::jsonb as status, addons.observed_on, false as transient
         from akkeris.addons, metadata.node_types where node_types.name = 'akkeris/addons'
     union all
-    select node_types.icon as "icon", node_types.type, sites.site_log as node_log, sites.site as node, sites.name, sites.definition, '{}'::jsonb as status, sites.observed_on, false as transient
+    select node_types.icon as "icon", node_types.type, sites.node_log, sites.node, sites.name, sites.definition, '{}'::jsonb as status, sites.observed_on, false as transient
         from akkeris.sites, metadata.node_types where node_types.name = 'akkeris/sites'
     union all
-    select node_types.icon as "icon", node_types.type, routes.route_log as node_log, routes.route as node, 'https://' || sites.name || routes.source_path || ' -> ' || rtrim(rtrim(ltrim((apps.definition->'web_url')::text, '"'), '"'), '/') || routes.target_path as name, routes.definition, '{}'::jsonb as status, routes.observed_on, false as transient
-        from akkeris.routes join akkeris.sites on routes.site_log = sites.site_log join akkeris.apps on routes.app_log = apps.app_log, metadata.node_types where node_types.name = 'akkeris/routes'
+    select node_types.icon as "icon", node_types.type, routes.node_log, routes.node, 'https://' || sites.name || routes.source_path || ' -> ' || rtrim(rtrim(ltrim((apps.definition->'web_url')::text, '"'), '"'), '/') || routes.target_path as name, routes.definition, '{}'::jsonb as status, routes.observed_on, false as transient
+        from akkeris.routes join akkeris.sites on routes.site = sites.node_log join akkeris.apps on routes.app = apps.node_log, metadata.node_types where node_types.name = 'akkeris/routes'
     union all
     select node_types.icon as "icon", node_types.type, es_clusters.node_log, es_clusters.node, es_clusters.name, es_clusters.definition, '{}'::jsonb as status, es_clusters.observed_on, false as transient
         from aws.es_clusters, metadata.node_types where node_types.name = 'aws/elastic_search'

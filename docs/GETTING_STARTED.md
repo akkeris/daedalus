@@ -46,6 +46,13 @@ The metadata plugin is generally required if you want to use the UI or GraphQL, 
 
 *  `METADATA` - Set this to `true` to enable examining systems for links (highly recommended).
 
+### Github Plugin
+
+The github plugin will scan repos that it finds in use. To enable this:
+
+* `GITHUB` - Set this to `true` to enable examining github repos found.
+* `GITHUB_TOKEN` - Set this to a github API token that has read permissions to potentially any repo it finds.
+
 ### Urls Plugin
 
 This plugin examines urls (and certificates) it finds in various places and records information about them. 

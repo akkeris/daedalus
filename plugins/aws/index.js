@@ -2,66 +2,7 @@ const AWS = require('aws-sdk');
 const assert = require('assert');
 const fs = require('fs');
 const debug = require('debug')('daedalus:aws');
-const crypto = require('crypto');
-
-async function createDatabaseDefinition(pgpool, plural) {
-  const sql = `
-    do $$
-    begin
-      create table if not exists aws.${plural}_log (
-        node_log uuid not null primary key,
-        node uuid not null,
-        name varchar(128) not null,
-        region varchar(128) not null,
-        definition jsonb not null,
-        status jsonb not null,
-        hash varchar(64) not null,
-        observed_on timestamp with time zone default now(),
-        deleted boolean not null default false
-      );
-      comment on table aws.${plural}_log is E'@name aws${plural.split('_').map((x) => (x.substring(0, 1).toUpperCase() + x.substring(1))).join('')}Log';
-      create unique index if not exists ${plural}_changed on aws.${plural}_log (hash, deleted);
-      create index if not exists ${plural}_partition_ndx on aws.${plural}_log (name, region, observed_on desc);
-      create or replace view aws.${plural} as
-        with ordered_list as ( select
-          node_log,
-          node,
-          name,
-          region,
-          definition,
-          status,
-          hash,
-          observed_on,
-          deleted,
-          row_number() over (partition by name, region order by observed_on desc) as row_number
-        from aws.${plural}_log) 
-      select 
-        node_log,
-        node,
-        name,
-        region,
-        definition,
-        status,
-        hash,
-        observed_on 
-      from
-        ordered_list 
-      where
-        row_number = 1 and 
-        deleted = false;
-      comment on view aws.${plural} is E'@name aws${plural.split('_').map((x) => (x.substring(0, 1).toUpperCase() + x.substring(1))).join('')}';
-    end
-    $$;
-  `;
-  await pgpool.query(sql);
-}
-
-function getDefinitionHash(item) {
-  const i = JSON.parse(JSON.stringify(item));
-  const hash = crypto.createHash('sha256');
-  hash.update(JSON.stringify(i, null, 2));
-  return hash.digest('hex');
-}
+const crawler = require('../../common/crawler.js');
 
 function findStatus(item) {
   const status = Object.keys(item).filter((x) => x.toLowerCase().includes('status'));
@@ -75,22 +16,7 @@ function findStatus(item) {
   return {};
 }
 
-
-async function writeDeletedObjs(pgpool, awsType, foundObjs) {
-  (await pgpool.query(`select node_log, node, name, region, definition, status, hash from aws.${awsType}`)).rows
-    .filter((y) => !foundObjs.some((x) => x.node === y.node && x.region === y.region))
-    .map(async (item) => pgpool.query( // eslint-disable-line no-await-in-loop,max-len
-      `
-      insert into aws.${awsType}_log (node_log, node, name, region, definition, status, hash, deleted)
-      values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6, $7)
-      on conflict (hash, deleted) 
-      do nothing
-    `, [item.node, item.name, item.region, item.definition, item.status, item.hash, true],
-    ));
-}
-
-async function writeObjs(pgpool, awsType, func, returnProperty, uniqueIdProperty, nameProperty, start, region) { // eslint-disable-line max-len
-  debug(`Pulling ${awsType} from AWS RDS ${region}...`);
+async function fetch(func, returnProperty, uniqueIdProperty, nameProperty, start, region) { // eslint-disable-line max-len
   let marker = void (0); // eslint-disable-line no-void
   const options = {};
   let objs = [];
@@ -101,22 +27,13 @@ async function writeObjs(pgpool, awsType, func, returnProperty, uniqueIdProperty
   }
   do {
     const resp = await func({ ...options, Marker: marker }).promise(); // eslint-disable-line no-await-in-loop,max-len
-    assert.ok(resp[returnProperty], `The return property ${returnProperty} for ${awsType} was not found.`);
-    objs = objs.concat((await Promise.all(resp[returnProperty].map(async (item) => { // eslint-disable-line no-await-in-loop,max-len
-      assert.ok(item[uniqueIdProperty], `The unique id property ${uniqueIdProperty} was not found for ${awsType}`);
-      assert.ok(item[nameProperty], `The name property ${nameProperty} was not found for ${awsType}`);
-      return pgpool.query(`
-        insert into aws.${awsType}_log (node_log, node, name, region, definition, status, hash)
-        values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
-        on conflict (hash, deleted) 
-        do update set name = $2, status = $5
-        returning node_log, node, name, region, definition, status, hash, deleted
-      `, [`${awsType}.${item[uniqueIdProperty]}`, item[nameProperty], region, item, findStatus(item), getDefinitionHash(item)]);
-    }))).map((x) => x.rows).flat());
-    await new Promise((res) => setTimeout(res, 10 * 1000)); // eslint-disable-line no-await-in-loop
+    assert.ok(resp[returnProperty], `The return property ${returnProperty} was not found.`);
+
+    objs = objs.concat(resp[returnProperty]);
+    await crawler.wait(10 * 1000); // eslint-disable-line no-await-in-loop
     marker = resp.Marker;
   } while (marker);
-  return objs;
+  return objs.map((item) => [`aws.${region}.${uniqueIdProperty}.${item[uniqueIdProperty]}`, item, {} /* spec */, findStatus(item), {} /* metadata */, { name: item[nameProperty] }]);
 }
 
 async function runRds(pgpool) {
@@ -140,22 +57,38 @@ async function runRds(pgpool) {
   }
 
   for (const rds of rdsClients) { // eslint-disable-line no-restricted-syntax
-    await writeDeletedObjs(pgpool, 'rds_db_clusters', // eslint-disable-line no-await-in-loop
-      await writeObjs(pgpool, 'rds_db_clusters', rds.describeDBClusters.bind(rds), 'DBClusters', 'DBClusterArn', 'DBClusterIdentifier', false, rds.config.region)); // eslint-disable-line no-await-in-loop
-    await writeDeletedObjs(pgpool, 'rds_db_instances', // eslint-disable-line no-await-in-loop
-      await writeObjs(pgpool, 'rds_db_instances', rds.describeDBInstances.bind(rds), 'DBInstances', 'DBInstanceArn', 'DBInstanceIdentifier', false, rds.config.region)); // eslint-disable-line no-await-in-loop
-    await writeDeletedObjs(pgpool, 'rds_db_subnet_groups', // eslint-disable-line no-await-in-loop
-      await writeObjs(pgpool, 'rds_db_subnet_groups', rds.describeDBSubnetGroups.bind(rds), 'DBSubnetGroups', 'DBSubnetGroupArn', 'DBSubnetGroupName', false, rds.config.region)); // eslint-disable-line no-await-in-loop
-    await writeDeletedObjs(pgpool, 'rds_db_security_groups', // eslint-disable-line no-await-in-loop
-      await writeObjs(pgpool, 'rds_db_security_groups', rds.describeDBSecurityGroups.bind(rds), 'DBSecurityGroups', 'DBSecurityGroupArn', 'DBSecurityGroupName', false, rds.config.region)); // eslint-disable-line no-await-in-loop
-    await writeDeletedObjs(pgpool, 'rds_db_parameter_groups', // eslint-disable-line no-await-in-loop
-      await writeObjs(pgpool, 'rds_db_parameter_groups', rds.describeDBParameterGroups.bind(rds), 'DBParameterGroups', 'DBParameterGroupArn', 'DBParameterGroupName', false, rds.config.region)); // eslint-disable-line no-await-in-loop
-    await writeDeletedObjs(pgpool, 'rds_db_snapshots', // eslint-disable-line no-await-in-loop
-      await writeObjs(pgpool, 'rds_db_snapshots', rds.describeDBSnapshots.bind(rds), 'DBSnapshots', 'DBSnapshotIdentifier', 'DBSnapshotIdentifier', false, rds.config.region)); // eslint-disable-line no-await-in-loop
-    await writeDeletedObjs(pgpool, 'rds_events', // eslint-disable-line no-await-in-loop
-      await writeObjs(pgpool, 'rds_events', rds.describeEvents.bind(rds), 'Events', 'SourceArn', 'SourceIdentifier', true, rds.config.region)); // eslint-disable-line no-await-in-loop
-    await writeDeletedObjs(pgpool, 'rds_certificates', // eslint-disable-line no-await-in-loop
-      await writeObjs(pgpool, 'rds_certificates', rds.describeCertificates.bind(rds), 'Certificates', 'CertificateArn', 'CertificateIdentifier', false, rds.config.region)); // eslint-disable-line no-await-in-loop
+    debug(`Pulling db clusters from AWS RDS ${rds.config.region}...`);
+    const clusters = await fetch(rds.describeDBClusters.bind(rds), 'DBClusters', 'DBClusterArn', 'DBClusterIdentifier', false, rds.config.region); // eslint-disable-line no-await-in-loop
+    await crawler.writeDeletedObjs(pgpool, 'aws', 'rds_db_cluster', // eslint-disable-line no-await-in-loop
+      (await Promise.all(clusters.map((x) => crawler.writeObj(pgpool, 'aws', 'rds_db_cluster', ...x)))).map((x) => x.rows).flat()); // eslint-disable-line no-await-in-loop
+    debug(`Pulling db instances from AWS RDS ${rds.config.region}...`);
+    const instances = await fetch(rds.describeDBInstances.bind(rds), 'DBInstances', 'DBInstanceArn', 'DBInstanceIdentifier', false, rds.config.region); // eslint-disable-line no-await-in-loop
+    await crawler.writeDeletedObjs(pgpool, 'aws', 'rds_db_instance', // eslint-disable-line no-await-in-loop
+      (await Promise.all(instances.map((x) => crawler.writeObj(pgpool, 'aws', 'rds_db_instance', ...x)))).map((x) => x.rows).flat()); // eslint-disable-line no-await-in-loop
+    debug(`Pulling db subnet groups from AWS RDS ${rds.config.region}...`);
+    const subnetGroups = await fetch(rds.describeDBSubnetGroups.bind(rds), 'DBSubnetGroups', 'DBSubnetGroupArn', 'DBSubnetGroupName', false, rds.config.region); // eslint-disable-line no-await-in-loop
+    await crawler.writeDeletedObjs(pgpool, 'aws', 'rds_db_subnet_group', // eslint-disable-line no-await-in-loop
+      (await Promise.all(subnetGroups.map((x) => crawler.writeObj(pgpool, 'aws', 'rds_db_subnet_group', ...x)))).map((x) => x.rows).flat()); // eslint-disable-line no-await-in-loop
+    debug(`Pulling db security groups from AWS RDS ${rds.config.region}...`);
+    const securityGroups = await fetch(rds.describeDBSecurityGroups.bind(rds), 'DBSecurityGroups', 'DBSecurityGroupArn', 'DBSecurityGroupName', false, rds.config.region); // eslint-disable-line no-await-in-loop
+    await crawler.writeDeletedObjs(pgpool, 'aws', 'rds_db_security_group', // eslint-disable-line no-await-in-loop
+      (await Promise.all(securityGroups.map((x) => crawler.writeObj(pgpool, 'aws', 'rds_db_security_group', ...x)))).map((x) => x.rows).flat()); // eslint-disable-line no-await-in-loop
+    debug(`Pulling db parameter groups from AWS RDS ${rds.config.region}...`);
+    const parameterGroups = await fetch(rds.describeDBParameterGroups.bind(rds), 'DBParameterGroups', 'DBParameterGroupArn', 'DBParameterGroupName', false, rds.config.region); // eslint-disable-line no-await-in-loop
+    await crawler.writeDeletedObjs(pgpool, 'aws', 'rds_db_parameter_group', // eslint-disable-line no-await-in-loop
+      (await Promise.all(parameterGroups.map((x) => crawler.writeObj(pgpool, 'aws', 'rds_db_parameter_group', ...x)))).map((x) => x.rows).flat()); // eslint-disable-line no-await-in-loop
+    debug(`Pulling db snapshots from AWS RDS ${rds.config.region}...`);
+    const dbSnapshots = await fetch(rds.describeDBSnapshots.bind(rds), 'DBSnapshots', 'DBSnapshotIdentifier', 'DBSnapshotIdentifier', false, rds.config.region); // eslint-disable-line no-await-in-loop
+    await crawler.writeDeletedObjs(pgpool, 'aws', 'rds_db_snapshot', // eslint-disable-line no-await-in-loop
+      (await Promise.all(dbSnapshots.map((x) => crawler.writeObj(pgpool, 'aws', 'rds_db_snapshot', ...x)))).map((x) => x.rows).flat()); // eslint-disable-line no-await-in-loop
+    debug(`Pulling db events from AWS RDS ${rds.config.region}...`);
+    const events = await fetch(rds.describeEvents.bind(rds), 'Events', 'SourceArn', 'SourceIdentifier', true, rds.config.region); // eslint-disable-line no-await-in-loop
+    await crawler.writeDeletedObjs(pgpool, 'aws', 'rds_event', // eslint-disable-line no-await-in-loop
+      (await Promise.all(events.map((x) => crawler.writeObj(pgpool, 'aws', 'rds_event', ...x)))).map((x) => x.rows).flat()); // eslint-disable-line no-await-in-loop
+    debug(`Pulling db certificates from AWS RDS ${rds.config.region}...`);
+    const certificates = await fetch(rds.describeCertificates.bind(rds), 'Certificates', 'CertificateArn', 'CertificateIdentifier', false, rds.config.region); // eslint-disable-line no-await-in-loop
+    await crawler.writeDeletedObjs(pgpool, 'aws', 'rds_certificate', // eslint-disable-line no-await-in-loop
+      (await Promise.all(certificates.map((x) => crawler.writeObj(pgpool, 'aws', 'rds_certificate', ...x)))).map((x) => x.rows).flat()); // eslint-disable-line no-await-in-loop
   }
 }
 
@@ -179,8 +112,10 @@ async function runElastiCache(pgpool) {
     return;
   }
   for (const es of elastiCacheClients) { // eslint-disable-line no-restricted-syntax
-    await writeDeletedObjs(pgpool, 'es_clusters', // eslint-disable-line no-await-in-loop
-      await writeObjs(pgpool, 'es_clusters', es.describeCacheClusters.bind(es), 'CacheClusters', 'CacheClusterId', 'CacheClusterId', false, es.config.region)); // eslint-disable-line no-await-in-loop
+    debug(`Pulling es clusters from AWS RDS ${es.config.region}...`);
+    const clusters = await fetch(es.describeCacheClusters.bind(es), 'CacheClusters', 'CacheClusterId', 'CacheClusterId', false, es.config.region); // eslint-disable-line no-await-in-loop
+    await crawler.writeDeletedObjs(pgpool, 'aws', 'es_cluster', // eslint-disable-line no-await-in-loop
+      (await Promise.all(clusters.map((x) => crawler.writeObj(pgpool, 'aws', 'es_cluster', ...x)))).map((x) => x.rows).flat()); // eslint-disable-line no-await-in-loop
   }
 }
 
@@ -201,15 +136,15 @@ async function run(pgpool) {
 async function init(pgpool) {
   debug('Initializing aws plugin...');
   await pgpool.query(fs.readFileSync('./plugins/aws/create.sql').toString());
-  await createDatabaseDefinition(pgpool, 'rds_db_clusters');
-  await createDatabaseDefinition(pgpool, 'rds_db_instances');
-  await createDatabaseDefinition(pgpool, 'rds_db_subnet_groups');
-  await createDatabaseDefinition(pgpool, 'rds_db_security_groups');
-  await createDatabaseDefinition(pgpool, 'rds_db_parameter_groups');
-  await createDatabaseDefinition(pgpool, 'rds_db_snapshots');
-  await createDatabaseDefinition(pgpool, 'rds_certificates');
-  await createDatabaseDefinition(pgpool, 'rds_events');
-  await createDatabaseDefinition(pgpool, 'es_clusters');
+  await crawler.createTableDefinition(pgpool, 'aws', 'rds_db_cluster', { name: { type: 'text' } });
+  await crawler.createTableDefinition(pgpool, 'aws', 'rds_db_instance', { name: { type: 'text' } });
+  await crawler.createTableDefinition(pgpool, 'aws', 'rds_db_subnet_group', { name: { type: 'text' } });
+  await crawler.createTableDefinition(pgpool, 'aws', 'rds_db_security_group', { name: { type: 'text' } });
+  await crawler.createTableDefinition(pgpool, 'aws', 'rds_db_parameter_group', { name: { type: 'text' } });
+  await crawler.createTableDefinition(pgpool, 'aws', 'rds_db_snapshot', { name: { type: 'text' } });
+  await crawler.createTableDefinition(pgpool, 'aws', 'rds_certificate', { name: { type: 'text' } });
+  await crawler.createTableDefinition(pgpool, 'aws', 'rds_event', { name: { type: 'text' } });
+  await crawler.createTableDefinition(pgpool, 'aws', 'es_cluster', { name: { type: 'text' } });
   debug('Initializing aws plugin... done');
 }
 

@@ -103,6 +103,9 @@ function computeHash(def) {
 }
 
 async function writeDeletedObjs(pgpool, schema, name, nodes) {
+  // Note: a `not in (...)` is used here, however we have a filter
+  // to ensure no null values enter the list. TODO: change this to a safer NOT EXISTS and
+  // stream node values to the table before running this query (for performance wins!)
   const query = `
   do $$
   begin
@@ -113,7 +116,7 @@ async function writeDeletedObjs(pgpool, schema, name, nodes) {
       select uuid_generate_v4() as node_log, *, true as deleted
       from "${plural(name)}_temp" 
       ${nodes.length !== 0 ? `
-      where node not in (${nodes.map((x) => `'${x.node}'`).join(',')})
+      where node not in (${nodes.filter((x) => x !== null).map((x) => `'${x.node}'`).join(',')})
       ` : ''}
       on conflict (hash, deleted) do nothing;
       drop table "${plural(name)}_temp";

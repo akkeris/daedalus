@@ -4,6 +4,9 @@ const fs = require('fs');
 const debug = require('debug')('daedalus:aws');
 const crawler = require('../../common/crawler.js');
 
+// todo: aws ec2s -> kubernetes.nodes ?
+// todo: aws rds -> kubernetes.deployments, etc etc
+
 function findStatus(item) {
   const status = Object.keys(item).filter((x) => x.toLowerCase().includes('status'));
   if (status.length > 0) {

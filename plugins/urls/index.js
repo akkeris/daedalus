@@ -152,7 +152,7 @@ async function writeHttpFromAkkerisApps(pgpool, urlType, certificateType) {
   await Promise.all(apps.map(async (app) => {
     if (app.definition.web_url) {
       try {
-        examine.push([appsType, app.app_log, app.name, app.definition, new URL(app.definition.web_url), urlType, certificateType]); // eslint-disable-line max-len
+        examine.push([appsType, app.node_log, app.name, app.definition, new URL(app.definition.web_url), urlType, certificateType]); // eslint-disable-line max-len
       } catch (e) {
         debug(`Error adding http link from apps url ${app.app_log}, due to: ${e.stack}`); // eslint-disable-line no-console
       }

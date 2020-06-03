@@ -3,6 +3,10 @@ const fs = require('fs');
 const axios = require('axios');
 const crawler = require('../../common/crawler.js');
 
+// todo: akkeris apps -> akkeris apps (based on configuration)
+// todo: akkeris apps -> akkeris sites (based on configuration)
+// todo: akkeris apps -> services (based on configuration)
+
 const siteNode = (def) => def.id;
 const siteSpec = (def) => ({ domain: def.domain, compliance: def.compliance });
 const siteStatus = (def) => ({
@@ -101,6 +105,40 @@ const addonAttachmentSpec = (def) => ({ addon: def.addon, app: def.app });
 const addonAttachmentStatus = (def) => ({ created_at: def.created_at, updated_at: def.updated_at });
 const addonAttachmentMetadata = (def) => ({ web_url: def.web_url });
 
+async function writeAkkerisAppsToSites(pgpool) {
+  const { rows: routes } = await pgpool.query(`
+    select
+      akkeris.sites.node_log as site_log,
+      akkeris.apps.node_log as app_log,
+      akkeris.routes.node_log as route_log,
+      akkeris.apps.definition->>'web_url' as app_path,
+      akkeris.sites.name as site_name,
+      akkeris.sites.definition as site_definition,
+      akkeris.routes.source_path as source_path,
+      akkeris.routes.target_path as target_path,
+      akkeris.routes.definition as route_definition,
+      akkeris.apps.name as app_name,
+      akkeris.apps.definition as app_definition,
+      akkeris.routes.observed_on
+    from akkeris.routes
+      join akkeris.sites on akkeris.routes.site = akkeris.sites.node_log
+      join akkeris.apps on akkeris.routes.app = akkeris.apps.node_log
+    where akkeris.apps.definition->>'web_url' is not null
+  `);
+  debug(`Examining ${routes.length} routes for links from apps to sites.`);
+
+  await Promise.all(routes.map(async (route) => {
+    try {
+      await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+        [route.site_log, route.route_log]);
+      await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+        [route.route_log, route.app_log]);
+    } catch (e) {
+      debug(`Error cannot add link between app ${route.app_log} and route ${route.route_log} and site ${route.site_log} due to: ${e.message}`);
+    }
+  }));
+}
+
 async function run(pgpool) {
   if (process.env.AKKERIS !== 'true' || !process.env.AKKERIS_URL || !process.env.AKKERIS_TOKEN) {
     return;
@@ -140,6 +178,7 @@ async function run(pgpool) {
   const { data: addonAttachments } = await get('/addon-attachments');
   await crawler.writeDeletedObjs(pgpool, 'akkeris', 'addon_attachment', (await Promise.all(addonAttachments.map((def) => crawler.writeObj(pgpool, 'akkeris', 'addon_attachment', addonAttachmentNode(def), def, addonAttachmentSpec(def), addonAttachmentStatus(def), addonAttachmentMetadata(def), { name: def.name }, { app: { node: def.app.id }, addon: { node: def.addon.id } })))).map((x) => x.rows).flat()); // eslint-disable-line max-len
 
+  await writeAkkerisAppsToSites(pgpool);
   debug('Running akkeris plugin... done');
 }
 

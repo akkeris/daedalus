@@ -35,7 +35,8 @@ async function createTableDefinition(pgpool, schema, name, columns = {}, referen
       observed_on timestamp with time zone default now(),
       deleted boolean not null default false
     );
-    create unique index if not exists ${plural(name)}_unique on ${schema}.${plural(name)}_log (hash, deleted);
+    create unique index if not exists ${plural(name)}_unique on "${schema}"."${plural(name)}_log" (hash, deleted);
+    create index if not exists ${plural(name)}_node on "${schema}"."${plural(name)}_log" (node);
     create or replace view ${schema}.${plural(name)} as
       with ordered_list as ( 
         select
@@ -82,10 +83,13 @@ async function createTableDefinition(pgpool, schema, name, columns = {}, referen
         deleted = false;
 
       ${references.map((ref) => (typeof ref === 'string' ? `
-      create index on ${schema}.${plural(name)}_log("${ref}");
+      create index on "${schema}"."${plural(name)}_log" ("${ref}");
       ` : `
-      create index on ${schema}.${plural(name)}_log("${ref.name}");
-      `)).join('')} 
+      create index on "${schema}"."${plural(name)}_log" ("${ref.name}");
+      `)).join('')}
+
+      comment on table "${schema}"."${plural(name)}_log" IS E'@name ${schema}${plural(name)}_log';
+      comment on view "${schema}"."${plural(name)}" IS E'@name ${schema}${plural(name)}';
   end
   $$;
   `;
@@ -98,15 +102,26 @@ function computeHash(def) {
   return hash.digest('hex');
 }
 
-function writeDeletedObjs(pgpool, schema, name, nodes) {
-  return pgpool.query(`
+async function writeDeletedObjs(pgpool, schema, name, nodes) {
+  const query = `
+  do $$
+  begin
+    create temporary table "${plural(name)}_temp" as select * from "${schema}"."${plural(name)}";
+    alter table "${plural(name)}_temp" drop column node_log;
+
     insert into "${schema}"."${plural(name)}_log" 
-      select *, true as deleted
-      from "${schema}"."${plural(name)}" 
+      select uuid_generate_v4() as node_log, *, true as deleted
+      from "${plural(name)}_temp" 
       ${nodes.length !== 0 ? `
-      where node_log not in (${nodes.map((x) => `'${x.node_log}'`).join(',')})
+      where node not in (${nodes.map((x) => `'${x.node}'`).join(',')})
       ` : ''}
-  `);
+      on conflict (hash, deleted) do nothing;
+      drop table "${plural(name)}_temp";
+  end
+  $$;
+  `;
+  await pgpool.query(query);
+  return nodes;
 }
 
 function writeObj(pgpool, schema, name, node, definition, spec, status, metadata, columns = {}, references = {}) { // eslint-disable-line max-len
@@ -141,7 +156,7 @@ function writeObj(pgpool, schema, name, node, definition, spec, status, metadata
     ${refColumns.length !== 0 ? `from ${refColumns.map((ref, i) => `q${i}`).join(', ')}` : ''}
     on conflict (hash, deleted)
     do update set deleted = false
-    returning node_log
+    returning node_log, node, definition
   `;
   return pgpool.query(query, [node, ...colColumns.map((x) => columns[x]), definition, metadata, spec, status, computeHash(definition)]); // eslint-disable-line max-len
 }

@@ -240,8 +240,8 @@ begin
     select node_types.icon as "icon", node_types.type, gateways_log.node_log, gateways_log.node, gateways_log.name, gateways_log.definition, '{}'::jsonb as status, gateways_log.observed_on, false as transient, deleted
         from kubernetes.gateways_log, metadata.node_types where node_types.name = 'kubernetes/gateways'
     union all
-    select node_types.icon as "icon", node_types.type, ingress_log.node_log, ingress_log.node, ingress_log.name, ingress_log.definition, '{}'::jsonb as status, ingress_log.observed_on, false as transient, deleted
-        from kubernetes.ingress_log, metadata.node_types where node_types.name = 'kubernetes/ingress'
+    select node_types.icon as "icon", node_types.type, ingresses_log.node_log, ingresses_log.node, ingresses_log.name, ingresses_log.definition, '{}'::jsonb as status, ingresses_log.observed_on, false as transient, deleted
+        from kubernetes.ingresses_log, metadata.node_types where node_types.name = 'kubernetes/ingress'
     union all
     select node_types.icon as "icon", node_types.type, jobs_log.node_log, jobs_log.node, jobs_log.name, jobs_log.definition, '{}'::jsonb as status, jobs_log.observed_on, false as transient, deleted
         from kubernetes.jobs_log, metadata.node_types where node_types.name = 'kubernetes/jobs'
@@ -390,8 +390,8 @@ begin
     select node_types.icon as "icon", node_types.type, gateways.node_log, gateways.node, gateways.name, gateways.definition, '{}'::jsonb as status, gateways.observed_on, false as transient
         from kubernetes.gateways, metadata.node_types where node_types.name = 'kubernetes/gateways'
     union all
-    select node_types.icon as "icon", node_types.type, ingress.node_log, ingress.node, ingress.name, ingress.definition, '{}'::jsonb as status, ingress.observed_on, false as transient
-        from kubernetes.ingress, metadata.node_types where node_types.name = 'kubernetes/ingress'
+    select node_types.icon as "icon", node_types.type, ingresses.node_log, ingresses.node, ingresses.name, ingresses.definition, '{}'::jsonb as status, ingresses.observed_on, false as transient
+        from kubernetes.ingresses, metadata.node_types where node_types.name = 'kubernetes/ingress'
     union all
     select node_types.icon as "icon", node_types.type, jobs.node_log, jobs.node, jobs.name, jobs.definition, '{}'::jsonb as status, jobs.observed_on, false as transient
         from kubernetes.jobs, metadata.node_types where node_types.name = 'kubernetes/jobs'

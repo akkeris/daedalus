@@ -55,15 +55,12 @@ async function init() {
   /* This must be done syncronously to avoid deadlocks in DDL chagnes,
    * do not put this in a map with Promise.all, in addition
    * metadata must go last in initialization order. */
-  let metadata = null;
+  await plugins.filter((metadata) => metadata.name === 'metadata')[0].init(pgpool, bus, app);
   for (const plugin of plugins) { // eslint-disable-line no-restricted-syntax
     if (plugin.name !== 'metadata') {
       await plugin.init(pgpool, bus, app); // eslint-disable-line no-await-in-loop
-    } else {
-      metadata = plugin;
     }
   }
-  await metadata.init(pgpool, bus, app);
   debug(`Starting http port at ${process.env.PORT || 9000}`);
   app.listen(process.env.PORT || 9000, '0.0.0.0', (err) => {
     if (err) {

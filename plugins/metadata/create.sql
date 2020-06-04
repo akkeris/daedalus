@@ -55,63 +55,6 @@ begin
     human_name text not null
   );
   create unique index if not exists metadata_node_types_ndx on metadata.node_types(name);
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'aws/elastic_search', 'aws.es.svg', 'fa-search', 'Amazon Elastic Search') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'aws/rds_certificates', 'aws.rds_certificates.svg', 'fa-certificate', 'Amazon RDS Certificates') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'aws/rds_db_clusters', 'aws.rds_db_clusters.svg', 'fa-database', 'Amazon RDS Database Clusters') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'aws/rds_db_instances', 'aws.rds_db_instances.svg', 'fa-database', 'Amazon RDS Database Instances') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'aws/rds_db_parameter_groups', 'aws.rds_db_parameter_groups.svg', 'fa-cogs', 'Amazon Database Parameter Groups') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'aws/rds_db_security_groups', 'aws.rds_db_security_groups.svg', 'fa-shield', 'Amazon RDS Security Groups') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'aws/rds_db_snapshots', 'aws.rds_db_snapshots.svg', 'fa-archive', 'Amazon RDS Snapshots') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'aws/rds_db_subnet_groups', 'aws.rds_db_subnet_groups.svg', 'fa-plug', 'Amazon Subnet Groups') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'aws/rds_events', 'aws.rds_events.svg', 'fa-cube', 'Amazon RDS Events') on conflict (name) do nothing;
-
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'postgresql/databases', 'postgresql.databases.svg', 'fa-cube', 'Postgresql Databases') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'postgresql/tables', 'postgresql.tables.svg', 'fa-cube', 'Postgresql Tables') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'postgresql/columns', 'postgresql.columns.svg', 'fa-cube', 'Postgresql Columns') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'postgresql/constraints', 'postgresql.constraints.svg', 'fa-cube', 'Postgresql Constraints') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'postgresql/foreign_servers', 'postgresql.foreign_servers.svg', 'fa-cube', 'Postgresql Foreign Servers') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'postgresql/indexes', 'postgresql.indexes.svg', 'fa-cube', 'Postgresql Indexes') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'postgresql/roles', 'postgresql.roles.svg', 'fa-cube', 'Postgresql Roles') on conflict (name) do nothing;
-  
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'oracle/databases', 'oracle.databases.svg', 'fa-cube', 'Oracle Databases') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'oracle/tables', 'oracle.tables.svg', 'fa-cube', 'Oracle Tables') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'oracle/columns', 'oracle.columns.svg', 'fa-cube', 'Oracle Columns') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'oracle/constraints', 'oracle.constraints.svg', 'fa-cube', 'Oracle Constraints') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'oracle/foreign_servers', 'oracle.foreign_servers.svg', 'fa-cube', 'Oracle Foreign Servers') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'oracle/indexes', 'oracle.indexes.svg', 'fa-cube', 'Oracle Indexes') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'oracle/roles', 'oracle.roles.svg', 'fa-cube', 'Oracle Roles') on conflict (name) do nothing;
-
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/configmaps', 'kubernetes.configmaps.svg', 'fa-map', 'Kubernetes Config Maps') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/certificates', 'kubernetes.certificates.svg', 'fa-certificate', 'Certificates') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/daemonsets', 'kubernetes.daemon_sets.svg', 'fa-cube', 'Kubernetes Daemon Sets') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/deployments', 'kubernetes.deployments.svg', 'fa-rocket', 'Kubernetes Deployments') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/events', 'kubernetes.events.svg', 'fa-cube', 'Kubernetes Events') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/gateways', 'kubernetes.gateways.svg', 'fa-cube', 'Istio Gateways') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/ingress', 'kubernetes.ingress.svg', 'fa-cube', 'Kubernetes Ingresses') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/jobs', 'kubernetes.jobs.svg', 'fa-cube', 'Kubernetes Jobs') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/nodes', 'kubernetes.nodes.svg', 'fa-cube', 'Kubernetes Nodes') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/persistentvolumeclaims', 'kubernetes.persistent_volume_claims.svg', 'fa-cube', 'Kubernetes Persistent Volume Claims') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/persistentvolumes', 'kubernetes.persistent_volumes.svg', 'fa-cube', 'Kubernetes Persistent Volumes') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/pods', 'kubernetes.pods.svg', 'fa-server', 'Kubernetes Pods') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/policies', 'kubernetes.policies.svg', 'fa-cube', 'Istio Policies') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/replicasets', 'kubernetes.replicasets.svg', 'fa-clone', 'Kubernetes Replica Sets') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/services', 'kubernetes.services.svg', 'fa-cube', 'Kubernetes Services') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/statefulsets', 'kubernetes.stateful_sets.svg', 'fa-cube', 'Kubernetes Stateful Sets') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/virtualservices', 'kubernetes.virtualservices.svg', 'fa-cube', 'Istio Virtual Services') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/clusterissuers', 'kubernetes.clusterissuers.svg', 'fa-cube', 'Cert Manager Cluster Issuers') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/issuers', 'kubernetes.issuers.svg', 'fa-cube', 'Cert Manager Issuers') on conflict (name) do nothing;
-
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'akkeris/sites', 'akkeris.sites.svg', 'fa-sitemap', 'Akkeris Sites') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'akkeris/routes', 'akkeris.routes.svg', 'fa-cube', 'Akkeris Routes') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'akkeris/apps', 'akkeris.apps.svg', 'fa-microchip', 'Akkeris Apps') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'akkeris/spaces', 'akkeris.spaces.svg', 'fa-cube', 'Akkeris Spaces') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'akkeris/addon_attachments', 'akkeris.addon_attachments.svg', 'fa-cube', 'Akkeris Addon Attachments') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'akkeris/addon_services', 'akkeris.addon_services.svg', 'fa-cube', 'Akkeris Services') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'akkeris/addons', 'akkeris.addons.svg', 'fa-cube', 'Akkeris Addons') on conflict (name) do nothing;
-  
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'urls/urls', 'urls.urls.svg', 'fa-link', 'Urls') on conflict (name) do nothing;
-  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'urls/certificates', 'urls.certificates.svg', 'fa-certificate', 'Certificates') on conflict (name) do nothing;
-
   create table if not exists metadata.node_types_fields (
     id uuid not null primary key,
     "type" uuid references metadata.node_types("type"),
@@ -124,389 +67,75 @@ begin
   create unique index if not exists metadata_node_types_fields_unique on metadata.node_types_fields("type", "name");
   create index if not exists metadata_node_types_fields_type on metadata.node_types_fields("type");
 
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='urls/certificates' limit 1), '$.expires', 'expires', 'Expires', 'date', true) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='urls/certificates' limit 1), '$.issued', 'issued', 'Issued', 'date', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='urls/urls' limit 1), '$.connection.protocol', 'tls_version', 'TLS Version', 'string', true) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='akkeris/sites' limit 1), '$.region.name', 'region', 'Region', 'string', true) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/certificates' limit 1), '$.status.notAfter', 'expires', 'Expires', 'date', true) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/certificates' limit 1), '$.metadata.creationTimestamp', 'issued', 'Issued', 'date', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/certificates' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/configmaps' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/pods' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/pods' limit 1), '$.spec.containers', 'containers', 'Containers', 'array_length', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/deployments' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/deployments' limit 1), '$.metadata.replicas', 'replicas', 'Replicas', 'number', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/replicasets' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/replicasets' limit 1), '$.spec.replicas', 'replicas', 'Replicas', 'number', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/daemonsets' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/statefulsets' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/services' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/jobs' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/events' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/gateways' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/policies' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/virtualservices' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/ingress' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
-  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
-    (uuid_generate_v4(), (select "type" from metadata.node_types where name='kubernetes/persistentvolumeclaims' limit 1), '$.metadata.namespace', 'namespace', 'Namespace', 'string', false) on conflict (type, name) do nothing;
+  create or replace function metadata.add_nodes_type(name text, sql text)
+    returns boolean as $d$
+    declare def text;
+    begin
+      if not exists (select 1 from pg_catalog.pg_views where pg_views.schemaname = 'metadata' and viewname = 'nodes') then
+        execute 'create or replace view metadata.nodes as ' || sql;
+      else
+        if not exists (select 1 from pg_catalog.pg_views where pg_views.schemaname = 'metadata' and viewname = 'nodes' and definition like ('%' || name || '%')) then
+          select (rtrim(definition, ';') || ' union all ' || sql) into def from pg_catalog.pg_views where pg_views.schemaname = 'metadata' and viewname = 'nodes';
+          execute 'create or replace view metadata.nodes as ' || def;
+        end if;
+      end if;
+      execute 'comment on view "metadata"."nodes" is E''@name metadataNodes''';
+      return true;
+    end;
+    $d$ language plpgsql;
 
-  create or replace view metadata.nodes_log as
-    select node_types.icon as "icon", node_types.type, spaces_log.node_log, spaces_log.node, spaces_log.name, spaces_log.definition, '{}'::jsonb as status, spaces_log.observed_on, false as transient, spaces_log.deleted
-        from akkeris.spaces_log, metadata.node_types where node_types.name = 'akkeris/spaces'
-    union all
-    select node_types.icon as "icon", node_types.type, apps_log.node_log, apps_log.node, apps_log.name, apps_log.definition, '{}'::jsonb as status, apps_log.observed_on, false as transient, deleted
-        from akkeris.apps_log, metadata.node_types where node_types.name = 'akkeris/apps'
-    union all
-    select node_types.icon as "icon", node_types.type, addon_attachments_log.node_log, addon_attachments_log.node, addon_attachments_log.name, addon_attachments_log.definition, '{}'::jsonb as status, addon_attachments_log.observed_on, false as transient, deleted
-        from akkeris.addon_attachments_log, metadata.node_types where node_types.name = 'akkeris/addon_attachments'
-    union all
-    select node_types.icon as "icon", node_types.type, addon_services_log.node_log, addon_services_log.node, addon_services_log.name, addon_services_log.definition, '{}'::jsonb as status, addon_services_log.observed_on, false as transient, deleted
-        from akkeris.addon_services_log, metadata.node_types where node_types.name = 'akkeris/addon_services'
-    union all
-    select node_types.icon as "icon", node_types.type, addons_log.node_log, addons_log.node, addons_log.name, addons_log.definition, '{}'::jsonb as status, addons_log.observed_on, false as transient, deleted
-        from akkeris.addons_log, metadata.node_types where node_types.name = 'akkeris/addons'
-    union all
-    select node_types.icon as "icon", node_types.type, sites_log.node_log, sites_log.node, sites_log.name, sites_log.definition, '{}'::jsonb as status, sites_log.observed_on, false as transient, deleted
-        from akkeris.sites_log, metadata.node_types where node_types.name = 'akkeris/sites'
-    union all
-    select node_types.icon as "icon", node_types.type, routes_log.node_log, routes_log.node, 'https://' || sites_log.name || routes_log.source_path || ' -> ' || rtrim(rtrim(ltrim((apps_log.definition->'web_url')::text, '"'), '"'), '/') || routes_log.target_path as name, routes_log.definition, '{}'::jsonb as status, routes_log.observed_on, false as transient, routes_log.deleted
-        from akkeris.routes_log join akkeris.sites_log on routes_log.site = sites_log.node_log join akkeris.apps_log on routes_log.app = apps_log.node_log, metadata.node_types where node_types.name = 'akkeris/routes'
-    union all
-    select node_types.icon as "icon", node_types.type, es_clusters_log.node_log, es_clusters_log.node, es_clusters_log.name, es_clusters_log.definition, '{}'::jsonb as status, es_clusters_log.observed_on, false as transient, deleted
-        from aws.es_clusters_log, metadata.node_types where node_types.name = 'aws/elastic_search'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_certificates_log.node_log, rds_certificates_log.node, rds_certificates_log.name as name, rds_certificates_log.definition, '{}'::jsonb as status, rds_certificates_log.observed_on, false as transient, deleted
-        from aws.rds_certificates_log, metadata.node_types where node_types.name = 'aws/rds_certificates'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_db_clusters_log.node_log, rds_db_clusters_log.node, rds_db_clusters_log.name, rds_db_clusters_log.definition, '{}'::jsonb as status, rds_db_clusters_log.observed_on, false as transient, deleted
-        from aws.rds_db_clusters_log, metadata.node_types where node_types.name = 'aws/rds_db_clusters'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_db_instances_log.node_log, rds_db_instances_log.node, rds_db_instances_log.name, rds_db_instances_log.definition, '{}'::jsonb as status, rds_db_instances_log.observed_on, false as transient, deleted
-        from aws.rds_db_instances_log, metadata.node_types where node_types.name = 'aws/rds_db_instances'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_db_parameter_groups_log.node_log, rds_db_parameter_groups_log.node, rds_db_parameter_groups_log.name, rds_db_parameter_groups_log.definition, '{}'::jsonb as status, rds_db_parameter_groups_log.observed_on, false as transient, deleted
-        from aws.rds_db_parameter_groups_log, metadata.node_types where node_types.name = 'aws/rds_db_instances'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_db_security_groups_log.node_log, rds_db_security_groups_log.node, rds_db_security_groups_log.name, rds_db_security_groups_log.definition, '{}'::jsonb as status, rds_db_security_groups_log.observed_on, false as transient, deleted
-        from aws.rds_db_security_groups_log, metadata.node_types where node_types.name = 'aws/rds_db_security_groups'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_db_snapshots_log.node_log, rds_db_snapshots_log.node, rds_db_snapshots_log.name, rds_db_snapshots_log.definition, '{}'::jsonb as status, rds_db_snapshots_log.observed_on, false as transient, deleted
-        from aws.rds_db_snapshots_log, metadata.node_types where node_types.name = 'aws/rds_db_snapshots'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_db_subnet_groups_log.node_log, rds_db_subnet_groups_log.node, rds_db_subnet_groups_log.name, rds_db_subnet_groups_log.definition, '{}'::jsonb as status, rds_db_subnet_groups_log.observed_on, false as transient, deleted
-        from aws.rds_db_subnet_groups_log, metadata.node_types where node_types.name = 'aws/rds_db_subnet_groups'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_events_log.node_log, rds_events_log.node, rds_events_log.name, rds_events_log.definition, '{}'::jsonb as status, rds_events_log.observed_on, false as transient, deleted
-        from aws.rds_events_log, metadata.node_types where node_types.name = 'aws/rds_events'
-    union all
-    select node_types.icon as "icon", node_types.type, certificates_log.node_log, certificates_log.node, certificates_log.name, certificates_log.definition, '{}'::jsonb as status, certificates_log.observed_on, false as transient, deleted
-        from kubernetes.certificates_log, metadata.node_types where node_types.name = 'kubernetes/certificates'
-    union all
-    select node_types.icon as "icon", node_types.type, configmaps_log.node_log, configmaps_log.node, configmaps_log.name, configmaps_log.definition, '{}'::jsonb as status, configmaps_log.observed_on, false as transient, deleted
-        from kubernetes.configmaps_log, metadata.node_types where node_types.name = 'kubernetes/configmaps'
-    union all
-    select node_types.icon as "icon", node_types.type, daemonsets_log.node_log, daemonsets_log.node, daemonsets_log.name, daemonsets_log.definition, '{}'::jsonb as status, daemonsets_log.observed_on, false as transient, deleted
-        from kubernetes.daemonsets_log, metadata.node_types where node_types.name = 'kubernetes/daemonsets'
-    union all
-    select node_types.icon as "icon", node_types.type, deployments_log.node_log, deployments_log.node, deployments_log.name, deployments_log.definition, '{}'::jsonb as status, deployments_log.observed_on, false as transient, deleted
-        from kubernetes.deployments_log, metadata.node_types where node_types.name = 'kubernetes/deployments'
-    union all
-    select node_types.icon as "icon", node_types.type, events_log.node_log, events_log.node, events_log.name, events_log.definition, '{}'::jsonb as status, events_log.observed_on, true as transient, deleted
-        from kubernetes.events_log, metadata.node_types where node_types.name = 'kubernetes/events'
-    union all
-    select node_types.icon as "icon", node_types.type, gateways_log.node_log, gateways_log.node, gateways_log.name, gateways_log.definition, '{}'::jsonb as status, gateways_log.observed_on, false as transient, deleted
-        from kubernetes.gateways_log, metadata.node_types where node_types.name = 'kubernetes/gateways'
-    union all
-    select node_types.icon as "icon", node_types.type, ingresses_log.node_log, ingresses_log.node, ingresses_log.name, ingresses_log.definition, '{}'::jsonb as status, ingresses_log.observed_on, false as transient, deleted
-        from kubernetes.ingresses_log, metadata.node_types where node_types.name = 'kubernetes/ingress'
-    union all
-    select node_types.icon as "icon", node_types.type, jobs_log.node_log, jobs_log.node, jobs_log.name, jobs_log.definition, '{}'::jsonb as status, jobs_log.observed_on, false as transient, deleted
-        from kubernetes.jobs_log, metadata.node_types where node_types.name = 'kubernetes/jobs'
-    union all
-    select node_types.icon as "icon", node_types.type, nodes_log.node_log, nodes_log.node, nodes_log.name, nodes_log.definition, '{}'::jsonb as status, nodes_log.observed_on, false as transient, deleted
-        from kubernetes.nodes_log, metadata.node_types where node_types.name = 'kubernetes/nodes'
-    union all
-    select node_types.icon as "icon", node_types.type, persistentvolumeclaims_log.node_log, persistentvolumeclaims_log.node, persistentvolumeclaims_log.name, persistentvolumeclaims_log.definition, '{}'::jsonb as status, persistentvolumeclaims_log.observed_on, false as transient, deleted
-        from kubernetes.persistentvolumeclaims_log, metadata.node_types where node_types.name = 'kubernetes/persistentvolumeclaims'
-    union all
-    select node_types.icon as "icon", node_types.type, persistentvolumes_log.node_log, persistentvolumes_log.node, persistentvolumes_log.name, persistentvolumes_log.definition, '{}'::jsonb as status, persistentvolumes_log.observed_on, false as transient, deleted
-        from kubernetes.persistentvolumes_log, metadata.node_types where node_types.name = 'kubernetes/persistentvolumes'
-    union all
-    select node_types.icon as "icon", node_types.type, pods_log.node_log, pods_log.node, pods_log.name, pods_log.definition, '{}'::jsonb as status, pods_log.observed_on, true as transient, deleted
-        from kubernetes.pods_log, metadata.node_types where node_types.name = 'kubernetes/pods'
-    union all
-    select node_types.icon as "icon", node_types.type, policies_log.node_log, policies_log.node, policies_log.name, policies_log.definition, '{}'::jsonb as status, policies_log.observed_on, false as transient, deleted
-        from kubernetes.policies_log, metadata.node_types where node_types.name = 'kubernetes/policies'
-    union all
-    select node_types.icon as "icon", node_types.type, replicasets_log.node_log, replicasets_log.node, replicasets_log.name, replicasets_log.definition, '{}'::jsonb as status, replicasets_log.observed_on, true as transient, deleted
-        from kubernetes.replicasets_log, metadata.node_types where node_types.name = 'kubernetes/replicasets'
-    union all
-    select node_types.icon as "icon", node_types.type, services_log.node_log, services_log.node, services_log.name, services_log.definition, '{}'::jsonb as status, services_log.observed_on, false as transient, deleted
-        from kubernetes.services_log, metadata.node_types where node_types.name = 'kubernetes/services'
-    union all
-    select node_types.icon as "icon", node_types.type, statefulsets_log.node_log, statefulsets_log.node, statefulsets_log.name, statefulsets_log.definition, '{}'::jsonb as status, statefulsets_log.observed_on, false as transient, deleted
-        from kubernetes.statefulsets_log, metadata.node_types where node_types.name = 'kubernetes/statefulsets'
-    union all
-    select node_types.icon as "icon", node_types.type, virtualservices_log.node_log, virtualservices_log.node, virtualservices_log.name, virtualservices_log.definition, '{}'::jsonb as status, virtualservices_log.observed_on, false as transient, deleted
-        from kubernetes.virtualservices_log, metadata.node_types where node_types.name = 'kubernetes/virtualservices'
-    union all
-    select node_types.icon as "icon", node_types.type, columns_log.column_log as node_log, columns_log.column as node, columns_log.name, ('{}')::jsonb as definition, '{}'::jsonb as status, columns_log.observed_on, false as transient, deleted
-        from oracle.columns_log, metadata.node_types where node_types.name = 'oracle/columns'
-    union all
-    select node_types.icon as "icon", node_types.type, constraints_log.constraint_log as node_log, constraints_log.constraint as node, constraints_log.name, ('{}')::jsonb as definition, '{}'::jsonb as status, constraints_log.observed_on, false as transient, deleted
-        from oracle.constraints_log, metadata.node_types where node_types.name = 'oracle/constraints'
-    union all
-    select node_types.icon as "icon", node_types.type, databases_log.database_log as node_log, databases_log.database as node, databases_log.host || '/' || databases_log.name as name, databases_log.config as definition, '{}'::jsonb as status, databases_log.observed_on, false as transient, deleted
-        from oracle.databases_log, metadata.node_types where node_types.name = 'oracle/databases'
-    union all
-    select node_types.icon as "icon", node_types.type, foreign_servers_log.foreign_server_log as node_log, foreign_servers_log.foreign_server as node, foreign_servers_log.name, ('{}')::jsonb as definition, '{}'::jsonb as status, foreign_servers_log.observed_on, false as transient, deleted
-        from oracle.foreign_servers_log, metadata.node_types where node_types.name = 'oracle/foreign_servers'
-    union all
-    select node_types.icon as "icon", node_types.type, indexes_log.index_log as node_log, indexes_log.index as node, indexes_log.name, ('{}')::jsonb as definition, '{}'::jsonb as status, indexes_log.observed_on, false as transient, deleted
-        from oracle.indexes_log, metadata.node_types where node_types.name = 'oracle/indexes'
-    union all
-    select node_types.icon as "icon", node_types.type, roles_log.role_log as node_log, roles_log.role as node, roles_log.username as name, ('{}')::jsonb as definition, '{}'::jsonb as status, roles_log.observed_on, false as transient, deleted
-        from oracle.roles_log, metadata.node_types where node_types.name = 'oracle/roles'
-    union all
-    select node_types.icon as "icon", node_types.type, tables_log.table_log as node_log, tables_log.table as node, tables_log.name, ('{}')::jsonb as definition, '{}'::jsonb as status, tables_log.observed_on, false as transient, deleted
-        from oracle.tables_log, metadata.node_types where node_types.name = 'oracle/tables'
-    union all
-    select node_types.icon as "icon", node_types.type, columns_log.column_log as node_log, columns_log.column as node, columns_log.name, ('{}')::jsonb as definition, '{}'::jsonb as status, columns_log.observed_on, false as transient, deleted
-        from postgresql.columns_log, metadata.node_types where node_types.name = 'postgresql/columns'
-    union all
-    select node_types.icon as "icon", node_types.type, constraints_log.constraint_log as node_log, constraints_log.constraint as node, constraints_log.name, ('{}')::jsonb as definition, '{}'::jsonb as status, constraints_log.observed_on, false as transient, deleted
-        from postgresql.constraints_log, metadata.node_types where node_types.name = 'postgresql/constraints'
-    union all
-    select node_types.icon as "icon", node_types.type, databases_log.database_log as node_log, databases_log.database as node, databases_log.host || '/' || databases_log.name as name, databases_log.config as definition, '{}'::jsonb as status, databases_log.observed_on, false as transient, deleted
-        from postgresql.databases_log, metadata.node_types where node_types.name = 'postgresql/databases'
-    union all
-    select node_types.icon as "icon", node_types.type, foreign_servers_log.foreign_server_log as node_log, foreign_servers_log.foreign_server as node, foreign_servers_log.name, ('{}')::jsonb as definition, '{}'::jsonb as status, foreign_servers_log.observed_on, false as transient, deleted
-        from postgresql.foreign_servers_log, metadata.node_types where node_types.name = 'postgresql/foreign_servers'
-    union all
-    select node_types.icon as "icon", node_types.type, indexes_log.index_log as node_log, indexes_log.index as node, indexes_log.name, ('{}')::jsonb as definition, '{}'::jsonb as status, indexes_log.observed_on, false as transient, deleted
-        from postgresql.indexes_log, metadata.node_types where node_types.name = 'postgresql/indexes'
-    union all
-    select node_types.icon as "icon", node_types.type, roles_log.role_log as node_log, roles_log.role as node, roles_log.username as name, ('{}')::jsonb as definition, '{}'::jsonb as status, roles_log.observed_on, false as transient, deleted
-        from postgresql.roles_log, metadata.node_types where node_types.name = 'postgresql/roles'
-    union all
-    select node_types.icon as "icon", node_types.type, tables_log.table_log as node_log, tables_log.table as node, tables_log.name, ('{}')::jsonb as definition, '{}'::jsonb as status, tables_log.observed_on, false as transient, deleted
-        from postgresql.tables_log, metadata.node_types where node_types.name = 'postgresql/tables'
-    union all
-    select node_types.icon as "icon", node_types.type, certificates_log.certificate_log as node_log, certificates_log.certificate as node, certificates_log.subject as name, certificates_log.definition, '{}'::jsonb as status, certificates_log.observed_on, false as transient, deleted
-        from urls.certificates_log, metadata.node_types where node_types.name = 'urls/certificates'
-    union all
-    select node_types.icon as "icon", node_types.type, urls_log.url_log as node_log, urls_log.url as node, urls_log.protocol || '//' || urls_log.hostname || urls_log.pathname as name, urls_log.definition, '{}'::jsonb as status, urls_log.observed_on, false as transient, deleted
-        from urls.urls_log, metadata.node_types where node_types.name = 'urls/urls';
+  create or replace function metadata.add_nodes_log_type(name text, sql text)
+    returns boolean as $d$
+    declare def text;
+    begin
+      if not exists (select 1 from pg_catalog.pg_views where pg_views.schemaname = 'metadata' and viewname = 'nodes_log') then
+        execute 'create or replace view metadata.nodes_log as ' || sql;
+      else
+        if not exists (select 1 from pg_catalog.pg_views where pg_views.schemaname = 'metadata' and viewname = 'nodes_log' and definition like ('%' || name || '%')) then
+          select (rtrim(definition, ';') || ' union all ' || sql) into def from pg_catalog.pg_views where pg_views.schemaname = 'metadata' and viewname = 'nodes_log';
+          execute 'create or replace view metadata.nodes_log as ' || def;
+        end if;
+      end if;
+      execute 'comment on view "metadata"."nodes_log" is E''@name metadataNodesLog''';
+      return true;
+    end;
+    $d$ language plpgsql;
 
-  comment on view "metadata"."nodes_log" is E'@name metadataNodesLog';
+  create materialized view if not exists metadata.nodes_log_cache as
+    select * from metadata.nodes_log;
+  create unique index if not exists nodes_log_cache_node_log on metadata.nodes_log_cache("node_log");
+  create index if not exists nodes_log_cache_node on metadata.nodes_log_cache("node");
+  create index if not exists nodes_log_cache_observed_on_desc on metadata.nodes_log_cache("observed_on" desc);
 
-  create or replace view metadata.nodes as
-    select node_types.icon as "icon", node_types.type, spaces.node_log, spaces.node, spaces.name, spaces.definition, '{}'::jsonb as status, spaces.observed_on, false as transient
-        from akkeris.spaces, metadata.node_types where node_types.name = 'akkeris/spaces'
-    union all
-    select node_types.icon as "icon", node_types.type, apps.node_log, apps.node, apps.name, apps.definition, '{}'::jsonb as status, apps.observed_on, false as transient
-        from akkeris.apps, metadata.node_types where node_types.name = 'akkeris/apps'
-    union all
-    select node_types.icon as "icon", node_types.type, addon_attachments.node_log, addon_attachments.node, addon_attachments.name, addon_attachments.definition, '{}'::jsonb as status, addon_attachments.observed_on, false as transient
-        from akkeris.addon_attachments, metadata.node_types where node_types.name = 'akkeris/addon_attachments'
-    union all
-    select node_types.icon as "icon", node_types.type, addon_services.node_log, addon_services.node, addon_services.name, addon_services.definition, '{}'::jsonb as status, addon_services.observed_on, false as transient
-        from akkeris.addon_services, metadata.node_types where node_types.name = 'akkeris/addon_services'
-    union all
-    select node_types.icon as "icon", node_types.type, addons.node_log, addons.node, addons.name, addons.definition, '{}'::jsonb as status, addons.observed_on, false as transient
-        from akkeris.addons, metadata.node_types where node_types.name = 'akkeris/addons'
-    union all
-    select node_types.icon as "icon", node_types.type, sites.node_log, sites.node, sites.name, sites.definition, '{}'::jsonb as status, sites.observed_on, false as transient
-        from akkeris.sites, metadata.node_types where node_types.name = 'akkeris/sites'
-    union all
-    select node_types.icon as "icon", node_types.type, routes.node_log, routes.node, 'https://' || sites.name || routes.source_path || ' -> ' || rtrim(rtrim(ltrim((apps.definition->'web_url')::text, '"'), '"'), '/') || routes.target_path as name, routes.definition, '{}'::jsonb as status, routes.observed_on, false as transient
-        from akkeris.routes join akkeris.sites on routes.site = sites.node_log join akkeris.apps on routes.app = apps.node_log, metadata.node_types where node_types.name = 'akkeris/routes'
-    union all
-    select node_types.icon as "icon", node_types.type, es_clusters.node_log, es_clusters.node, es_clusters.name, es_clusters.definition, '{}'::jsonb as status, es_clusters.observed_on, false as transient
-        from aws.es_clusters, metadata.node_types where node_types.name = 'aws/elastic_search'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_certificates.node_log, rds_certificates.node, rds_certificates.name as name, rds_certificates.definition, '{}'::jsonb as status, rds_certificates.observed_on, false as transient
-        from aws.rds_certificates, metadata.node_types where node_types.name = 'aws/rds_certificates'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_db_clusters.node_log, rds_db_clusters.node, rds_db_clusters.name, rds_db_clusters.definition, '{}'::jsonb as status, rds_db_clusters.observed_on, false as transient
-        from aws.rds_db_clusters, metadata.node_types where node_types.name = 'aws/rds_db_clusters'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_db_instances.node_log, rds_db_instances.node, rds_db_instances.name, rds_db_instances.definition, '{}'::jsonb as status, rds_db_instances.observed_on, false as transient
-        from aws.rds_db_instances, metadata.node_types where node_types.name = 'aws/rds_db_instances'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_db_parameter_groups.node_log, rds_db_parameter_groups.node, rds_db_parameter_groups.name, rds_db_parameter_groups.definition, '{}'::jsonb as status, rds_db_parameter_groups.observed_on, false as transient
-        from aws.rds_db_parameter_groups, metadata.node_types where node_types.name = 'aws/rds_db_instances'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_db_security_groups.node_log, rds_db_security_groups.node, rds_db_security_groups.name, rds_db_security_groups.definition, '{}'::jsonb as status, rds_db_security_groups.observed_on, false as transient
-        from aws.rds_db_security_groups, metadata.node_types where node_types.name = 'aws/rds_db_security_groups'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_db_snapshots.node_log, rds_db_snapshots.node, rds_db_snapshots.name, rds_db_snapshots.definition, '{}'::jsonb as status, rds_db_snapshots.observed_on, false as transient
-        from aws.rds_db_snapshots, metadata.node_types where node_types.name = 'aws/rds_db_snapshots'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_db_subnet_groups.node_log, rds_db_subnet_groups.node, rds_db_subnet_groups.name, rds_db_subnet_groups.definition, '{}'::jsonb as status, rds_db_subnet_groups.observed_on, false as transient
-        from aws.rds_db_subnet_groups, metadata.node_types where node_types.name = 'aws/rds_db_subnet_groups'
-    union all
-    select node_types.icon as "icon", node_types.type, rds_events.node_log, rds_events.node, rds_events.name, rds_events.definition, '{}'::jsonb as status, rds_events.observed_on, false as transient
-        from aws.rds_events, metadata.node_types where node_types.name = 'aws/rds_events'
-    union all
-    select node_types.icon as "icon", node_types.type, certificates.node_log, certificates.node, certificates.name, certificates.definition, '{}'::jsonb as status, certificates.observed_on, false as transient
-        from kubernetes.certificates, metadata.node_types where node_types.name = 'kubernetes/certificates'
-    union all
-    select node_types.icon as "icon", node_types.type, configmaps.node_log, configmaps.node, configmaps.name, configmaps.definition, '{}'::jsonb as status, configmaps.observed_on, false as transient
-        from kubernetes.configmaps, metadata.node_types where node_types.name = 'kubernetes/configmaps'
-    union all
-    select node_types.icon as "icon", node_types.type, daemonsets.node_log, daemonsets.node, daemonsets.name, daemonsets.definition, '{}'::jsonb as status, daemonsets.observed_on, false as transient
-        from kubernetes.daemonsets, metadata.node_types where node_types.name = 'kubernetes/daemonsets'
-    union all
-    select node_types.icon as "icon", node_types.type, deployments.node_log, deployments.node, deployments.name, deployments.definition, '{}'::jsonb as status, deployments.observed_on, false as transient
-        from kubernetes.deployments, metadata.node_types where node_types.name = 'kubernetes/deployments'
-    union all
-    select node_types.icon as "icon", node_types.type, events.node_log, events.node, events.name, events.definition, '{}'::jsonb as status, events.observed_on, true as transient
-        from kubernetes.events, metadata.node_types where node_types.name = 'kubernetes/events'
-    union all
-    select node_types.icon as "icon", node_types.type, gateways.node_log, gateways.node, gateways.name, gateways.definition, '{}'::jsonb as status, gateways.observed_on, false as transient
-        from kubernetes.gateways, metadata.node_types where node_types.name = 'kubernetes/gateways'
-    union all
-    select node_types.icon as "icon", node_types.type, ingresses.node_log, ingresses.node, ingresses.name, ingresses.definition, '{}'::jsonb as status, ingresses.observed_on, false as transient
-        from kubernetes.ingresses, metadata.node_types where node_types.name = 'kubernetes/ingress'
-    union all
-    select node_types.icon as "icon", node_types.type, jobs.node_log, jobs.node, jobs.name, jobs.definition, '{}'::jsonb as status, jobs.observed_on, false as transient
-        from kubernetes.jobs, metadata.node_types where node_types.name = 'kubernetes/jobs'
-    union all
-    select node_types.icon as "icon", node_types.type, nodes.node_log, nodes.node, nodes.name, nodes.definition, '{}'::jsonb as status, nodes.observed_on, false as transient
-        from kubernetes.nodes, metadata.node_types where node_types.name = 'kubernetes/nodes'
-    union all
-    select node_types.icon as "icon", node_types.type, persistentvolumeclaims.node_log, persistentvolumeclaims.node, persistentvolumeclaims.name, persistentvolumeclaims.definition, '{}'::jsonb as status, persistentvolumeclaims.observed_on, false as transient
-        from kubernetes.persistentvolumeclaims, metadata.node_types where node_types.name = 'kubernetes/persistentvolumeclaims'
-    union all
-    select node_types.icon as "icon", node_types.type, persistentvolumes.node_log, persistentvolumes.node, persistentvolumes.name, persistentvolumes.definition, '{}'::jsonb as status, persistentvolumes.observed_on, false as transient
-        from kubernetes.persistentvolumes, metadata.node_types where node_types.name = 'kubernetes/persistentvolumes'
-    union all
-    select node_types.icon as "icon", node_types.type, pods.node_log, pods.node, pods.name, pods.definition, '{}'::jsonb as status, pods.observed_on, true as transient
-        from kubernetes.pods, metadata.node_types where node_types.name = 'kubernetes/pods'
-    union all
-    select node_types.icon as "icon", node_types.type, policies.node_log, policies.node, policies.name, policies.definition, '{}'::jsonb as status, policies.observed_on, false as transient
-        from kubernetes.policies, metadata.node_types where node_types.name = 'kubernetes/policies'
-    union all
-    select node_types.icon as "icon", node_types.type, replicasets.node_log, replicasets.node, replicasets.name, replicasets.definition, '{}'::jsonb as status, replicasets.observed_on, true as transient
-        from kubernetes.replicasets, metadata.node_types where node_types.name = 'kubernetes/replicasets'
-    union all
-    select node_types.icon as "icon", node_types.type, services.node_log, services.node, services.name, services.definition, '{}'::jsonb as status, services.observed_on, false as transient
-        from kubernetes.services, metadata.node_types where node_types.name = 'kubernetes/services'
-    union all
-    select node_types.icon as "icon", node_types.type, statefulsets.node_log, statefulsets.node, statefulsets.name, statefulsets.definition, '{}'::jsonb as status, statefulsets.observed_on, false as transient
-        from kubernetes.statefulsets, metadata.node_types where node_types.name = 'kubernetes/statefulsets'
-    union all
-    select node_types.icon as "icon", node_types.type, virtualservices.node_log, virtualservices.node, virtualservices.name, virtualservices.definition, '{}'::jsonb as status, virtualservices.observed_on, false as transient
-        from kubernetes.virtualservices, metadata.node_types where node_types.name = 'kubernetes/virtualservices'
-    union all
-    select node_types.icon as "icon", node_types.type, columns.column_log as node_log, columns.column as node, columns.name, ('{}')::jsonb as definition, '{}'::jsonb as status, columns.observed_on, false as transient
-        from oracle.columns, metadata.node_types where node_types.name = 'oracle/columns'
-    union all
-    select node_types.icon as "icon", node_types.type, constraints.constraint_log as node_log, constraints.constraint as node, constraints.name, ('{}')::jsonb as definition, '{}'::jsonb as status, constraints.observed_on, false as transient
-        from oracle.constraints, metadata.node_types where node_types.name = 'oracle/constraints'
-    union all
-    select node_types.icon as "icon", node_types.type, databases.database_log as node_log, databases.database as node, databases.host || '/' || databases.name as name, databases.config as definition, '{}'::jsonb as status, databases.observed_on, false as transient
-        from oracle.databases, metadata.node_types where node_types.name = 'oracle/databases'
-    union all
-    select node_types.icon as "icon", node_types.type, foreign_servers.foreign_server_log as node_log, foreign_servers.foreign_server as node, foreign_servers.name, ('{}')::jsonb as definition, '{}'::jsonb as status, foreign_servers.observed_on, false as transient
-        from oracle.foreign_servers, metadata.node_types where node_types.name = 'oracle/foreign_servers'
-    union all
-    select node_types.icon as "icon", node_types.type, indexes.index_log as node_log, indexes.index as node, indexes.name, ('{}')::jsonb as definition, '{}'::jsonb as status, indexes.observed_on, false as transient
-        from oracle.indexes, metadata.node_types where node_types.name = 'oracle/indexes'
-    union all
-    select node_types.icon as "icon", node_types.type, roles.role_log as node_log, roles.role as node, roles.username as name, ('{}')::jsonb as definition, '{}'::jsonb as status, roles.observed_on, false as transient
-        from oracle.roles, metadata.node_types where node_types.name = 'oracle/roles'
-    union all
-    select node_types.icon as "icon", node_types.type, tables.table_log as node_log, tables.table as node, tables.name, ('{}')::jsonb as definition, '{}'::jsonb as status, tables.observed_on, false as transient
-        from oracle.tables, metadata.node_types where node_types.name = 'oracle/tables'
-    union all
-    select node_types.icon as "icon", node_types.type, columns.column_log as node_log, columns.column as node, columns.name, ('{}')::jsonb as definition, '{}'::jsonb as status, columns.observed_on, false as transient
-        from postgresql.columns, metadata.node_types where node_types.name = 'postgresql/columns'
-    union all
-    select node_types.icon as "icon", node_types.type, constraints.constraint_log as node_log, constraints.constraint as node, constraints.name, ('{}')::jsonb as definition, '{}'::jsonb as status, constraints.observed_on, false as transient
-        from postgresql.constraints, metadata.node_types where node_types.name = 'postgresql/constraints'
-    union all
-    select node_types.icon as "icon", node_types.type, databases.database_log as node_log, databases.database as node, databases.host || '/' || databases.name as name, databases.config as definition, '{}'::jsonb as status, databases.observed_on, false as transient
-        from postgresql.databases, metadata.node_types where node_types.name = 'postgresql/databases'
-    union all
-    select node_types.icon as "icon", node_types.type, foreign_servers.foreign_server_log as node_log, foreign_servers.foreign_server as node, foreign_servers.name, ('{}')::jsonb as definition, '{}'::jsonb as status, foreign_servers.observed_on, false as transient
-        from postgresql.foreign_servers, metadata.node_types where node_types.name = 'postgresql/foreign_servers'
-    union all
-    select node_types.icon as "icon", node_types.type, indexes.index_log as node_log, indexes.index as node, indexes.name, ('{}')::jsonb as definition, '{}'::jsonb as status, indexes.observed_on, false as transient
-        from postgresql.indexes, metadata.node_types where node_types.name = 'postgresql/indexes'
-    union all
-    select node_types.icon as "icon", node_types.type, roles.role_log as node_log, roles.role as node, roles.username as name, ('{}')::jsonb as definition, '{}'::jsonb as status, roles.observed_on, false as transient
-        from postgresql.roles, metadata.node_types where node_types.name = 'postgresql/roles'
-    union all
-    select node_types.icon as "icon", node_types.type, tables.table_log as node_log, tables.table as node, tables.name, ('{}')::jsonb as definition, '{}'::jsonb as status, tables.observed_on, false as transient
-        from postgresql.tables, metadata.node_types where node_types.name = 'postgresql/tables'
-    union all
-    select node_types.icon as "icon", node_types.type, certificates.certificate_log as node_log, certificates.certificate as node, certificates.subject as name, certificates.definition, '{}'::jsonb as status, certificates.observed_on, false as transient
-        from urls.certificates, metadata.node_types where node_types.name = 'urls/certificates'
-    union all
-    select node_types.icon as "icon", node_types.type, urls.url_log as node_log, urls.url as node, urls.protocol || '//' || urls.hostname || urls.pathname as name, urls.definition, '{}'::jsonb as status, urls.observed_on, false as transient
-        from urls.urls, metadata.node_types where node_types.name = 'urls/urls';
-    comment on view "metadata"."nodes" IS E'@name metadataNodes';
+  create materialized view if not exists metadata.nodes_cache as
+    select * from metadata.nodes;
+  create unique index if not exists nodes_cache_node on metadata.nodes_cache("node");
+  create index if not exists nodes_cache_observed_on_desc on metadata.nodes_cache("observed_on" desc);
 
-    create materialized view if not exists metadata.nodes_log_cache as
-      select * from metadata.nodes_log;
-    create unique index if not exists nodes_log_cache_node_log on metadata.nodes_log_cache("node_log");
-    create index if not exists nodes_log_cache_node on metadata.nodes_log_cache("node");
-    create index if not exists nodes_log_cache_observed_on_desc on metadata.nodes_log_cache("observed_on" desc);
-    
-    create materialized view if not exists metadata.nodes_cache as
-      select * from metadata.nodes;
-    create unique index if not exists nodes_cache_node on metadata.nodes_cache("node");
-    create index if not exists nodes_cache_observed_on_desc on metadata.nodes_cache("observed_on" desc);
-
-    create materialized view if not exists metadata.change_log_cache as
-      select
-        nodes_log_cache.icon,
-        nodes_log_cache.type,
-        nodes_log_cache.node,
-        nodes_log_cache.node_log,
-        nodes_log_cache.name,
-        nodes_log_cache.definition,
-        nodes_log_cache.status,
-        nodes_log_cache.observed_on,
-        nodes_log_cache.transient,
-        nodes_log_cache.deleted,
-        row_number() over (partition by nodes_log_cache.node, nodes_log_cache.type order by observed_on asc) as row_number,
-        first_value(nodes_log_cache.node_log) over (partition by nodes_log_cache.node, nodes_log_cache.type order by observed_on desc) as newest_node_log,
-        first_value(nodes_log_cache.deleted) over (partition by nodes_log_cache.node, nodes_log_cache.type order by observed_on desc) as deleted_in_future,
-        lag(nodes_log_cache.definition, 1, nodes_log_cache.definition) over (partition by nodes_log_cache.node, nodes_log_cache.type order by observed_on asc) as old_definition,
-        node_types.name as node_type
-      from
-        metadata.nodes_log_cache join
-        metadata.node_types on nodes_log_cache.type = node_types.type
-      where 
-        node_types.name not like '%event%' and -- purposely dont include events or statistics, we can merge it in later.
-        node_types.name not like 'oracle/constraints' -- unusually large amount of constraint changes, investigate and remove..
-      order by nodes_log_cache.observed_on desc;
+  create materialized view if not exists metadata.change_log_cache as
+    select
+      nodes_log_cache.icon,
+      nodes_log_cache.type,
+      nodes_log_cache.node,
+      nodes_log_cache.node_log,
+      nodes_log_cache.name,
+      nodes_log_cache.definition,
+      nodes_log_cache.status,
+      nodes_log_cache.observed_on,
+      nodes_log_cache.transient,
+      nodes_log_cache.deleted,
+      row_number() over (partition by nodes_log_cache.node, nodes_log_cache.type order by observed_on asc) as row_number,
+      first_value(nodes_log_cache.node_log) over (partition by nodes_log_cache.node, nodes_log_cache.type order by observed_on desc) as newest_node_log,
+      first_value(nodes_log_cache.deleted) over (partition by nodes_log_cache.node, nodes_log_cache.type order by observed_on desc) as deleted_in_future,
+      lag(nodes_log_cache.definition, 1, nodes_log_cache.definition) over (partition by nodes_log_cache.node, nodes_log_cache.type order by observed_on asc) as old_definition,
+      node_types.name as node_type
+    from
+      metadata.nodes_log_cache join
+      metadata.node_types on nodes_log_cache.type = node_types.type
+    where 
+      node_types.name not like '%event%' and -- purposely dont include events or statistics, we can merge it in later.
+      node_types.name not like 'oracle/constraints' -- unusually large amount of constraint changes, investigate and remove..
+    order by nodes_log_cache.observed_on desc;
   
   create unique index if not exists change_log_cache_node_log on metadata.change_log_cache ("node_log");
   create index if not exists change_log_cache_node on metadata.change_log_cache ("node");

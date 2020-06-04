@@ -4,6 +4,21 @@ begin
   create schema if not exists urls;
   create extension if not exists "uuid-ossp";
 
+  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'urls/urls', 'urls.urls.svg', 'fa-link', 'Urls') on conflict (name) do nothing;
+  insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'urls/certificates', 'urls.certificates.svg', 'fa-certificate', 'Certificates') on conflict (name) do nothing;
+  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
+    (uuid_generate_v4(), (select "type" from metadata.node_types where name='urls/certificates' limit 1), '$.expires', 'expires', 'Expires', 'date', true) on conflict (type, name) do nothing;
+  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
+    (uuid_generate_v4(), (select "type" from metadata.node_types where name='urls/certificates' limit 1), '$.issued', 'issued', 'Issued', 'date', false) on conflict (type, name) do nothing;
+  insert into metadata.node_types_fields (id, "type", jsonpath, name, friendly_name, format, highlighted) values 
+    (uuid_generate_v4(), (select "type" from metadata.node_types where name='urls/urls' limit 1), '$.connection.protocol', 'tls_version', 'TLS Version', 'string', true) on conflict (type, name) do nothing;
+  
+  perform metadata.add_nodes_type('urls/urls', 'select node_types.icon as "icon", node_types.type, urls.url_log as node_log, urls.url as node, urls.protocol || ''//'' || urls.hostname || urls.pathname as name, urls.definition, ''{}''::jsonb as status, urls.observed_on, false as transient from urls.urls, metadata.node_types where node_types.name = ''urls/urls''');
+  perform metadata.add_nodes_type('urls/certificates', 'select node_types.icon as "icon", node_types.type, certificates.certificate_log as node_log, certificates.certificate as node, certificates.subject as name, certificates.definition, ''{}''::jsonb as status, certificates.observed_on, false as transient from urls.certificates, metadata.node_types where node_types.name = ''urls/certificates''');
+
+  perform metadata.add_nodes_log_type('urls/urls', 'select node_types.icon as "icon", node_types.type, urls_log.url_log as node_log, urls_log.url as node, urls_log.protocol || ''//'' || urls_log.hostname || urls_log.pathname as name, urls_log.definition, ''{}''::jsonb as status, urls_log.observed_on, false as transient, urls_log.deleted from urls.urls_log, metadata.node_types where node_types.name = ''urls/urls''');
+  perform metadata.add_nodes_log_type('urls/certificates', 'select node_types.icon as "icon", node_types.type, certificates_log.certificate_log as node_log, certificates_log.certificate as node, certificates_log.subject as name, certificates_log.definition, ''{}''::jsonb as status, certificates_log.observed_on, false as transient, certificates_log.deleted from urls.certificates_log, metadata.node_types where node_types.name = ''urls/certificates''');
+
   create table if not exists urls.certificates_log (
     certificate_log uuid not null primary key,
     certificate uuid not null,

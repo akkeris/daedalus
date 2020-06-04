@@ -11,7 +11,7 @@ function plural(object) {
   return `${object}s`;
 }
 
-async function createTableDefinition(pgpool, schema, name, columns = {}, references = []) {
+async function createTableDefinition(pgpool, schema, name, columns = {}, references = [], nameExpression = null) { // eslint-disable-line max-len
   const query = `
   do $$
   begin
@@ -90,6 +90,9 @@ async function createTableDefinition(pgpool, schema, name, columns = {}, referen
 
       comment on table "${schema}"."${plural(name)}_log" IS E'@name ${schema}${plural(name)}_log';
       comment on view "${schema}"."${plural(name)}" IS E'@name ${schema}${plural(name)}';
+      
+      perform metadata.add_nodes_type('${schema}/${plural(name)}', 'select node_types.icon as "icon", node_types.type, ${plural(name)}.node_log, ${plural(name)}.node as node, ${nameExpression || `${plural(name)}.name`} as name, ${plural(name)}.definition, ${plural(name)}.status as status, ${plural(name)}.observed_on, false as transient from ${schema}.${plural(name)}, metadata.node_types where node_types.name = ''${schema}/${plural(name)}''');
+      perform metadata.add_nodes_log_type('${schema}/${plural(name)}', 'select node_types.icon as "icon", node_types.type, ${plural(name)}_log.node_log, ${plural(name)}_log.node as node, ${nameExpression || `${plural(name)}_log.name`} as name, ${plural(name)}_log.definition, ${plural(name)}_log.status as status, ${plural(name)}_log.observed_on, false as transient, ${plural(name)}_log.deleted from ${schema}.${plural(name)}_log, metadata.node_types where node_types.name = ''${schema}/${plural(name)}''');
   end
   $$;
   `;
@@ -139,26 +142,25 @@ function writeObj(pgpool, schema, name, node, definition, spec, status, metadata
   const colCount = colColumns.length;
 
   const isNodeUUID = node.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i) !== null;
-
   const query = `${refColumns.length !== 0 ? `
     with` : ''}${refColumns.map((ref, i) => `
-    q${i} as ( select node_log from ${schema}.${plural(ref)}_log where ${Object.keys(references[ref]).map((refCol) => `${refCol} = '${references[ref][refCol]}'`)} )`).join(',')}
+    q${i} as ( select node_log from ${schema}.${plural(ref)} where ${Object.keys(references[ref]).map((refCol) => `${refCol} = '${references[ref][refCol]}'`)} )`).join(',')}
     insert into "${schema}"."${plural(name)}_log" (node_log, node, ${refNames} ${colNames} definition, metadata, specification, status, hash, observed_on, deleted)
-    select 
+    select
       uuid_generate_v4(),
-      ${isNodeUUID ? '$1' : 'uuid_generate_v5(uuid_ns_url(), $1)'},
+      ${isNodeUUID ? '$1::uuid' : 'uuid_generate_v5(uuid_ns_url(), $1::text)'},
       ${refWithVals}
       ${colMapIndex}
-      $${colCount + 2},
-      $${colCount + 3},
-      $${colCount + 4},
-      $${colCount + 5},
+      $${colCount + 2}::jsonb,
+      $${colCount + 3}::jsonb,
+      $${colCount + 4}::jsonb,
+      $${colCount + 5}::jsonb,
       $${colCount + 6},
       now(),
       false
     ${refColumns.length !== 0 ? `from ${refColumns.map((ref, i) => `q${i}`).join(', ')}` : ''}
     on conflict (hash, deleted)
-    do update set deleted = false
+    do update set definition = EXCLUDED.definition
     returning node_log, node, definition
   `;
   return pgpool.query(query, [node, ...colColumns.map((x) => columns[x]), definition, metadata, spec, status, computeHash(definition)]); // eslint-disable-line max-len

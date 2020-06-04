@@ -184,14 +184,14 @@ async function run(pgpool) {
 
 async function init(pgpool) {
   debug('Initializing akkeris plugin...');
-  await pgpool.query(fs.readFileSync('./plugins/akkeris/create.sql').toString());
   await crawler.createTableDefinition(pgpool, 'akkeris', 'site', { name: { type: 'text' } });
   await crawler.createTableDefinition(pgpool, 'akkeris', 'space', { name: { type: 'text' } });
   await crawler.createTableDefinition(pgpool, 'akkeris', 'addon_service', { name: { type: 'text' } });
   await crawler.createTableDefinition(pgpool, 'akkeris', 'app', { name: { type: 'text' } }, ['space']);
-  await crawler.createTableDefinition(pgpool, 'akkeris', 'route', { target_path: { type: 'text' }, source_path: { type: 'text' } }, ['site', 'app']);
+  await crawler.createTableDefinition(pgpool, 'akkeris', 'route', { target_path: { type: 'text' }, source_path: { type: 'text' } }, ['site', 'app'], '(source_path || \'\' -> \'\' || target_path)');
   await crawler.createTableDefinition(pgpool, 'akkeris', 'addon', { name: { type: 'text' } }, ['app', 'addon_service']);
   await crawler.createTableDefinition(pgpool, 'akkeris', 'addon_attachment', { name: { type: 'text' } }, ['app', 'addon']);
+  await pgpool.query(fs.readFileSync('./plugins/akkeris/create.sql').toString());
   debug('Initializing akkeris plugin... done');
 }
 

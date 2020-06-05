@@ -194,6 +194,7 @@ async function run(pgpool) {
 
 async function init(pgpool) {
   debug('Initializing github plugin...');
+  await pgpool.query(fs.readFileSync('./plugins/github/create.sql').toString());
   await crawler.createTableDefinition(pgpool, 'github', 'repo', { url: { type: 'text' }, name: { type: 'text' } });
   await crawler.createTableDefinition(pgpool, 'github', 'commit', {
     url: { type: 'text' }, sha: { type: 'text' }, message: { type: 'text' }, author: { type: 'jsonb' }, committer: { type: 'jsonb' },
@@ -201,7 +202,6 @@ async function init(pgpool) {
   await crawler.createTableDefinition(pgpool, 'github', 'branch', { name: { type: 'text' } }, ['repo']);
   await crawler.createTableDefinition(pgpool, 'github', 'pull', { url: { type: 'text' }, name: { type: 'text' } }, ['repo']);
   await crawler.createTableDefinition(pgpool, 'github', 'hook', { url: { type: 'text' }, name: { type: 'text' } }, ['repo']);
-  await pgpool.query(fs.readFileSync('./plugins/github/create.sql').toString());
   debug('Initializing github plugin... done');
 }
 

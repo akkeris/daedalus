@@ -24,6 +24,7 @@ Daedalus is a knowledge system intended for collecting an examining resources on
 * Kubernetes
 * Oracle
 * PostgreSQL
+* Github
 
 ## Getting Started
 

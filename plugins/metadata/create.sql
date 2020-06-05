@@ -67,6 +67,38 @@ begin
   create unique index if not exists metadata_node_types_fields_unique on metadata.node_types_fields("type", "name");
   create index if not exists metadata_node_types_fields_type on metadata.node_types_fields("type");
 
+
+  create table if not exists metadata.nodes_log_example_schema (
+    icon text,
+    "type" uuid,
+    node_log uuid,
+    node uuid,
+    name text,
+    definition jsonb,
+    status jsonb,
+    observed_on timestamptz,
+    deleted boolean
+  );
+  create table if not exists metadata.nodes_example_schema (
+    icon text,
+    "type" uuid,
+    node_log uuid,
+    node uuid,
+    name text,
+    definition jsonb,
+    status jsonb,
+    observed_on timestamptz
+  );
+
+  if not exists (select 1 from information_schema.views where table_schema='metadata' and table_name='nodes') then
+    create or replace view  metadata.nodes as
+      select * from metadata.nodes_example_schema;
+  end if;
+  if not exists (select 1 from information_schema.views where table_schema='metadata' and table_name='nodes_log') then
+    create or replace view metadata.nodes_log as
+      select * from metadata.nodes_log_example_schema;
+  end if;
+
   create or replace function metadata.add_nodes_type(name text, sql text)
     returns boolean as $d$
     declare def text;

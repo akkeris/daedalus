@@ -52,6 +52,7 @@ async function init() {
   app.use(parser.urlencoded({ extended: true }));
 
   debug('Initializing plugins...');
+  await plugins.filter((metadata) => metadata.name === 'metadata')[0].init(pgpool, bus, app);
   /* This must be done syncronously to avoid deadlocks in DDL chagnes,
    * do not put this in a map with Promise.all, in addition
    * metadata must go last in initialization order. */
@@ -60,8 +61,6 @@ async function init() {
       await plugin.init(pgpool, bus, app); // eslint-disable-line no-await-in-loop
     }
   }
-
-  await plugins.filter((metadata) => metadata.name === 'metadata')[0].init(pgpool, bus, app);
   debug(`Starting http port at ${process.env.PORT || 9000}`);
   app.listen(process.env.PORT || 9000, '0.0.0.0', (err) => {
     if (err) {

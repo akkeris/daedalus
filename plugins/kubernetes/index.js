@@ -931,14 +931,14 @@ async function run(pgpool) {
           .map((redef) => crawler.writeObj(pgpool, 'kubernetes', 'gateway', kubeNode(redef), redef, kubeSpec(redef), kubeStatus(redef), kubeMetadata(redef), { name: redef.metadata.name, namespace: redef.metadata.namespace, context: process.env.KUBERNETES_CONTEXT })))).map((x) => x.rows).flat()); // eslint-disable-line max-len
 
       debug(`Refreshing policies from ${process.env.KUBERNETES_CONTEXT}`);
-      const policies = await fetch('policy', k8sCustomApi.listClusterCustomObject.bind(k8sCustomApi, 'authentication.istio.io', 'v1alpha3', 'policies'), {
+      const policies = await fetch('policy', k8sCustomApi.listClusterCustomObject.bind(k8sCustomApi, 'authentication.istio.io', 'v1alpha1', 'policies'), {
         limit: Math.floor(maxMemory / 2048), labelSelector, group: 'authentication.istio.io', version: 'v1alpha1', plural: 'policies',
       }); // eslint-disable-line max-len
       await crawler.writeDeletedObjs(pgpool, 'kubernetes', 'policy',
         (await Promise.all(policies
           .map((redef) => crawler.writeObj(pgpool, 'kubernetes', 'policy', kubeNode(redef), redef, kubeSpec(redef), kubeStatus(redef), kubeMetadata(redef), { name: redef.metadata.name, namespace: redef.metadata.namespace, context: process.env.KUBERNETES_CONTEXT })))).map((x) => x.rows).flat()); // eslint-disable-line max-len
     } catch (e) {
-      debug(`Failed to get istio custom objects in kubernetes: ${e.stack}`);
+      debug(`Failed to get istio custom objects in kubernetes: ${e.stack || e.message || e}`);
     }
   }
   if (process.env.CERT_MANAGER === 'true') {
@@ -967,7 +967,7 @@ async function run(pgpool) {
         (await Promise.all(issuers
           .map((redef) => crawler.writeObj(pgpool, 'kubernetes', 'issuer', kubeNode(redef), redef, kubeSpec(redef), kubeStatus(redef), kubeMetadata(redef), { name: redef.metadata.name, namespace: redef.metadata.namespace, context: process.env.KUBERNETES_CONTEXT })))).map((x) => x.rows).flat()); // eslint-disable-line max-len
     } catch (e) {
-      debug(`Failed to get custom objects in kubernetes: ${e.stack}`);
+      debug(`Failed to get custom objects in kubernetes: ${e.stack || e.message || e}`);
     }
   }
 }

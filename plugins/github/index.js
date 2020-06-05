@@ -156,30 +156,38 @@ async function run(pgpool) {
       const {
         repo, commits, branches, pulls, hooks,
       } = await fetch(org, name); // eslint-disable-line no-await-in-loop
-      await Promise.all((await crawler.writeObj(pgpool, 'github', 'repo', repoNode(repo), repo, repoSpec(repo), repoStatus(repo), repoMetadata(repo), { url: repo.html_url, name: repo.full_name })) // eslint-disable-line max-len,no-await-in-loop
-        .rows.map(async (obj) => pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-          [r.node_log, obj.node_log])));
+      const repoObj = (await crawler.writeObj(pgpool, 'github', 'repo', repoNode(repo), repo, repoSpec(repo), repoStatus(repo), repoMetadata(repo), { url: repo.html_url, name: repo.full_name })).rows[0]; // eslint-disable-line max-len,no-await-in-loop
+      await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing', // eslint-disable-line max-len,no-await-in-loop
+        [r.node_log, repoObj.node_log]);
       for (const commit of commits) { // eslint-disable-line no-restricted-syntax
         const columns = { // eslint-disable-line max-len,no-await-in-loop
           url: commit.html_url, sha: commit.sha, message: commit.commit.message, author: commit.commit.author, committer: commit.commit.committer, // eslint-disable-line max-len
         };
         const references = { repo: { url: repo.html_url } };
-        await crawler.writeObj(pgpool, 'github', 'commit', commitNode(commit), commit, commitSpec(commit), commitStatus(commit), commitMetadata(commit), columns, references); // eslint-disable-line max-len,no-await-in-loop
+        const commitObj = (await crawler.writeObj(pgpool, 'github', 'commit', commitNode(commit), commit, commitSpec(commit), commitStatus(commit), commitMetadata(commit), columns, references)).rows[0]; // eslint-disable-line max-len,no-await-in-loop
+        await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing', // eslint-disable-line max-len,no-await-in-loop
+          [repoObj.node_log, commitObj.node_log]);
       }
       for (const branch of branches) { // eslint-disable-line no-restricted-syntax
         const columns = { name: branch.name };
         const references = { repo: { url: repo.html_url } };
-        await crawler.writeObj(pgpool, 'github', 'branch', branchNode(repo, branch), branch, branchSpec(branch), {}, branchMetadata(branch), columns, references); // eslint-disable-line max-len,no-await-in-loop
+        const branchObj = (await crawler.writeObj(pgpool, 'github', 'branch', branchNode(repo, branch), branch, branchSpec(branch), {}, branchMetadata(branch), columns, references)).rows[0]; // eslint-disable-line max-len,no-await-in-loop
+        await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing', // eslint-disable-line max-len,no-await-in-loop
+          [repoObj.node_log, branchObj.node_log]);
       }
       for (const pull of pulls) { // eslint-disable-line no-restricted-syntax
         const columns = { url: pull.html_url, name: pull.title };
         const references = { repo: { url: repo.html_url } };
-        await crawler.writeObj(pgpool, 'github', 'pull', pullNode(pull), pull, pullSpec(pull), pullStatus(pull), pullMetadata(pull), columns, references); // eslint-disable-line max-len,no-await-in-loop
+        const pullObj = (await crawler.writeObj(pgpool, 'github', 'pull', pullNode(pull), pull, pullSpec(pull), pullStatus(pull), pullMetadata(pull), columns, references)).rows[0]; // eslint-disable-line max-len,no-await-in-loop
+        await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing', // eslint-disable-line max-len,no-await-in-loop
+          [repoObj.node_log, pullObj.node_log]);
       }
       for (const hook of hooks) { // eslint-disable-line no-restricted-syntax
         const columns = { url: hook.html_url, name: hook.config.url };
         const references = { repo: { url: repo.html_url } };
-        await crawler.writeObj(pgpool, 'github', 'hook', hookNode(repo, hook), hook, hookSpec(hook), hookStatus(hook), hookMetadata(hook), columns, references); // eslint-disable-line max-len,no-await-in-loop
+        const hookObj = (await crawler.writeObj(pgpool, 'github', 'hook', hookNode(repo, hook), hook, hookSpec(hook), hookStatus(hook), hookMetadata(hook), columns, references)).rows[0]; // eslint-disable-line max-len,no-await-in-loop
+        await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing', // eslint-disable-line max-len,no-await-in-loop
+          [repoObj.node_log, hookObj.node_log]);
       }
     } catch (e) {
       if (e.message.includes('code 404')) {

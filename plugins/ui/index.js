@@ -122,7 +122,7 @@ async function init(pgpool, bus, app) {
 
   // Automatically manage aws, akkeris and kubernetes node pages.
   setTimeout(async () => {
-    (await pgpool.query('select * from metadata.node_types where name like \'aws/%\' or name like \'kubernetes/%\' or name like \'akkeris/%\' or name like \'urls/%\''))
+    (await pgpool.query('select * from metadata.node_types where name not like \'oracle/%\' and name not like \'%postgresql/%\''))
       .rows
       .forEach((type) => {
         addExpressAnnotationsAndLabelRoutes(pgpool, app, type.name, 'id');

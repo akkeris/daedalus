@@ -147,7 +147,7 @@ async function run(pgpool) {
   if (process.env.GITHUB !== 'true' || !process.env.GITHUB_TOKEN) {
     return false;
   }
-  const { rows: repos } = await pgpool.query('select distinct definition->>\'git_url\' as git_url from akkeris.apps where definition->>\'git_url\' is not null');
+  const { rows: repos } = await pgpool.query('select distinct definition->>\'git_url\' as git_url, apps.node_log from akkeris.apps where definition->>\'git_url\' is not null');
   for (const r of repos) { // eslint-disable-line no-restricted-syntax
     try {
       const url = new URL(r.git_url);
@@ -156,7 +156,9 @@ async function run(pgpool) {
       const {
         repo, commits, branches, pulls, hooks,
       } = await fetch(org, name); // eslint-disable-line no-await-in-loop
-      await crawler.writeObj(pgpool, 'github', 'repo', repoNode(repo), repo, repoSpec(repo), repoStatus(repo), repoMetadata(repo), { url: repo.html_url, name: repo.full_name }); // eslint-disable-line max-len,no-await-in-loop
+      await Promise.all((await crawler.writeObj(pgpool, 'github', 'repo', repoNode(repo), repo, repoSpec(repo), repoStatus(repo), repoMetadata(repo), { url: repo.html_url, name: repo.full_name })) // eslint-disable-line max-len,no-await-in-loop
+        .rows.map(async (obj) => pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+          [r.node_log, obj.node_log])));
       for (const commit of commits) { // eslint-disable-line no-restricted-syntax
         const columns = { // eslint-disable-line max-len,no-await-in-loop
           url: commit.html_url, sha: commit.sha, message: commit.commit.message, author: commit.commit.author, committer: commit.commit.committer, // eslint-disable-line max-len
@@ -175,7 +177,7 @@ async function run(pgpool) {
         await crawler.writeObj(pgpool, 'github', 'pull', pullNode(pull), pull, pullSpec(pull), pullStatus(pull), pullMetadata(pull), columns, references); // eslint-disable-line max-len,no-await-in-loop
       }
       for (const hook of hooks) { // eslint-disable-line no-restricted-syntax
-        const columns = { url: hook.html_url, name: hook.title };
+        const columns = { url: hook.html_url, name: hook.config.url };
         const references = { repo: { url: repo.html_url } };
         await crawler.writeObj(pgpool, 'github', 'hook', hookNode(repo, hook), hook, hookSpec(hook), hookStatus(hook), hookMetadata(hook), columns, references); // eslint-disable-line max-len,no-await-in-loop
       }

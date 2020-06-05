@@ -88,8 +88,8 @@ begin
     name text,
     definition jsonb,
     status jsonb,
-    transient boolean,
-    observed_on timestamptz
+    observed_on timestamptz,
+    transient boolean
   );
 
   if not exists (select 1 from information_schema.views where table_schema='metadata' and table_name='nodes') then

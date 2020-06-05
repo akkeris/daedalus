@@ -401,10 +401,13 @@ ul.panel > li {
   color: var(--highlight-text-color);
   background-color: var(--highlight-link-color);
   padding: 0px 0px 0px 0.5rem;
-  display: inline-block;
   margin-right: 0.25rem;
   margin-left: 0.25rem;
   display: inline-flex;
+  align-items:center;
+}
+.pill > i {
+  margin-right:0.25rem;
 }
 .pill:visited {
   color: var(--highlight-text-color);

@@ -77,6 +77,7 @@ begin
     definition jsonb,
     status jsonb,
     observed_on timestamptz,
+    transient boolean,
     deleted boolean
   );
   create table if not exists metadata.nodes_example_schema (
@@ -87,6 +88,7 @@ begin
     name text,
     definition jsonb,
     status jsonb,
+    transient boolean,
     observed_on timestamptz
   );
 

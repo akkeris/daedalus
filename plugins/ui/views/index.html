@@ -18,6 +18,9 @@ module.exports = (req, res, next, data) => res.send(`
             <h4>Browse Labels</h4>
           </div>
           <div class="list-item labels" style="display:flex;justify-content:center">
+          ${(!data.labels || data.labels.length === 0) ? `
+            No Labels
+          ` : ''}
           ${data.labels.map((row) => `
           <a class="pill" href="/ui/browse.html?labels=${row.name}">
             <i class="fa fa-tag" aria-hidden="true"></i> 

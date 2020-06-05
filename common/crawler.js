@@ -90,9 +90,13 @@ async function createTableDefinition(pgpool, schema, name, columns = {}, referen
 
       comment on table "${schema}"."${plural(name)}_log" IS E'@name ${schema}${plural(name)}_log';
       comment on view "${schema}"."${plural(name)}" IS E'@name ${schema}${plural(name)}';
-      
-      perform metadata.add_nodes_type('${schema}/${plural(name)}', 'select node_types.icon as "icon", node_types.type, ${plural(name)}.node_log, ${plural(name)}.node as node, ${nameExpression || `${plural(name)}.name`} as name, ${plural(name)}.definition, ${plural(name)}.status as status, ${plural(name)}.observed_on, false as transient from ${schema}.${plural(name)}, metadata.node_types where node_types.name = ''${schema}/${plural(name)}''');
-      perform metadata.add_nodes_log_type('${schema}/${plural(name)}', 'select node_types.icon as "icon", node_types.type, ${plural(name)}_log.node_log, ${plural(name)}_log.node as node, ${nameExpression || `${plural(name)}_log.name`} as name, ${plural(name)}_log.definition, ${plural(name)}_log.status as status, ${plural(name)}_log.observed_on, false as transient, ${plural(name)}_log.deleted from ${schema}.${plural(name)}_log, metadata.node_types where node_types.name = ''${schema}/${plural(name)}''');
+
+      if exists (select 1 from information_schema.routines where routine_schema = 'metadata' and routine_name = 'add_nodes_type') then
+        perform metadata.add_nodes_type('${schema}/${plural(name)}', 'select node_types.icon as "icon", node_types.type, ${plural(name)}.node_log, ${plural(name)}.node as node, ${nameExpression || `${plural(name)}.name`} as name, ${plural(name)}.definition, ${plural(name)}.status as status, ${plural(name)}.observed_on, false as transient from ${schema}.${plural(name)}, metadata.node_types where node_types.name = ''${schema}/${plural(name)}''');
+      end if;
+      if exists (select 1 from information_schema.routines where routine_schema = 'metadata' and routine_name = 'add_nodes_log_type') then
+        perform metadata.add_nodes_log_type('${schema}/${plural(name)}', 'select node_types.icon as "icon", node_types.type, ${plural(name)}_log.node_log, ${plural(name)}_log.node as node, ${nameExpression || `${plural(name)}_log.name`} as name, ${plural(name)}_log.definition, ${plural(name)}_log.status as status, ${plural(name)}_log.observed_on, false as transient, ${plural(name)}_log.deleted from ${schema}.${plural(name)}_log, metadata.node_types where node_types.name = ''${schema}/${plural(name)}''');
+      end if;
   end
   $$;
   `;

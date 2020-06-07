@@ -240,7 +240,7 @@ async function writeOracleFromConfigMaps(pgpool, configMapRecords) {
               on conflict (database_log, username, (password->>'hash'), deleted) 
               do update set username = $3 
               returning role_log, role, username`,
-            [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
+            [`${db.rows[0].database_log}.${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
             assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
             assert.ok(role.rows[0].role_log, 'Role was not set on return after insertion');
             assert.ok(configMap.node_log, 'configMap.node_log was undefined.');
@@ -290,7 +290,7 @@ async function writeOracleFromReplicaSets(pgpool, replicaSetRecords) {
                 on conflict (database_log, username, (password->>'hash'), deleted) 
                 do update set username = $3 
                 returning role_log, role, username`,
-              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
+              [`${db.rows[0].database_log}.${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
               assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
               assert.ok(role.rows[0].role_log, 'Role was not set on return after insertion');
             } catch (e) {
@@ -329,7 +329,7 @@ async function writeOracleFromPods(pgpool, podRecords) {
                 on conflict (database_log, username, (password->>'hash'), deleted) 
                 do update set username = $3 
                 returning role_log, role, username`,
-              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
+              [`${db.rows[0].database_log}.${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
               assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
               assert.ok(role.rows[0].role_log, 'Role was not set on return after insertion');
               assert.ok(pod.node_log, 'pod.node_log was undefined.');
@@ -378,7 +378,7 @@ async function writeOracleFromDeployments(pgpool, deploymentRecords) {
                 on conflict (database_log, username, (password->>'hash'), deleted) 
                 do update set username = $3 
                 returning role_log, role, username`,
-              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
+              [`${db.rows[0].database_log}.${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
               assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
               assert.ok(role.rows[0].role_log, 'Role was not set on return after insertion');
               db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';

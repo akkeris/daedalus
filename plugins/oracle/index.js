@@ -118,7 +118,7 @@ async function writeOracleRoleFromDatabases(pgpool) {
       if (roles.length === 0) {
         const { rows: newRoles } = await pgpool.query(`
           insert into oracle.roles_log (role_log, role, database_log, username, password, options) values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, '{}'::jsonb, '{}'::jsonb) returning role_log, role, database_log, username
-        `, [`${host}.${server.name}.${server.username}`, db.database_log, server.username]);
+        `, [`${db.database_log}.${host}.${server.name}.${server.username}`, db.database_log, server.username]);
         role = newRoles[0]; // eslint-disable-line prefer-destructuring
       }
       await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',

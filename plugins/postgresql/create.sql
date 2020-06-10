@@ -223,7 +223,7 @@ begin
         indexes_log.deleted as indexes_deleted,
         tables_log.deleted as tables_deleted,
         databases_log.deleted as databases_deleted,
-        row_number() over (partition by indexes_log.database_log, indexes_log.catalog, indexes_log.schema, indexes_log.table_log, indexes_log.name, indexes_log.definition order by indexes_log.observed_on desc) as rn
+        row_number() over (partition by indexes_log.database_log, indexes_log.catalog, indexes_log.schema, indexes_log.table_log, indexes_log.name order by indexes_log.observed_on desc) as rn
       from postgresql.indexes_log 
         join postgresql.tables_log on indexes_log.table_log = tables_log.table_log 
         join postgresql.databases_log on indexes_log.database_log = databases_log.database_log

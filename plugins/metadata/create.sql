@@ -166,8 +166,7 @@ begin
     from
       metadata.nodes_log_cache join
       metadata.node_types on nodes_log_cache.type = node_types.type
-    where 
-      node_types.name not like '%event%' and -- purposely dont include events or statistics, we can merge it in later.
+    where
       node_types.name not like 'oracle/constraints' -- unusually large amount of constraint changes, investigate and remove..
     order by nodes_log_cache.observed_on desc;
   
@@ -254,8 +253,6 @@ begin
       left join metadata.labels on nodes_cache.node = labels.node and nodes_cache.type = labels.type
       left join metadata.labels as name_label on nodes_cache.node = name_label.node and nodes_cache.type = name_label.type and name_label.name = 'name'
       left join metadata.annotations on nodes_cache.node = annotations.node and nodes_cache.type = annotations.type
-    --where
-    --  nodes_cache.transient = false
     group by
       nodes_cache.node,
       nodes_cache.name,

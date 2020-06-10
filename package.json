@@ -37,7 +37,8 @@
     "oracledb": "^4.2.0",
     "pg": "^7.18.2",
     "postgraphile": "^4.6.0",
-    "request": "^2.88.2"
+    "request": "^2.88.2",
+    "smtp-client": "^0.3.1"
   },
   "devDependencies": {
     "eslint": "^6.8.0",

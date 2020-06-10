@@ -91,7 +91,7 @@ async function maintenance() {
     return;
   }
   debug('Running database maintenance tasks...');
-  await pgpool.query(`reindex database ${(new URL(process.env.DATABASE_URL)).pathname.replace('/', '')}`); // eslint-disable-line max-len
+  await pgpool.query(`reindex database concurrently ${(new URL(process.env.DATABASE_URL)).pathname.replace('/', '')}`); // eslint-disable-line max-len
   // TODO: Upgrade to postgres 12 and change this to concurrently.
   debug('Running database maintenance tasks... done');
   setTimeout(maintenance, 1000 * 60 * 60 * 24);

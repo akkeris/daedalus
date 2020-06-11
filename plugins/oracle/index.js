@@ -226,7 +226,6 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       password: database.password,
       connectString: `${database.host}/${database.name}`,
     });
-
     const tables = (await Promise.all((await client.execute(`
       select 
         distinct 
@@ -573,7 +572,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
           insert into oracle.columns_log 
             (column_log, "column", database_log, catalog, schema, "table_log", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted)
           values 
-            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 18)
+            (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
           on conflict (database_log, catalog, schema, "table_log", name, position, "default", is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_precision_radix, numeric_scale, datetime_precision, is_updatable, deleted) 
           do update set deleted = true`,
           [column.column, column.database_log, column.catalog, column.schema, column.table_log, column.name, column.position, column.default, column.is_nullable, column.data_type, column.character_maximum_length, column.character_octet_length, column.numeric_precision, column.numeric_precision_radix, column.numeric_scale, column.datetime_precision, column.is_updatable, true]); // eslint-disable-line max-len

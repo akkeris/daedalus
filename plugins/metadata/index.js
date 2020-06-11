@@ -1,7 +1,7 @@
 const debug = require('debug')('daedalus:metadata');
 const fs = require('fs');
 const diff = require('diff');
-const smtp = require('../../common/email.js');
+const urihooks = require('urihooks');
 const { getDateDiff } = require('../../common/format.js');
 
 function diffJSON(o, n) {
@@ -49,8 +49,8 @@ async function notify(pgpool) {
           join metadata.users on users.user = favorites.user
           left join metadata.notifications on notifications.user = users.user and notifications.node_log = change_log_cache.node_log
       where
-        notifications.created is null and
-        favorites.created < change_log_cache.observed_on
+        notifications.created is null
+        and favorites.created < change_log_cache.observed_on
     `)).rows;
     const emails = changes.map((x) => x.email).filter((v, i, s) => s.indexOf(v) === i);
     await Promise.all(emails.map(async (email) => {
@@ -80,7 +80,7 @@ async function notify(pgpool) {
               background-color:#fff !important;
               color:#444;
               padding:0.5rem 0.25rem;
-              margin:0.25rem;
+              margin:0.25rem auto;
               box-shadow:0 1px 2px rgba(153,153,153,.35);
               border-top: 0.5px solid rgba(153,153,153,.2);
               border-radius:3px;
@@ -145,7 +145,7 @@ async function notify(pgpool) {
 
       `).join('')}`;
       const subject = 'Daedalus found some changes.';
-      await smtp.fire(0, `mailto:${email}`, 'changes', { html, text, subject });
+      await urihooks.fire(0, `mailto:${email}`, 'changes', { html, text, subject });
       await Promise.all(changes.map((change) => pgpool.query('insert into metadata.notifications ("user", node_log, created) values ($1, $2, now())',
         [change.user, change.node_log])));
     }));

@@ -1,10 +1,13 @@
 # Contributing
 
-## Running Locally
+## Developing Locally
 
-Define whichever environment settings above, then...
+See the prerequisetes and environment variables in the [GETTING_STARTED.md](GETTING_STARTED.md).
 
 ```
+$ createdb daedalus
+$ git clone https://github.com/akkeris/daedalus
+$ npm install
 $ npm start
 ```
 
@@ -63,6 +66,11 @@ Plan for software to be restarted or interrupted at any point.  It should gracef
 * Encrypt anything sensitive using the functions in the library `common/security.js` as it helps prevent making mistakes with encryption and decryption.  Before encrypting consider how the same task could be accomplished without storing sensitive information. Encrypted information should be stored as a `jsonb` type in postgres.
 * Hash values using the hmac or redact function in `common/security.js`, if there's even a slight possibility that the values you're storing could potentially store sensitive information. The hash value will help indicate if the value has changed (even if the value is unavailable).
 * Always consider what would happen if the data stored became public on the internet.
+
+
+## Code Overview
+
+[TBD]
 
 
 ## Understanding Nodes and Relationships

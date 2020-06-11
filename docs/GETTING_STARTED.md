@@ -17,6 +17,8 @@ Daedalus can be deployed with a docker image from [https://hub.docker.com/r/akke
  *  `ENVS_BLACKLIST` - Optional - This is a comma sepearted list of substrings that if found as the key or value will be redacted when stored. Defaults to `PASS,KEY,SECRET,PRIVATE,TOKEN,SALT,AUTH,HASH`.
  *  `PORT` - Set this to the value of the port to listen to for the web process (used by either the UI or GraphQL), if this is not set it defaults to port `9000`, note if the graphql or ui plugin are both disabled a port is not opened.
  *  `SKIP_MAINTENANCE` - This prevents daedalus from preforming database re-indexing and other maintenance tasks every 24 hours.
+ *  `SMTP` - The smtp server to use (in the format smtp://mail.example.com:25 or smtps:// for secure smtp, login information can also be specified using smtps://user:pass@mail.example.com).  Optional, if not specified notifications won't run.
+ *  `SMTP_FROM` - The email address the SMTP from should use (e.g., daedalus@example.com).  Optional, if not specified notifications won't run.
 
 ### UI Plugin
 

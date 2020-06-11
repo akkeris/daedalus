@@ -6,7 +6,7 @@
 [![Codacy Badge](https://api.codacy.com/project/badge/Coverage/8955d795526c43c5baa797e11bb2dfe3)](https://www.codacy.com/gh/akkeris/daedalus?utm_source=github.com&utm_medium=referral&utm_content=akkeris/daedalus&utm_campaign=Badge_Coverage)
 
 
-Daedalus is a knowledge system intended for collecting an examining resources on systems.
+Daedalus is a knowledge system intended for collecting, examining and recording resources (and how they change, and how they're related).
 
 > This is currently in discovery and may change considerably.
 

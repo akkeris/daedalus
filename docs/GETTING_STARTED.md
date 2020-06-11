@@ -4,6 +4,11 @@
 
 Daedalus can be deployed with a docker image from [https://hub.docker.com/r/akkeris/daedalus/tags](akkeris/daedalus). At a bare minimum the following environment variables must be set.  Daedalus has a variety of modules that can be enabled or disabled (even the UI) via each section below. Daedalus is designed to allow anyone plugin or plugins to run together as one process giving it flexibility (for instance should you want to scan multiple kubernetes instances, run multiple daedalus instances with the same database but only the kubernetes module enabled). Daedalus requires an open port only for the UI or GraphQL API. Daedalus does not require any persistent volumes.
 
+### Prerequisetes
+
+* Postgresql 12+
+* Node 12+
+
 ### Required Environment Varaibles
 
  *  `DATABASE_URL` - This is the database used for daedalus. 
@@ -12,6 +17,8 @@ Daedalus can be deployed with a docker image from [https://hub.docker.com/r/akke
  *  `ENVS_BLACKLIST` - Optional - This is a comma sepearted list of substrings that if found as the key or value will be redacted when stored. Defaults to `PASS,KEY,SECRET,PRIVATE,TOKEN,SALT,AUTH,HASH`.
  *  `PORT` - Set this to the value of the port to listen to for the web process (used by either the UI or GraphQL), if this is not set it defaults to port `9000`, note if the graphql or ui plugin are both disabled a port is not opened.
  *  `SKIP_MAINTENANCE` - This prevents daedalus from preforming database re-indexing and other maintenance tasks every 24 hours.
+ *  `SMTP` - The smtp server to use (in the format smtp://mail.example.com:25 or smtps:// for secure smtp, login information can also be specified using smtps://user:pass@mail.example.com).  Optional, if not specified notifications won't run.
+ *  `SMTP_FROM` - The email address the SMTP from should use (e.g., daedalus@example.com).  Optional, if not specified notifications won't run.
 
 ### UI Plugin
 
@@ -145,8 +152,10 @@ To debug, set the environment variable `DEBUG` with one of the values below.
  *  `daedalus:postgresql` - postgresql importing and checks.
  *  `daedalus:kubernetes` - kubernetes debugging, importing and checks.
  *  `daedalus:akkeris` - akkeris debugging, importing and checks.
- *  `daedalus:links` - turn on debugging for module that attempts to establish links between various objects.
  *  `daedalus:metadata` - turn on debugging for module that attempts to classify with labels and annotations.
  *  `daedalus:oracle` - turn on debugging for oracle scanning.
  *  `daedalus:aws` - aws debugging, importing and checks.
+ *  `daedalus:urls` - turns on debugging for urls.
+ *  `daedalus:graphql` - Turns on debugging for graphql.
+ *  `daedalus:ui` - Turns on debugging for the UI.
 

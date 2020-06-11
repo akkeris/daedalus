@@ -635,8 +635,9 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
     // TODO: User defined data types
     // TODO: Redundant, unused, rarely used indexes, non-indexed foreign keys
     // TODO: Vaccuum statistics, pg_settings Add blocking queries,
-    // long running queries? locks? outliers (requires pg_stat_statments)?
+    // long running queries? locks? outliers (requires pg_stat_statments)? hint if its not available
     // TODO: snapshot pg_catalog.pg_available_extensions
+    // TODO: see if pgrowlocks is available and pull info from that? hint if its not available?
 
     // Check for table deletion
     await Promise.all((await pgpool.query('select table_log, "table", database_log, catalog, schema, name, is_view, definition from postgresql.tables where database_log = $1', [database.database_log]))

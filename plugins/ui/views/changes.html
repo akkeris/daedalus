@@ -4,11 +4,11 @@ const {diffJSON} = require ('../common.js');
 function createUrlWithQueryParams(req, key, value) {
   return `?${key}=${value}&${Object.keys(req.query).filter((x) => x !== key).map((x) => `${x}=${req.query[x]}`).join('&')}`
 }
-function actionFromChange(x) {
-  return x.deleted ? 'deleted' : (x.row_number === '1' ? 'added' : 'changed');
-}
 function highlightClassFromDiff(row) {
   return row.row_number === '1' ? 'json' : 'diff'
+}
+function actionFromChange(x) {
+  return x.deleted ? 'deleted' : (x.row_number === '1' ? 'added' : 'changed');
 }
 function renderDiff(row) {
   return row.row_number === '1' ? 

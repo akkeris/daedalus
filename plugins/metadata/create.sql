@@ -731,5 +731,15 @@ begin
   );
   create unique index if not exists metadata_favorites_user_node on metadata.favorites("user", node);
   create index if not exists metadata_favorites_nodes on metadata.favorites(node);
+
+  create table if not exists metadata.notifications
+  (
+    "user" uuid references metadata.users("user"),
+    node_log uuid not null,
+    created timestamp with time zone default now()
+  );
+  create unique index if not exists metadata_notifications_user_node_log on metadata.notifications("user", node_log);
+  create index if not exists metadata_notifications_user on metadata.notifications("user");
+  create index if not exists metadata_notifications_node_log on metadata.notifications(node_log);
 end
 $$;

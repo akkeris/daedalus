@@ -1,5 +1,8 @@
 const { grab, findUses } = require('./common.js');
 
+// TODO: try out pg_trgm (word_similarity)
+//       https://www.postgresql.org/docs/13/pgtrgm.html
+
 async function basicSearch(pgpool, query, limit = 10) {
   return (await pgpool.query(`
     select 

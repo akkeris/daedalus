@@ -171,7 +171,7 @@ async function writeAkkersAppsFromDeployments(pgpool, deployments) {
 
 
 function parseJDBC(value, name, map) {
-  const components = (/^jdbc:oracle:thin:(.*)@([A-Za-z0-9\-\.]+):([0-9]*)[:/]([A-Za-z0-9\-\.]+)(.*)$/g).exec(value); // eslint-disable-line no-useless-escape
+  const components = (/^jdbc:oracle:thin:(.*)@([A-Za-z0-9\-\.\/]+):([0-9]*)[:/]([A-Za-z0-9\-\.]+)(.*)$/g).exec(value); // eslint-disable-line no-useless-escape
   const auth = components[1];
   let user = auth.split('/')[0];
   let pass = auth.split('/')[1];
@@ -333,7 +333,6 @@ async function writeOracleFromPods(pgpool, podRecords) {
               assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
               assert.ok(role.rows[0].role_log, 'Role was not set on return after insertion');
               assert.ok(pod.node_log, 'pod.node_log was undefined.');
-              assert.ok(pod.name, 'pod.name was undefined.');
               assert.ok(role.rows[0].role_log, 'role.rows[0].role was undefined.');
               assert.ok(role.rows[0].username, 'role.rows[0].username was undefined.');
               assert.ok(db.rows[0].database_log, 'db.rows[0].database was undefined.');

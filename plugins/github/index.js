@@ -192,8 +192,10 @@ async function run(pgpool) {
     } catch (e) {
       if (e.message.includes('code 404')) {
         debug(`Warning: failed to scan repo ${r.git_url} received 404.`);
+      } else if (e.message.includes('code 409')) {
+        debug(`Warning: failed to scan repo ${r.git_url} received 409.`);
       } else {
-        debug(`Failed to fetch information from repo ${r.git_url}: ${e.stack}`);
+        debug(`Error: Failed to fetch information from repo ${r.git_url}: ${e.message || e.stack || e}`);
       }
     }
   }

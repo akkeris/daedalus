@@ -83,9 +83,9 @@ async function createTableDefinition(pgpool, schema, name, columns = {}, referen
         deleted = false;
 
       ${references.map((ref) => (typeof ref === 'string' ? `
-      create index on "${schema}"."${plural(name)}_log" ("${ref}");
+      create index if not exists ${plural(name)}_log_ndx_${ref}_fk on "${schema}"."${plural(name)}_log" ("${ref}");
       ` : `
-      create index on "${schema}"."${plural(name)}_log" ("${ref.name}");
+      create index if not exists ${plural(name)}_log_ndx_${ref.name}_fk on "${schema}"."${plural(name)}_log" ("${ref.name}");
       `)).join('')}
 
       comment on table "${schema}"."${plural(name)}_log" IS E'@name ${schema}${plural(name)}_log';

@@ -556,7 +556,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
             insert into oracle.tables_log 
               ("table_log", "table", database_log, catalog, schema, name, is_view, definition, hash, deleted)
             values 
-              (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7 encode(digest($7::text, 'sha1'), 'hex'), $8)
+              (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, encode(digest($7::text, 'sha1'), 'hex'), $8)
             on conflict (database_log, catalog, schema, name, is_view, hash, deleted)
             do update set deleted = true`,
           [tableOrView.table, tableOrView.database_log, tableOrView.catalog, tableOrView.schema, tableOrView.name, tableOrView.is_view, tableOrView.definition, true]); // eslint-disable-line max-len

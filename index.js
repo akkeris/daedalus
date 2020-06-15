@@ -24,7 +24,7 @@ assert.ok(process.env.HASH_SECRET !== process.env.SECRET,
 const pgpool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   max: 40,
-  query_timeout: 60 * 1000 * 5,
+  query_timeout: 60 * 1000 * 10,
 });
 const plugins = fs.readdirSync('./plugins')
   .sort((a, b) => (a < b ? -1 : 1))

@@ -480,7 +480,10 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         sample_size,
         avg_col_len
       from
-        user_tab_col_statistics where column_name not like 'SYS_%$%'
+        user_tab_col_statistics 
+      where 
+        column_name not like 'SYS_%$%' and
+        column_name not like 'SYS_STS%'
     `, [])).rows.map((estimate) => { // eslint-disable-line array-callback-return,consistent-return
       try {
         const tableUUID = findTableOrViewId(tables, views, database.database_log, database.name, estimate.SCHEMA, estimate.TABLE_NAME).table_log; // eslint-disable-line max-len
@@ -556,8 +559,8 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
     }
     // TODO: User defined data types
     // TODO: Long running queries, Locks?
-    // TODO: Index statistics? I can't imagine this exists but, constraint statistics?...
-
+    // TODO: Index statistics?
+    //
     // Check for table deletion
     await Promise.all((await pgpool.query('select "table_log", "table", database_log, catalog, schema, name, is_view, definition from oracle.tables where database_log = $1', [database.database_log]))
       .rows

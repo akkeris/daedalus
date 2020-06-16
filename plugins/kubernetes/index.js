@@ -11,7 +11,6 @@ const crawler = require('../../common/crawler.js');
 // todo: pod -> configmap
 // todo: replicaset -> configmap
 // todo: deployments -> services (based on configuration)
-// todo: nodes -> pods
 
 async function checkPermissions(kc) {
   const accessPods = { spec: { resourceAttributes: { verb: 'watch', resource: 'pods' } } };
@@ -78,97 +77,63 @@ async function checkPermissions(kc) {
     && canWatchDaemonSets && canGetDaemonSets;
 }
 
-async function writeKubernetesPodToReplicaSets(pgpool, podRecords) {
-  await Promise.all(podRecords.map(async (pod) => {
-    if (pod.definition.metadata.ownerReferences) {
-      await Promise.all(pod.definition.metadata.ownerReferences.map(async (ref) => {
-        try {
-          if (ref.kind === 'Deployment') {
-            const { rows: [{ node_log }] } = await pgpool.query('select node_log, name, definition from kubernetes.deployments where name = $1 and namespace = $2', // eslint-disable-line camelcase
-              [ref.name, pod.definition.metadata.namespace]);
-            await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-              [node_log, pod.node_log]); // eslint-disable-line camelcase
-          } else if (ref.kind === 'ReplicaSet') {
-            const { rows: [{ node_log }] } = await pgpool.query('select node_log, name, definition from kubernetes.replicasets where name = $1 and namespace = $2', // eslint-disable-line camelcase
-              [ref.name, pod.definition.metadata.namespace]);
-            await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-              [node_log, pod.node_log]); // eslint-disable-line camelcase
-          } else if (ref.kind === 'Job') { // TODO
-          } else if (ref.kind === 'DaemonSet') { // TODO
-          } else if (ref.kind === 'StatefulSet') { // TODO
-          } else {
-            console.warn(`Warning: unknown owner reference found on pod ${pod.definition.metadata.name}/${pod.definition.metadata.namespace}: ${JSON.stringify(ref, null, 2)}`); // eslint-disable-line no-console
-          }
-        } catch (e) {
-          debug(`Error unable to add link for pod ${pod.node_log} to replicaset ${`${ref.name}/${pod.definition.metadata.namespace} due to: ${e.message}`}`); // eslint-disable-line max-len,no-console
-        }
-      }));
-    }
-  }));
+function writePodsToReplicaSets(pgpool) {
+  return pgpool.query(`
+    insert into metadata.families
+    select uuid_generate_v4(), replicasets_log.node_log,  pods_log.node_log
+    from kubernetes.pods_log
+      join kubernetes.replicasets_log on
+        ((pods_log.definition->'metadata')->'ownerReferences') @> jsonb_build_array(jsonb_build_object('uid', replicasets_log.node))
+    on conflict do nothing;
+  `);
 }
 
-async function writeKubernetesReplicaSetToDeployments(pgpool, replicaSetRecords) {
-  await Promise.all(replicaSetRecords.map(async (replicaSet) => {
-    if (replicaSet.definition.metadata.ownerReferences) {
-      await Promise.all(replicaSet.definition.metadata.ownerReferences.map(async (ref) => {
-        try {
-          if (ref.kind === 'Deployment') {
-            const { rows: [{ node_log }] } = await pgpool.query('select node_log, name from kubernetes.deployments where name = $1 and namespace = $2', // eslint-disable-line camelcase
-              [ref.name, replicaSet.definition.metadata.namespace]);
-            await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-              [node_log, replicaSet.node_log]); // eslint-disable-line camelcase
-          } else {
-            console.warn(`Warning: unknown owner reference found on replicaset ${replicaSet.definition.metadata.name}/${replicaSet.definition.metadata.namespace}: ${JSON.stringify(ref, null, 2)}`); // eslint-disable-line no-console
-          }
-        } catch (e) {
-          debug(`Error unable to add link for replicaset ${replicaSet.node_log} to deployment ${`${ref.name}/${replicaSet.definition.metadata.namespace}`} due to ${e.message}`); // eslint-disable-line max-len,no-console
-        }
-      }));
-    }
-  }));
+function writeReplicaSetsToDeployments(pgpool) {
+  return pgpool.query(`
+    insert into metadata.families
+    select uuid_generate_v4(), deployments_log.node_log, replicasets_log.node_log
+    from kubernetes.replicasets_log
+      join kubernetes.deployments_log on
+        ((replicasets_log.definition->'metadata')->'ownerReferences') @> jsonb_build_array(jsonb_build_object('uid', deployments_log.node))
+    on conflict do nothing;
+  `);
 }
 
-async function writeKubernetesDeploymentToConfigMaps(pgpool, deployments) {
-  await Promise.all(deployments.map(async (deployment) => {
-    if (deployment.definition.spec.template.spec.containers) {
-      await Promise.all(deployment.definition.spec.template.spec.containers.map(async (container) => { // eslint-disable-line max-len
-        if (container.envFrom) {
-          await Promise.all(container.envFrom.map(async (envFrom) => {
-            if (envFrom.configMapRef && envFrom.configMapRef.name) {
-              try {
-                const { rows: [{ node_log }] } = await pgpool.query('select node_log, name from kubernetes.configmaps where name = $1 and namespace = $2', // eslint-disable-line camelcase
-                  [envFrom.configMapRef.name, deployment.definition.metadata.namespace]);
-                await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                  [deployment.node_log, node_log]); // eslint-disable-line camelcase
-              } catch (e) {
-                debug(`Error unable to add link for deployment ${deployment.deployment} to configmap ${envFrom.configMapRef.name} due to ${e.message}`); // eslint-disable-line max-len,no-console
-              }
-            }
-          }));
-        }
-      }));
-    }
-  }));
+async function writeDeploymentsToConfigMaps(pgpool) {
+  return pgpool.query(`
+    insert into metadata.families
+    select uuid_generate_v4(), deployments_log.node_log, configmaps_log.node_log
+    from
+      kubernetes.deployments_log 
+        join kubernetes.configmaps_log on
+          deployments_log.namespace = configmaps_log.namespace and
+          ((((deployments_log.definition->'spec')->'template')->'spec')->'containers') @>
+            jsonb_build_array(jsonb_build_object('envFrom', jsonb_build_array(jsonb_build_object('configMapRef', jsonb_build_object('name', configmaps_log.name)))))
+    on conflict do nothing;
+  `);
 }
 
-async function writeAkkersAppsFromDeployments(pgpool, deployments) {
-  await Promise.all(deployments.map(async (deployment) => {
-    if (deployment.definition.metadata && deployment.definition.metadata.labels && deployment.definition.metadata.labels['akkeris.io/app-uuid']) {
-      try {
-        const { rows: [{ node_log }] } = await pgpool.query('select node_log, name, definition from akkeris.apps where node = $1', // eslint-disable-line camelcase
-          [deployment.definition.metadata.labels['akkeris.io/app-uuid']]);
-        await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-          [node_log, deployment.node_log]); // eslint-disable-line camelcase
-      } catch (e) {
-        if (!(e.message && e.message.startsWith('Cannot read property \'node_log\''))) {
-          // filter out deployments that reference an app that is no longer in akkeris.
-          debug(`Error unable to link app ${deployment.definition.metadata.labels['akkeris.io/app-uuid']} named ${deployment.definition.metadata.labels['akkeris.io/app-name']} to deployment ${deployment.deployment} due to: ${e.message}`);
-        }
-      }
-    }
-  }));
+async function writeAkkersAppsToDeployments(pgpool) {
+  return pgpool.query(`
+    insert into metadata.families
+    select uuid_generate_v4(), apps_log.node_log, deployments_log.node_log
+    from
+      kubernetes.deployments_log 
+        join akkeris.apps_log on
+          ((deployments_log.definition->'metadata')->'labels') @> jsonb_build_object('akkeris.io/app-uuid', apps_log.node)
+    on conflict do nothing;
+  `);
 }
 
+async function writePodsToNodes(pgpool) {
+  return pgpool.query(`
+    insert into metadata.families
+      select uuid_generate_v4(), nodes.node_log, pods.node_log
+      from kubernetes.pods
+        join kubernetes.nodes on ((pods.definition->'spec')->>'nodeName') = nodes.name
+    on conflict do nothing;
+  `);
+}
 
 function parseJDBC(value, name, map) {
   const components = (/^jdbc:oracle:thin:(.*)@([A-Za-z0-9\-\.\/]+):([0-9]*)[:/]([A-Za-z0-9\-\.]+)(.*)$/g).exec(value); // eslint-disable-line no-useless-escape
@@ -217,6 +182,37 @@ function objToArray(obj) {
   return Object.keys(obj).map((x) => ({ name: x, value: obj[x] }));
 }
 
+async function writeOracleToNode(pgpool, dbUrl, nodeLog) {
+  assert.ok(nodeLog, 'node_log was undefined.');
+  const db = await pgpool.query(`
+    insert into oracle.databases_log (database_log, database, name, host, port, deleted)
+    values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
+    on conflict (name, host, port, deleted) 
+    do update set name = $2 
+    returning database_log, database, name, host, port`,
+  [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '1521' : dbUrl.port, false]);
+  assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
+  assert.ok(db.rows[0].database_log, 'Database was not set on return after insertion');
+  const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
+  const role = await pgpool.query(`
+    insert into oracle.roles_log (role_log, role, database_log, username, password, options, deleted)
+    values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
+    on conflict (database_log, username, (password->>'hash'), deleted) 
+    do update set username = $3 
+    returning role_log, role, username`,
+  [`${db.rows[0].database_log}.${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
+  assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
+  assert.ok(role.rows[0].role_log, 'Role was not set on return after insertion');
+  assert.ok(role.rows[0].role_log, 'role.rows[0].role was undefined.');
+  assert.ok(role.rows[0].username, 'role.rows[0].username was undefined.');
+  assert.ok(db.rows[0].database_log, 'db.rows[0].database was undefined.');
+  db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
+  await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+    [role.rows[0].role_log, db.rows[0].database_log]);
+  await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+    [nodeLog, role.rows[0].role_log]);
+}
+
 async function writeOracleFromConfigMaps(pgpool, configMapRecords) {
   await Promise.all(configMapRecords.map(async (configMap) => {
     if (configMap.definition.data) {
@@ -224,84 +220,17 @@ async function writeOracleFromConfigMaps(pgpool, configMapRecords) {
         if (configMap.definition.data[env].startsWith('jdbc:oracle:thin')) {
           try {
             const dbUrl = parseJDBC(configMap.definition.data[env], env, objToArray(configMap.definition.data)); // eslint-disable-line max-len
-            const db = await pgpool.query(`
-              insert into oracle.databases_log (database_log, database, name, host, port, deleted)
-              values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
-              on conflict (name, host, port, deleted) 
-              do update set name = $2
-              returning database_log, database`,
-            [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '1521' : dbUrl.port, false]);
-            assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
-            assert.ok(db.rows[0].database_log, 'Database was not set on return after insertion');
-            const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
-            const role = await pgpool.query(`
-              insert into oracle.roles_log (role_log, role, database_log, username, password, options, deleted)
-              values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
-              on conflict (database_log, username, (password->>'hash'), deleted) 
-              do update set username = $3 
-              returning role_log, role, username`,
-            [`${db.rows[0].database_log}.${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
-            assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
-            assert.ok(role.rows[0].role_log, 'Role was not set on return after insertion');
-            assert.ok(configMap.node_log, 'configMap.node_log was undefined.');
-            assert.ok(configMap.name, 'configMap.name was undefined.');
-            assert.ok(role.rows[0].role_log, 'role.rows[0].role was undefined.');
-            assert.ok(role.rows[0].username, 'role.rows[0].username was undefined.');
-            assert.ok(db.rows[0].database_log, 'db.rows[0].database was undefined.');
-            db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
-            await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-              [db.rows[0].database_log, role.rows[0].role_log]);
-            await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-              [configMap.node_log, role.rows[0].role_log]);
+            await writeOracleToNode(pgpool, dbUrl, configMap.node_log);
           } catch (e) {
             if (e.message.includes('Invalid URL')) {
-              debug(`Warning, invalid oracle url: ${e.message}`);
+              debug(`Warning, invalid oracle url found in config map ${configMap.node_log}: ${e.message}`);
             } else {
-              debug(`Error adding link from ${configMap.node_log} to oracle role found inside, due to: ${e.message}`); // eslint-disable-line no-console
+              debug(`Error adding link from configmap ${configMap.node_log} to oracle role due to: ${e.message}`); // eslint-disable-line no-console
             }
           }
         }
       }), []);
     }
-  }));
-}
-
-async function writeOracleFromReplicaSets(pgpool, replicaSetRecords) {
-  await Promise.all(replicaSetRecords.map(async (replicaSet) => {
-    await Promise.all((replicaSet.definition.spec.template.spec.containers || [])
-      .reduce((envs, container) => envs.concat((container.env || []).filter((env) => env.value && env.value.startsWith('jdbc:oracle:thin')))
-        .map(async (env) => {
-          if (env.value) {
-            try {
-              const dbUrl = parseJDBC(env.value, env.name, container.env);
-              const db = await pgpool.query(`
-                insert into oracle.databases_log (database_log, database, name, host, port, deleted)
-                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
-                on conflict (name, host, port, deleted) 
-                do update set name = $2 
-                returning database_log, database, name, host, port`,
-              [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '1521' : dbUrl.port, false]);
-              assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
-              assert.ok(db.rows[0].database_log, 'Database was not set on return after insertion');
-              const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
-              const role = await pgpool.query(`
-                insert into oracle.roles_log (role_log, role, database_log, username, password, options, deleted)
-                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
-                on conflict (database_log, username, (password->>'hash'), deleted) 
-                do update set username = $3 
-                returning role_log, role, username`,
-              [`${db.rows[0].database_log}.${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
-              assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
-              assert.ok(role.rows[0].role_log, 'Role was not set on return after insertion');
-            } catch (e) {
-              if (e.message.includes('Invalid URL')) {
-                debug(`Warning, invalid oracle url: ${e.message}`);
-              } else {
-                debug(`Warning adding oracle entry from replicaset ${replicaSet.node_log} due to: ${e.message}`); // eslint-disable-line no-console
-              }
-            }
-          }
-        }), []));
   }));
 }
 
@@ -313,39 +242,12 @@ async function writeOracleFromPods(pgpool, podRecords) {
           if (env.value) {
             try {
               const dbUrl = parseJDBC(env.value, env.name, container.env);
-              const db = await pgpool.query(`
-                insert into oracle.databases_log (database_log, database, name, host, port, deleted)
-                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
-                on conflict (name, host, port, deleted) 
-                do update set name = $2 
-                returning database_log, database, name, host, port`,
-              [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '1521' : dbUrl.port, false]);
-              assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
-              assert.ok(db.rows[0].database_log, 'Database was not set on return after insertion');
-              const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
-              const role = await pgpool.query(`
-                insert into oracle.roles_log (role_log, role, database_log, username, password, options, deleted)
-                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
-                on conflict (database_log, username, (password->>'hash'), deleted) 
-                do update set username = $3 
-                returning role_log, role, username`,
-              [`${db.rows[0].database_log}.${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
-              assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
-              assert.ok(role.rows[0].role_log, 'Role was not set on return after insertion');
-              assert.ok(pod.node_log, 'pod.node_log was undefined.');
-              assert.ok(role.rows[0].role_log, 'role.rows[0].role was undefined.');
-              assert.ok(role.rows[0].username, 'role.rows[0].username was undefined.');
-              assert.ok(db.rows[0].database_log, 'db.rows[0].database was undefined.');
-              db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
-              await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [role.rows[0].role_log, db.rows[0].database_log]);
-              await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [pod.node_log, role.rows[0].role_log]);
+              await writeOracleToNode(pgpool, dbUrl, pod.node_log);
             } catch (e) {
               if (e.message.includes('Invalid URL')) {
-                debug(`Warning, invalid oracle url: ${e.message}`);
+                debug(`Warning, invalid oracle url found in pod ${pod.node_log}: ${e.message}`);
               } else {
-                debug(`Warning adding oracle entry from pod ${pod.node_log} due to: ${e.message}`); // eslint-disable-line no-console
+                debug(`Warning adding oracle entry from pod ${pod.node_log} to oracle role due to: ${e.message}`); // eslint-disable-line no-console
               }
             }
           }
@@ -353,48 +255,52 @@ async function writeOracleFromPods(pgpool, podRecords) {
   }));
 }
 
-async function writeOracleFromDeployments(pgpool, deploymentRecords) {
-  await Promise.all(deploymentRecords.map(async (deployment) => {
-    await Promise.all((deployment.definition.spec.template.spec.containers || [])
+async function writeOracleFromSets(pgpool, records) {
+  await Promise.all(records.map(async (set) => {
+    await Promise.all((set.definition.spec.template.spec.containers || [])
       .reduce((envs, container) => envs.concat((container.env || []).filter((env) => env.value && env.value.startsWith('jdbc:oracle:thin')))
         .map(async (env) => {
           if (env.value) {
             try {
               const dbUrl = parseJDBC(env.value, env.name, container.env);
-              const db = await pgpool.query(`
-                insert into oracle.databases_log (database_log, database, name, host, port, deleted)
-                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
-                on conflict (name, host, port, deleted) 
-                do update set name = $2 
-                returning database_log, database, name, host, port`,
-              [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '1521' : dbUrl.port, false]);
-              assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
-              assert.ok(db.rows[0].database_log, 'Database was not set on return after insertion');
-              const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
-              const role = await pgpool.query(`
-                insert into oracle.roles_log (role_log, role, database_log, username, password, options, deleted)
-                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
-                on conflict (database_log, username, (password->>'hash'), deleted) 
-                do update set username = $3 
-                returning role_log, role, username`,
-              [`${db.rows[0].database_log}.${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}.${secret.hash}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
-              assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
-              assert.ok(role.rows[0].role_log, 'Role was not set on return after insertion');
-              db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
-              await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [role.rows[0].role_log, db.rows[0].database_log]);
-              await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [deployment.node_log, role.rows[0].role_log]);
+              await writeOracleToNode(pgpool, dbUrl, set.node_log);
             } catch (e) {
               if (e.message.includes('Invalid URL')) {
-                debug(`Warning, invalid oracle url: ${e.message}`);
+                debug(`Warning, invalid oracle url found in deployment/replicaset ${set.node_log}: ${e.message}`);
               } else {
-                debug(`Warning adding oracle entry from deployment ${deployment.node_log} due to: ${e.message}`); // eslint-disable-line no-console
+                debug(`Error adding oracle entry from deployment/replicaset ${set.node_log} due to: ${e.message}`);
               }
             }
           }
         }), []));
   }));
+}
+
+async function writePostgresqlToNode(pgpool, dbUrl, nodeLog) {
+  const db = await pgpool.query(`
+    insert into postgresql.databases_log (database_log, database, name, host, port, deleted)
+    values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
+    on conflict (name, host, port, deleted) 
+    do update set name = $2 
+    returning database_log, database, name, host, port`,
+  [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
+  assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
+  assert.ok(db.rows[0].database_log, 'Database was not set on return after insertion');
+  const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
+  const role = await pgpool.query(`
+    insert into postgresql.roles_log (role_log, role, database_log, username, password, options, deleted)
+    values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
+    on conflict (database_log, username, (password->>'hash'), deleted) 
+    do update set username = $3 
+    returning role_log, role, username`,
+  [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
+  assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
+  assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
+  db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
+  await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+    [role.rows[0].role_log, db.rows[0].database_log]);
+  await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
+    [nodeLog, role.rows[0].role_log]);
 }
 
 async function writePostgresqlFromConfigMaps(pgpool, configMapRecords) {
@@ -404,83 +310,17 @@ async function writePostgresqlFromConfigMaps(pgpool, configMapRecords) {
         if (configMap.definition.data[env].startsWith('postgres://')) {
           try {
             const dbUrl = new URL(configMap.definition.data[env]);
-            const db = await pgpool.query(`
-              insert into postgresql.databases_log (database_log, database, name, host, port, deleted)
-              values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
-              on conflict (name, host, port, deleted) 
-              do update set name = $2
-              returning database_log, database, host, port, name`,
-            [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
-            assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
-            assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
-            const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
-            const role = await pgpool.query(`
-              insert into postgresql.roles_log (role_log, role, database_log, username, password, options, deleted)
-              values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
-              on conflict (database_log, username, (password->>'hash'), deleted) 
-              do update set username = $3 
-              returning role_log, role, username`,
-            [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
-            assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
-            assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
-            assert.ok(configMap.node_log, 'configMap.node_log was undefined.');
-            assert.ok(role.rows[0].role, 'role.rows[0].role was undefined.');
-            assert.ok(role.rows[0].username, 'role.rows[0].username was undefined.');
-            assert.ok(db.rows[0].database, 'db.rows[0].database was undefined.');
-            db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
-            await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-              [role.rows[0].role_log, db.rows[0].database_log]);
-            await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-              [configMap.node_log, role.rows[0].role_log]);
+            await writePostgresqlToNode(pgpool, dbUrl, configMap.node_log);
           } catch (e) {
             if (e.message.includes('Invalid URL')) {
-              debug(`Warning, invalid postgresql url: ${e.message}`);
+              debug(`Warning, invalid postgresql url found in configmap ${configMap.node_log}: ${e.message}`);
             } else {
-              debug(`Error adding link from ${configMap.node_log} to postgresql role found inside, due to: ${e.message}`); // eslint-disable-line no-console
+              debug(`Error adding link from configmap ${configMap.node_log} to postgresql role: ${e.message}`);
             }
           }
         }
       }), []);
     }
-  }));
-}
-
-async function writePostgresqlFromReplicaSets(pgpool, replicaSetRecords) {
-  await Promise.all(replicaSetRecords.map(async (replicaSet) => {
-    await Promise.all((replicaSet.definition.spec.template.spec.containers || [])
-      .reduce((envs, container) => envs.concat((container.env || []).filter((env) => env.value && env.value.startsWith('postgres://')))
-        .map(async (env) => {
-          if (env.value) {
-            try {
-              const dbUrl = new URL(env.value);
-              const db = await pgpool.query(`
-                insert into postgresql.databases_log (database_log, database, name, host, port, deleted)
-                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
-                on conflict (name, host, port, deleted) 
-                do update set name = $2
-                returning database_log, database`,
-              [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
-              assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
-              assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
-              const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
-              const role = await pgpool.query(`
-                insert into postgresql.roles_log (role_log, role, database_log, username, password, options, deleted)
-                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
-                on conflict (database_log, username, (password->>'hash'), deleted) 
-                do update set username = $3 
-                returning role_log, role, username`,
-              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
-              assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
-              assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
-            } catch (e) {
-              if (e.message.includes('Invalid URL')) {
-                debug(`Warning, invalid postgresql url: ${e.message}`);
-              } else {
-                debug(`Error adding postgresql entry from replicaset ${replicaSet.node_log} due to: ${e.message}`); // eslint-disable-line no-console
-              }
-            }
-          }
-        }), []));
   }));
 }
 
@@ -491,40 +331,12 @@ async function writePostgresqlFromPods(pgpool, podRecords) {
         .map(async (env) => {
           if (env.value) {
             try {
-              const dbUrl = new URL(env.value);
-              const db = await pgpool.query(`
-                insert into postgresql.databases_log (database_log, database, name, host, port, deleted)
-                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
-                on conflict (name, host, port, deleted) 
-                do update set name = $2 
-                returning database_log, database, name, host, port`,
-              [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
-              assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
-              assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
-              const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
-              const role = await pgpool.query(`
-                insert into postgresql.roles_log (role_log, role, database_log, username, password, options, deleted)
-                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
-                on conflict (database_log, username, (password->>'hash'), deleted) 
-                do update set username = $3 
-                returning role_log, role, username`,
-              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
-              assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
-              assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
-              assert.ok(pod.node_log, 'pod.node_log was undefined.');
-              assert.ok(role.rows[0].role, 'role.rows[0].role was undefined.');
-              assert.ok(role.rows[0].username, 'role.rows[0].username was undefined.');
-              assert.ok(db.rows[0].database, 'db.rows[0].database was undefined.');
-              db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
-              await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [role.rows[0].role_log, db.rows[0].database_log]);
-              await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [pod.node_log, role.rows[0].role_log]);
+              await writePostgresqlToNode(pgpool, new URL(env.value), pod.node_log);
             } catch (e) {
               if (e.message.includes('Invalid URL')) {
-                debug(`Warning, invalid postgresql url: ${e.message}`);
+                debug(`Warning, invalid postgresql url found in pod ${pod.node_log}: ${e.message}`);
               } else {
-                debug(`Error adding postgresql entry from pod ${pod.node_log} due to: ${e.message}`); // eslint-disable-line no-console
+                debug(`Error adding link from pod ${pod.node_log} to postgresql role: ${e.message}`);
               }
             }
           }
@@ -532,43 +344,19 @@ async function writePostgresqlFromPods(pgpool, podRecords) {
   }));
 }
 
-async function writePostgresqlFromDeployments(pgpool, deploymentRecords) {
-  await Promise.all(deploymentRecords.map(async (deployment) => {
-    await Promise.all((deployment.definition.spec.template.spec.containers || [])
+async function writePostgresqlFromSets(pgpool, records) {
+  await Promise.all(records.map(async (set) => {
+    await Promise.all((set.definition.spec.template.spec.containers || [])
       .reduce((envs, container) => envs.concat((container.env || []).filter((env) => env.value && env.value.startsWith('postgres://')))
         .map(async (env) => {
           if (env.value) {
             try {
-              const dbUrl = new URL(env.value);
-              const db = await pgpool.query(`
-                insert into postgresql.databases_log (database_log, database, name, host, port, deleted)
-                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5)
-                on conflict (name, host, port, deleted) 
-                do update set name = $2 
-                returning database_log, database, name, host, port`,
-              [dbUrl.hostname + dbUrl.port + dbUrl.pathname, dbUrl.pathname.replace(/\//, ''), dbUrl.hostname, dbUrl.port === '' ? '5432' : dbUrl.port, false]);
-              assert.ok(db.rows.length > 0, 'Adding a database did not return a database id');
-              assert.ok(db.rows[0].database, 'Database was not set on return after insertion');
-              const secret = security.encryptValue(process.env.SECRET, dbUrl.password);
-              const role = await pgpool.query(`
-                insert into postgresql.roles_log (role_log, role, database_log, username, password, options, deleted)
-                values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
-                on conflict (database_log, username, (password->>'hash'), deleted) 
-                do update set username = $3 
-                returning role_log, role, username`,
-              [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
-              assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');
-              assert.ok(role.rows[0].role, 'Role was not set on return after insertion');
-              db.rows[0].name = db.rows[0].name ? db.rows[0].name : 'unknown';
-              await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [role.rows[0].role_log, db.rows[0].database_log]);
-              await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
-                [deployment.node_log, role.rows[0].role_log]);
+              await writePostgresqlToNode(pgpool, new URL(env.value), set.node_log);
             } catch (e) {
               if (e.message.includes('Invalid URL')) {
-                debug(`Warning, invalid postgresql url: ${e.message}`);
+                debug(`Warning, invalid postgresql url found in deployment/replicaset ${set.node_log}: ${e.message}`);
               } else {
-                debug(`Error adding postgresql entry from deployment ${deployment.node_log} due to: ${e.message}`); // eslint-disable-line no-console
+                debug(`Error adding link from deployment/replicaset ${set.node_log} to postgresql role: ${e.message}`);
               }
             }
           }
@@ -820,10 +608,8 @@ async function run(pgpool) {
       .map(async (def) => {
         const redef = redact('deployment', def);
         const node = await crawler.writeObj(pgpool, 'kubernetes', 'deployment', kubeNode(redef), redef, kubeSpec(redef), kubeStatus(redef), kubeMetadata(redef), { name: redef.metadata.name, namespace: redef.metadata.namespace, context: process.env.KUBERNETES_CONTEXT }); // eslint-disable-line max-len
-        await writeKubernetesDeploymentToConfigMaps(pgpool, [{ ...(node.rows[0]), definition: def }]); // eslint-disable-line max-len
-        await writeAkkersAppsFromDeployments(pgpool, [{ ...(node.rows[0]), definition: def }]);
-        await writePostgresqlFromDeployments(pgpool, [{ ...(node.rows[0]), definition: def }]);
-        await writeOracleFromDeployments(pgpool, [{ ...(node.rows[0]), definition: def }]);
+        await writePostgresqlFromSets(pgpool, [{ ...(node.rows[0]), definition: def }]);
+        await writeOracleFromSets(pgpool, [{ ...(node.rows[0]), definition: def }]);
         return node;
       }))).map((x) => x.rows).flat());
 
@@ -834,9 +620,8 @@ async function run(pgpool) {
       .map(async (def) => {
         const redef = redact('replicaset', def);
         const node = await crawler.writeObj(pgpool, 'kubernetes', 'replicaset', kubeNode(redef), redef, kubeSpec(redef), kubeStatus(redef), kubeMetadata(redef), { name: redef.metadata.name, namespace: redef.metadata.namespace, context: process.env.KUBERNETES_CONTEXT }); // eslint-disable-line max-len
-        await writeKubernetesReplicaSetToDeployments(pgpool, [{ ...(node.rows[0]), definition: def }]); // eslint-disable-line max-len
-        await writeOracleFromReplicaSets(pgpool, [{ ...(node.rows[0]), definition: def }]);
-        await writePostgresqlFromReplicaSets(pgpool, [{ ...(node.rows[0]), definition: def }]);
+        await writeOracleFromSets(pgpool, [{ ...(node.rows[0]), definition: def }]);
+        await writePostgresqlFromSets(pgpool, [{ ...(node.rows[0]), definition: def }]);
         return node;
       }))).map((x) => x.rows).flat());
 
@@ -861,7 +646,6 @@ async function run(pgpool) {
         const node = await crawler.writeObj(pgpool, 'kubernetes', 'pod', kubeNode(redef), redef, kubeSpec(redef), kubeStatus(redef), kubeMetadata(redef), { name: redef.metadata.name, namespace: redef.metadata.namespace, context: process.env.KUBERNETES_CONTEXT }); // eslint-disable-line max-len
         await writeOracleFromPods(pgpool, [{ ...(node.rows[0]), definition: def }]);
         await writePostgresqlFromPods(pgpool, [{ ...(node.rows[0]), definition: def }]);
-        await writeKubernetesPodToReplicaSets(pgpool, [{ ...(node.rows[0]), definition: def }]);
         return node;
       }))).map((x) => x.rows).flat());
 
@@ -969,6 +753,16 @@ async function run(pgpool) {
       debug(`Failed to get custom objects in kubernetes: ${e.stack || e.message || e}`);
     }
   }
+
+  debug('Writing inter-dependency links between kubernetes objects...');
+  await Promise.all([
+    writeAkkersAppsToDeployments(pgpool),
+    writePodsToReplicaSets(pgpool),
+    writeReplicaSetsToDeployments(pgpool),
+    writeDeploymentsToConfigMaps(pgpool),
+    writePodsToNodes(pgpool),
+  ]);
+  debug('Writing inter-depedency links between kubernetes objects... done');
 }
 
 module.exports = {

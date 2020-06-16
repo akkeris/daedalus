@@ -6,6 +6,18 @@ begin
   create extension if not exists pgcrypto;
   create extension if not exists "uuid-ossp";
 
+  if exists (select 1 from information_schema.tables where table_schema='kubernetes' and table_name='pods_log') then
+    create index if not exists pod_ownership on kubernetes.pods_log using gin (((definition->'metadata')->'ownerReferences') jsonb_path_ops);
+  end if;
+  if exists (select 1 from information_schema.tables where table_schema='kubernetes' and table_name='replicasets_log') then
+    create index if not exists replicaset_ownership on kubernetes.replicasets_log using gin (((definition->'metadata')->'ownerReferences') jsonb_path_ops);
+  end if;
+  if exists (select 1 from information_schema.tables where table_schema='kubernetes' and table_name='deployments_log') then
+    create index if not exists deployment_to_configmap_link on kubernetes.deployments_log using gin
+      (((((definition->'spec')->'template')->'spec')->'containers') jsonb_path_ops);
+    create index if not exists deployment_to_akkeris_apps_link on kubernetes.deployments_log using gin
+      (((definition->'metadata')->'labels') jsonb_path_ops);
+  end if;
 
   if exists (select 1 from information_schema.tables where table_schema='metadata' and table_name='node_types') then
     insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/configmaps', 'kubernetes.configmaps.svg', 'fa-map', 'Kubernetes Config Maps') on conflict (name) do nothing;

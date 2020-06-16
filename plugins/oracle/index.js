@@ -14,12 +14,23 @@ function parseOracleTNS(connection) {
   const port = connection.match(/\([Pp][Oo][Rr][Tt][ ]*=[ ]*([0-9]+)\)/);
   const service = connection.match(/\([Ss][Ee][Rr][Vv][Ii][Cc][Ee]_[Nn][Aa][Mm][Ee][ ]*=[ ]*([A-Za-z0-9.-]+)\)/);
   if (host && port && service) {
-    return { host: host[1], port: port[1], name: service[1] };
+    return { host: host[1].startsWith('//') ? host[1].substring(2) : host[1], port: port[1], name: service[1] };
   }
   if ((/[A-Za-z0-9]+/).test(connection)) {
-    return { host: connection, port: '1521', name: connection };
+    return { host: connection.startsWith('//') ? connection.substring(2) : connection, port: '1521', name: connection.startsWith('//') ? connection.substring(2) : connection };
   }
   return null;
+}
+
+function bigIntOracleToPostgresql(fromOracleBigInt) {
+  if (typeof fromOracleBigInt === 'string') {
+    try {
+      return fromOracleBigInt.includes('.') ? parseFloat(fromOracleBigInt, 10) : parseInt(fromOracleBigInt, 10);
+    } catch (e) {
+      return fromOracleBigInt;
+    }
+  }
+  return fromOracleBigInt;
 }
 
 async function writeOracleTablesFromDatabases(pgpool) {
@@ -469,7 +480,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         sample_size,
         avg_col_len
       from
-        user_tab_col_statistics where column_name not like 'SYS_%$'
+        user_tab_col_statistics where column_name not like 'SYS_%$%'
     `, [])).rows.map((estimate) => { // eslint-disable-line array-callback-return,consistent-return
       try {
         const tableUUID = findTableOrViewId(tables, views, database.database_log, database.name, estimate.SCHEMA, estimate.TABLE_NAME).table_log; // eslint-disable-line max-len
@@ -480,7 +491,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
         values
           (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         on conflict do nothing
-      `, [database.database_log, database.name, estimate.SCHEMA, tableUUID, columnUUID, estimate.NUM_DISTINCT || 0, estimate.LOW_VALUE ? hexOrString(estimate.LOW_VALUE) : '', estimate.HIGH_VALUE ? hexOrString(estimate.HIGH_VALUE) : '', estimate.DENSITY || 0, estimate.NUM_NULLS || 0, estimate.NUM_BUCKETS || 0, estimate.SAMPLE_SIZE || 0, estimate.AVG_COL_LEN || 0, false]);
+      `, [database.database_log, database.name, estimate.SCHEMA, tableUUID, columnUUID, estimate.NUM_DISTINCT || 0, estimate.LOW_VALUE ? hexOrString(estimate.LOW_VALUE) : '', estimate.HIGH_VALUE ? hexOrString(estimate.HIGH_VALUE) : '', bigIntOracleToPostgresql(estimate.DENSITY || 0), bigIntOracleToPostgresql(estimate.NUM_NULLS || 0), bigIntOracleToPostgresql(estimate.NUM_BUCKETS || 0), bigIntOracleToPostgresql(estimate.SAMPLE_SIZE || 0), bigIntOracleToPostgresql(estimate.AVG_COL_LEN || 0), false]);
       } catch (e) {
         debug(`Cannot find column while inserting column statistics for ${database.database_log} %o`, estimate);
       }
@@ -516,7 +527,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       values
         (uuid_generate_v4(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       on conflict do nothing
-    `, [database.database_log, database.name, estimate.SCHEMA, findTableOrViewId(tables, views, database.database_log, database.name, estimate.SCHEMA, estimate.TABLE_NAME).table_log, estimate.ROWS || 0, estimate.INDEX_SIZE || 0, estimate.TABLE_SIZE || 0, estimate.BLOCKS || 0, estimate.EMPTY_BLOCKS || 0, estimate.AVG_ROW_LEN || 0, estimate.INDEX_HIT_RATE || 0, estimate.TABLE_HIT_RATE || 0, false]))));
+    `, [database.database_log, database.name, estimate.SCHEMA, findTableOrViewId(tables, views, database.database_log, database.name, estimate.SCHEMA, estimate.TABLE_NAME).table_log, bigIntOracleToPostgresql(estimate.ROWS || 0), bigIntOracleToPostgresql(estimate.INDEX_SIZE || 0), bigIntOracleToPostgresql(estimate.TABLE_SIZE || 0), bigIntOracleToPostgresql(estimate.BLOCKS || 0), bigIntOracleToPostgresql(estimate.EMPTY_BLOCKS || 0), bigIntOracleToPostgresql(estimate.AVG_ROW_LEN || 0), bigIntOracleToPostgresql(estimate.INDEX_HIT_RATE || 0), bigIntOracleToPostgresql(estimate.TABLE_HIT_RATE || 0), false]))));
 
     // Database Connection Statistics
     (await Promise.all((await client.execute(`

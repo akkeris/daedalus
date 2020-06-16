@@ -39,12 +39,6 @@ module.exports = (req, res, next, data) => res.send(`
               <span class="value">${row.labels[key]}</span>
             </a>
             `).join("") : ''}
-            ${row.status ? Object.keys(row.status).map((key) => !key.startsWith("max_") ? `
-            <span class="pill subtle">
-              <span class="name">${key.split("_").map(x => x[0].toUpperCase() + x.substring(1).toLowerCase()).join(" ")}</span>
-              <span class="value">${row.status['max_' + key] ? row.status[key] + '/' + row.status['max_' + key] : row.status[key]}</span>
-            </span>
-            ` : '').filter((x) => x !== '').join("") : ''}
           </div>
         </div>
       `).join('')}

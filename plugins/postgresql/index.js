@@ -9,6 +9,7 @@ async function init(pgpool) {
   await pgpool.query(fs.readFileSync('./plugins/postgresql/create.sql').toString());
   debug('Initializing postgresql plugin... done');
 }
+
 function parseServerOptions(connection) {
   const db = connection
     .substring(1, connection.length - 1)
@@ -87,6 +88,9 @@ async function writePostgresqlColumnsFromTables(pgpool) {
 
 // Finds and links databases that have dblinks between them.
 async function writePostgresqlRoleFromDatabases(pgpool) {
+  // TODO: this is restricted to postgres <-> postgres foreign servers,
+  // add support for other types such as `connstr=` with JDBC TNS string
+  // (e.g., oracle)
   const { rows: foreignServers } = await pgpool.query(`
     select
       foreign_servers.foreign_server_log,
@@ -103,6 +107,9 @@ async function writePostgresqlRoleFromDatabases(pgpool) {
     from
       postgresql.foreign_servers
       join postgresql.databases on foreign_servers.database_log = databases.database_log
+    where
+      foreign_servers.connection like '%dbname%' and 
+      foreign_servers.connection like '%host%'
   `, []);
 
   await Promise.all(foreignServers.map(async (server) => {
@@ -132,7 +139,7 @@ async function writePostgresqlRoleFromDatabases(pgpool) {
       await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing',
         [role.role_log, db.database_log]);
     } catch (e) {
-      debug(`Unable to link database ${server.database} and foreign server ${server.foreign_server_log} due to: ${e.message}`);
+      debug(`Unable to link database ${server.database_log} and foreign server ${server.foreign_server_log} due to: ${e.message}`);
     }
   }));
 }
@@ -780,7 +787,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       // How do we do this, if the host is unavailalbe we shouldn't assume the db is unavailable,
       // if the password is changed, what should we do? if the database no longer exists should
       // we remove it?
-      debug(`Error examining database uuid ${database.database_log}: ${e.stack}`); // eslint-disable-line no-console
+      debug(`Error examining database_log uuid ${database.database_log}: ${e.stack}`); // eslint-disable-line no-console
     }
   } finally {
     await client.end();

@@ -204,7 +204,7 @@ function parseJDBC(value, name, map) {
     pass = passwords[0]; // eslint-disable-line prefer-destructuring
   }
   return {
-    hostname: host,
+    hostname: host.startsWith('//') ? host.substring(2) : host,
     port,
     pathname: service,
     username: user,

@@ -144,7 +144,6 @@ async function writePostgresqlRoleFromDatabases(pgpool) {
   }));
 }
 
-
 function findConstraintId(constraints, database, name, type, fromCatalog, fromSchema, fromTable, fromColumn) { // eslint-disable-line max-len
   return constraints.filter((constraint) => constraint.database_log === database.database_log
     && database.name === fromCatalog
@@ -192,7 +191,6 @@ function findForeignTable(tables, database, catalog, schema, table_in, foreign_s
     && table.foreign_database_name === foreign_database_name // eslint-disable-line max-len,camelcase
     && table.foreign_database_host === foreign_database_host)[0]; // eslint-disable-line max-len,camelcase
 }
-
 
 function findForeignServer(foreignServers, database, catalog, owner, name, username, connection) {
   return foreignServers.filter((server) => server.database_log === database

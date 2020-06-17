@@ -267,6 +267,105 @@ async function writeHttpFromDeployments(pgpool, urlType, certificateType) {
   return added;
 }
 
+async function writeUrlToHttpServices(pgpool) {
+  await pgpool.query(`
+    insert into urls.urls_log 
+    select a.* from (
+      select
+        uuid_generate_v4(),
+        uuid_generate_v5(uuid_ns_url(), 'http://' || services.name || '.' || services.namespace || '.svc.cluster.local'),
+        'http:',
+        services.name || '.' || services.namespace || '.svc.cluster.local',
+        '80',
+        '/',
+        ('{"uri":"' || 'http://' || services.name || '.' || services.namespace || '.svc.cluster.local"}')::jsonb,
+        null::uuid,
+        now(),
+        false
+      from
+        kubernetes.services
+      where
+          ((services.definition->'spec')->'ports') @> jsonb_build_array(jsonb_build_object('name', 'http', 'port', 80))
+      union
+      select
+        uuid_generate_v4(),
+        uuid_generate_v5(uuid_ns_url(), 'http://' || services.name || '.' || services.namespace),
+        'http:',
+        services.name || '.' || services.namespace,
+        '80',
+        '/',
+        ('{"uri":"' || 'http://' || services.name || '.' || services.namespace || '"}')::jsonb,
+        null::uuid,
+        now(),
+        false
+      from
+        kubernetes.services
+      where
+          ((services.definition->'spec')->'ports') @> jsonb_build_array(jsonb_build_object('name', 'http', 'port', 80))
+    ) a
+    on conflict (protocol, hostname, port, pathname, deleted)
+    do nothing
+  `);
+  return pgpool.query(`
+    insert into metadata.families
+      select
+        uuid_generate_v4(), urls.url_log, services.node_log
+      from
+        urls.urls join kubernetes.services on
+          ((urls.hostname = (services.name || '.' || services.namespace)) or
+          (urls.hostname = (services.name || '.' || services.namespace || '.svc.cluster.local')))
+    on conflict (parent, child) do nothing
+  `);
+}
+
+async function writeUrlToVirtualServices(pgpool) {
+  await pgpool.query(`
+    insert into urls.urls_log 
+    select a.* from (
+      select
+        uuid_generate_v4(),
+        uuid_generate_v5(uuid_ns_url(), 'https://' || trim(both '"' from host::text)),
+        'https:',
+        trim(both '"' from host::text),
+        '443',
+        '/',
+        ('{"uri":"https://' || trim(both '"' from host::text) || '"}')::jsonb,
+        null::uuid,
+        now(),
+        false
+      from kubernetes.virtualservices,
+      jsonb_path_query(virtualservices.definition, '$.spec.hosts[*]') as host
+
+      union 
+
+      select
+        uuid_generate_v4(),
+        uuid_generate_v5(uuid_ns_url(), 'http://' || trim(both '"' from host::text)),
+        'http:',
+        trim(both '"' from host::text),
+        '443',
+        '/',
+        ('{"uri":"http://' || trim(both '"' from host::text) || '"}')::jsonb,
+        null::uuid,
+        now(),
+        false
+      from kubernetes.virtualservices,
+      jsonb_path_query(virtualservices.definition, '$.spec.hosts[*]') as host
+    ) a
+    on conflict (protocol, hostname, port, pathname, deleted)
+    do nothing
+  `);
+  return pgpool.query(`
+    insert into metadata.families
+      select
+        uuid_generate_v4(), urls.url_log, virtualservices.node_log
+      from
+        urls.urls join kubernetes.virtualservices on
+          jsonb_build_array(urls.hostname) @> ((virtualservices.definition->'spec')->'hosts')
+    on conflict (parent, child) do nothing
+  `);
+}
+
 async function run(pgpool) {
   if (process.env.URLS !== 'true') {
     return;
@@ -292,7 +391,10 @@ async function run(pgpool) {
       on conflict do nothing
     `, [deadUrl.url, deadUrl.protocol, deadUrl.hostname, deadUrl.port, deadUrl.pathname, deadUrl.definition, deadUrl.certificate, true]);
   });
-
+  await Promise.all([
+    await writeUrlToHttpServices(pgpool),
+    await writeUrlToVirtualServices(pgpool),
+  ]);
   debug('Running urls plugin... done');
 }
 
@@ -301,7 +403,6 @@ async function init(pgpool) {
   await pgpool.query(fs.readFileSync('./plugins/urls/create.sql').toString());
   debug('Initializing urls plugin... done');
 }
-
 
 module.exports = {
   init,

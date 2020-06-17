@@ -1,5 +1,5 @@
 const express = require('express');
-const debug = require('debug')('ui');
+const debug = require('debug')('daedalus:ui');
 const oauth = require('./oauth');
 const postgresqlDatabases = require('./postgresql.databases.js');
 const postgresqlTables = require('./postgresql.tables.js');
@@ -20,6 +20,7 @@ async function init(pgpool, bus, app) {
   if (process.env.UI !== 'true') {
     return;
   }
+  debug('Initializing ui...');
   app.get('/', (req, res) => res.redirect('/ui/'));
   app.use(express.static('./plugins/ui/public/'));
   app.all('/ui/*', oauth.check);
@@ -130,13 +131,12 @@ async function init(pgpool, bus, app) {
       });
   }, 1000);
   await changes(pgpool, bus, app);
-  debug('initialized');
+  debug('Initializing ui... done');
 }
 
 async function run(/* pgpool, bus, app */) {
   // do nothing
 }
-
 
 module.exports = {
   run,

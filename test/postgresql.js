@@ -5,7 +5,6 @@ const EventEmitter = require('events');
 const postgresql = require('../plugins/postgresql');
 const security = require('../common/security');
 
-
 assert.ok(process.env.TEST_DATABASE_URL, 'The TEST_DATABASE_URL postgres:// connection string was not defined.');
 const pgpool = new pg.Pool({ connectionString: process.env.TEST_DATABASE_URL, max: 40 });
 const connString = new URL(process.env.TEST_DATABASE_URL);

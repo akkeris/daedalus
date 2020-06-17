@@ -147,7 +147,7 @@ async function run(pgpool) {
   if (process.env.GITHUB !== 'true' || !process.env.GITHUB_TOKEN) {
     return false;
   }
-  const { rows: repos } = await pgpool.query('select distinct definition->>\'git_url\' as git_url, apps.node_log from akkeris.apps where definition->>\'git_url\' is not null');
+  const { rows: repos } = await pgpool.query('select distinct definition->>\'git_url\' as git_url, array_agg(apps.node_log) as node_logs from akkeris.apps where definition->>\'git_url\' is not null group by definition->>\'git_url\'');
   for (const r of repos) { // eslint-disable-line no-restricted-syntax
     try {
       const url = new URL(r.git_url);
@@ -157,8 +157,8 @@ async function run(pgpool) {
         repo, commits, branches, pulls, hooks,
       } = await fetch(org, name); // eslint-disable-line no-await-in-loop
       const repoObj = (await crawler.writeObj(pgpool, 'github', 'repo', repoNode(repo), repo, repoSpec(repo), repoStatus(repo), repoMetadata(repo), { url: repo.html_url, name: repo.full_name })).rows[0]; // eslint-disable-line max-len,no-await-in-loop
-      await pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing', // eslint-disable-line max-len,no-await-in-loop
-        [r.node_log, repoObj.node_log]);
+      await Promise.all(r.node_logs.map((nodeLog) => pgpool.query('insert into metadata.families (connection, parent, child) values (uuid_generate_v4(), $1, $2) on conflict (parent, child) do nothing', // eslint-disable-line max-len,no-await-in-loop
+        [nodeLog, repoObj.node_log])));
       for (const commit of commits) { // eslint-disable-line no-restricted-syntax
         const columns = { // eslint-disable-line max-len,no-await-in-loop
           url: commit.html_url, sha: commit.sha, message: commit.commit.message, author: commit.commit.author, committer: commit.commit.committer, // eslint-disable-line max-len

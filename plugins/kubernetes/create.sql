@@ -18,6 +18,13 @@ begin
     create index if not exists deployment_to_akkeris_apps_link on kubernetes.deployments_log using gin
       (((definition->'metadata')->'labels') jsonb_path_ops);
   end if;
+  if exists (select 1 from information_schema.tables where table_schema='kubernetes' and table_name='services_log') then
+    create index if not exists services_tourls_link on kubernetes.services_log using gin (((definition->'spec')->'ports') jsonb_path_ops);
+  end if;
+  if exists (select 1 from information_schema.tables where table_schema='kubernetes' and table_name='virtualservices_log') then
+    create index if not exists virtualservices_to_services_link on kubernetes.virtualservices_log using gin (definition);
+    create index if not exists virtualservices_to_urls_link on kubernetes.virtualservices_log using gin (((definition->'spec')->'hosts') jsonb_path_ops);
+  end if;
 
   if exists (select 1 from information_schema.tables where table_schema='metadata' and table_name='node_types') then
     insert into metadata.node_types ("type", name, icon, fa_icon, human_name) values (uuid_generate_v4(), 'kubernetes/configmaps', 'kubernetes.configmaps.svg', 'fa-map', 'Kubernetes Config Maps') on conflict (name) do nothing;

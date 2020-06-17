@@ -5,76 +5,27 @@ const debug = require('debug')('daedalus:kubernetes');
 const security = require('../../common/security.js');
 const crawler = require('../../common/crawler.js');
 
-// TODO: Add watch functionality and increase
-// rate at which it pulls the world.
+// todo: Add watch functionality and increase rate at which it pulls the world.
+// todo: prune kubernetes events, pods and replicasets after X amount of time
+//       if more recent version exists.
 
-// todo: pod -> configmap
-// todo: replicaset -> configmap
-// todo: deployments -> services (based on configuration)
+async function checkPermissions(k8sApi, resource, group) {
+  return (await k8sApi.createSelfSubjectAccessReview({ spec: { resourceAttributes: { verb: 'watch', resource, group } } })).body.status.allowed
+    && (await k8sApi.createSelfSubjectAccessReview({ spec: { resourceAttributes: { verb: 'get', resource, group } } })).body.status.allowed;
+}
 
-async function checkPermissions(kc) {
-  const accessPods = { spec: { resourceAttributes: { verb: 'watch', resource: 'pods' } } };
-  const accessReplicaSets = { spec: { resourceAttributes: { verb: 'watch', resource: 'replicasets' } } };
-  const accessServices = { spec: { resourceAttributes: { verb: 'watch', resource: 'services' } } };
-  const accessNodes = { spec: { resourceAttributes: { verb: 'watch', resource: 'nodes' } } };
-  const accessConfigMaps = { spec: { resourceAttributes: { verb: 'watch', resource: 'configmaps' } } };
-  const accessPersistentVolumes = { spec: { resourceAttributes: { verb: 'watch', resource: 'persistentvolumes' } } };
-  const accessPersistentVolumeClaims = { spec: { resourceAttributes: { verb: 'watch', resource: 'persistentvolumeclaims' } } };
-  const accessEvents = { spec: { resourceAttributes: { verb: 'watch', resource: 'events' } } };
-  const accessDeployments = { spec: { resourceAttributes: { verb: 'watch', resource: 'deployment', group: 'apps' } } };
-  const accessIngress = { spec: { resourceAttributes: { verb: 'watch', resource: 'ingress', group: 'extensions' } } };
-  const accessStatefulSets = { spec: { resourceAttributes: { verb: 'watch', resource: 'statefulset', group: 'apps' } } };
-  const accessDaemonSets = { spec: { resourceAttributes: { verb: 'watch', resource: 'daemonset', group: 'apps' } } };
+async function checkPermissionsAll(kc) {
   const k8sApi = kc.makeApiClient(k8s.AuthorizationV1Api);
-
-  const canWatchPods = (await k8sApi.createSelfSubjectAccessReview(accessPods)).body.status.allowed;
-  const canWatchReplicaSets = (await k8sApi.createSelfSubjectAccessReview(accessReplicaSets)).body.status.allowed; // eslint-disable-line max-len
-  const canWatchServices = (await k8sApi.createSelfSubjectAccessReview(accessServices)).body.status.allowed; // eslint-disable-line max-len
-  const canWatchNodes = (await k8sApi.createSelfSubjectAccessReview(accessNodes)).body.status.allowed; // eslint-disable-line max-len
-  const canWatchConfigMaps = (await k8sApi.createSelfSubjectAccessReview(accessConfigMaps)).body.status.allowed; // eslint-disable-line max-len
-  const canWatchDeployments = (await k8sApi.createSelfSubjectAccessReview(accessDeployments)).body.status.allowed; // eslint-disable-line max-len
-  const canWatchPersistentVolumes = (await k8sApi.createSelfSubjectAccessReview(accessPersistentVolumes)).body.status.allowed; // eslint-disable-line max-len
-  const canWatchPersistentVolumeClaims = (await k8sApi.createSelfSubjectAccessReview(accessPersistentVolumeClaims)).body.status.allowed; // eslint-disable-line max-len
-  const canWatchEvents = (await k8sApi.createSelfSubjectAccessReview(accessEvents)).body.status.allowed; // eslint-disable-line max-len
-  const canWatchIngress = (await k8sApi.createSelfSubjectAccessReview(accessIngress)).body.status.allowed; // eslint-disable-line max-len
-  const canWatchStatefulSets = (await k8sApi.createSelfSubjectAccessReview(accessIngress)).body.status.allowed; // eslint-disable-line max-len
-  const canWatchDaemonSets = (await k8sApi.createSelfSubjectAccessReview(accessIngress)).body.status.allowed; // eslint-disable-line max-len
-
-  accessDeployments.spec.resourceAttributes.verb = 'get';
-  accessPods.spec.resourceAttributes.verb = 'get';
-  accessReplicaSets.spec.resourceAttributes.verb = 'get';
-  accessNodes.spec.resourceAttributes.verb = 'get';
-  accessServices.spec.resourceAttributes.verb = 'get';
-  accessConfigMaps.spec.resourceAttributes.verb = 'get';
-  accessPersistentVolumes.spec.resourceAttributes.verb = 'get';
-  accessPersistentVolumeClaims.spec.resourceAttributes.verb = 'get';
-  accessEvents.spec.resourceAttributes.verb = 'get';
-
-  const canGetPods = (await k8sApi.createSelfSubjectAccessReview(accessPods)).body.status.allowed;
-  const canGetDeployments = (await k8sApi.createSelfSubjectAccessReview(accessDeployments)).body.status.allowed; // eslint-disable-line max-len
-  const canGetServices = (await k8sApi.createSelfSubjectAccessReview(accessServices)).body.status.allowed; // eslint-disable-line max-len
-  const canGetNodes = (await k8sApi.createSelfSubjectAccessReview(accessNodes)).body.status.allowed;
-  const canGetConfigMaps = (await k8sApi.createSelfSubjectAccessReview(accessConfigMaps)).body.status.allowed; // eslint-disable-line max-len
-  const canGetPersistentVolumes = (await k8sApi.createSelfSubjectAccessReview(accessPersistentVolumes)).body.status.allowed; // eslint-disable-line max-len
-  const canGetPersistentVolumeClaims = (await k8sApi.createSelfSubjectAccessReview(accessPersistentVolumeClaims)).body.status.allowed; // eslint-disable-line max-len
-  const canGetEvents = (await k8sApi.createSelfSubjectAccessReview(accessEvents)).body.status.allowed; // eslint-disable-line max-len
-  const canGetReplicaSets = (await k8sApi.createSelfSubjectAccessReview(accessReplicaSets)).body.status.allowed; // eslint-disable-line max-len
-  const canGetIngress = (await k8sApi.createSelfSubjectAccessReview(accessIngress)).body.status.allowed; // eslint-disable-line max-len
-  const canGetStatefulSets = (await k8sApi.createSelfSubjectAccessReview(accessStatefulSets)).body.status.allowed; // eslint-disable-line max-len
-  const canGetDaemonSets = (await k8sApi.createSelfSubjectAccessReview(accessDaemonSets)).body.status.allowed; // eslint-disable-line max-len
-
-  return canWatchPods && canGetPods
-    && canWatchDeployments && canGetDeployments
-    && canWatchNodes && canGetNodes
-    && canWatchServices && canGetServices
-    && canWatchConfigMaps && canGetConfigMaps
-    && canWatchPersistentVolumes && canGetPersistentVolumes
-    && canWatchPersistentVolumeClaims && canGetPersistentVolumeClaims
-    && canWatchEvents && canGetEvents
-    && canWatchReplicaSets && canGetReplicaSets
-    && canWatchIngress && canGetIngress
-    && canWatchStatefulSets && canGetStatefulSets
-    && canWatchDaemonSets && canGetDaemonSets;
+  return await checkPermissions(k8sApi, 'pods') && await checkPermissions(k8sApi, 'replicasets')
+    && await checkPermissions(k8sApi, 'services')
+    && await checkPermissions(k8sApi, 'nodes')
+    && await checkPermissions(k8sApi, 'configmaps')
+    && await checkPermissions(k8sApi, 'persistentvolumes')
+    && await checkPermissions(k8sApi, 'persistentvolumeclaims')
+    && await checkPermissions(k8sApi, 'deployments', 'apps')
+    && await checkPermissions(k8sApi, 'ingress', 'extensions')
+    && await checkPermissions(k8sApi, 'statefulset', 'apps')
+    && await checkPermissions(k8sApi, 'daemonset', 'apps'); // eslint-disable-line no-return-await
 }
 
 function writePodsToReplicaSets(pgpool) {
@@ -109,7 +60,7 @@ async function writeDeploymentsToConfigMaps(pgpool) {
           deployments_log.namespace = configmaps_log.namespace and
           ((((deployments_log.definition->'spec')->'template')->'spec')->'containers') @>
             jsonb_build_array(jsonb_build_object('envFrom', jsonb_build_array(jsonb_build_object('configMapRef', jsonb_build_object('name', configmaps_log.name)))))
-    on conflict do nothing;
+    on conflict do nothing
   `);
 }
 
@@ -121,7 +72,7 @@ async function writeAkkersAppsToDeployments(pgpool) {
       kubernetes.deployments_log 
         join akkeris.apps_log on
           ((deployments_log.definition->'metadata')->'labels') @> jsonb_build_object('akkeris.io/app-uuid', apps_log.node)
-    on conflict do nothing;
+    on conflict do nothing
   `);
 }
 
@@ -131,7 +82,32 @@ async function writePodsToNodes(pgpool) {
       select uuid_generate_v4(), nodes.node_log, pods.node_log
       from kubernetes.pods
         join kubernetes.nodes on ((pods.definition->'spec')->>'nodeName') = nodes.name
-    on conflict do nothing;
+    on conflict do nothing
+  `);
+}
+
+async function writePodsToServices(pgpool) {
+  return pgpool.query(`
+    insert into metadata.families
+      select uuid_generate_v4(), services.node_log, pods.node_log
+      from
+        kubernetes.services
+          join kubernetes.pods on
+            ((pods.definition->'metadata')->'labels') @> ((services.definition->'spec')->'selector')
+    on conflict do nothing
+  `);
+}
+
+async function writeServicesToVirtualServices(pgpool) {
+  return pgpool.query(`
+    insert into metadata.families
+      select uuid_generate_v4(), virtualservices.node_log, services.node_log
+      from
+        kubernetes.virtualservices
+          join kubernetes.services on
+            virtualservices.definition @@
+              ('$.spec.http[*].route[*].destination.host == "' || services.name || '.' || services.namespace || '.svc.cluster.local"')::jsonpath
+    on conflict do nothing
   `);
 }
 
@@ -364,7 +340,6 @@ async function writePostgresqlFromSets(pgpool, records) {
   }));
 }
 
-
 async function loadFromKubeEnvironment(kc) {
   debug('Trying to load from env KUBERNETES_API_URL and KUBERNETES_TOKEN...');
   assert.ok(process.env.KUBERNETES_CONTEXT, 'The kubernetes context (KUBERNETES_CONTEXT) was not specified.');
@@ -391,7 +366,7 @@ contexts:
     user: ${process.env.KUBERNETES_CONTEXT}
     cluster: ${process.env.KUBERNETES_CONTEXT}
 `);
-  await checkPermissions(kc);
+  await checkPermissionsAll(kc);
   debug('Loaded kubernetes from env KUBERNETES_API_URL and KUBERNETES_TOKEN...');
 }
 
@@ -449,9 +424,7 @@ function redactConfigMaps(data) {
     x.data = security.redact(x.data);
     if (x.metadata && x.metadata.annotations && x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']) {
       const lastAppliedConfig = JSON.parse(x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']);
-      if (lastAppliedConfig.data) {
-        x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(security.redact(lastAppliedConfig.data));
-      }
+      x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(redactConfigMaps(lastAppliedConfig));
     }
   }
   return x;
@@ -462,30 +435,15 @@ function redactPods(data) {
   if (x.spec && x.spec.containers) {
     x.spec.containers = x.spec.containers.map((y) => {
       if (y.env) {
-        const redactedValues = security.redact(fromEnvArrayToObj(y.env));
-        return {
-          ...y,
-          env: y.env.map((q) => (q.value ? { ...q, value: redactedValues[q.name] } : q)),
-        };
+        const rv = security.redact(fromEnvArrayToObj(y.env));
+        return { ...y, env: y.env.map((q) => (q.value ? { ...q, value: rv[q.name] } : q)) };
       }
       return y;
     });
   }
   if (x.metadata && x.metadata.annotations && x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']) {
     const lastAppliedConfig = JSON.parse(x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']);
-    if (lastAppliedConfig.spec && lastAppliedConfig.spec.containers) {
-      lastAppliedConfig.spec.containers = lastAppliedConfig.spec.containers.map((y) => {
-        if (y.env) {
-          const redactedValues = security.redact(fromEnvArrayToObj(y.env));
-          return {
-            ...y,
-            env: y.env.map((q) => (q.value ? { ...q, value: redactedValues[q.name] } : q)),
-          };
-        }
-        return y;
-      });
-      x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(lastAppliedConfig);
-    }
+    x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(redactPods(lastAppliedConfig));
   }
   return x;
 }
@@ -495,49 +453,28 @@ function redactDeploymentsSetsAndJobs(data) {
   if (x.spec && x.spec.template && x.spec.template.spec && x.spec.template.spec.containers) {
     x.spec.template.spec.containers = x.spec.template.spec.containers.map((y) => {
       if (y.env) {
-        const redactedValues = security.redact(fromEnvArrayToObj(y.env));
-        return {
-          ...y,
-          env: y.env.map((q) => (q.value ? { ...q, value: redactedValues[q.name] } : q)),
-        };
+        const rv = security.redact(fromEnvArrayToObj(y.env));
+        return { ...y, env: y.env.map((q) => (q.value ? { ...q, value: rv[q.name] } : q)) };
       }
       return y;
     });
   }
   if (x.metadata && x.metadata.annotations && x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']) {
     const lastAppliedConfig = JSON.parse(x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration']);
-    if (lastAppliedConfig.spec
-        && lastAppliedConfig.spec.template
-        && lastAppliedConfig.spec.template.spec
-        && lastAppliedConfig.spec.template.spec.containers) {
-      lastAppliedConfig.spec.template.spec.containers = lastAppliedConfig.spec.template.spec.containers.map((y) => { // eslint-disable-line max-len
-        if (y.env) {
-          const redactedValues = security.redact(fromEnvArrayToObj(y.env));
-          return {
-            ...y,
-            env: y.env.map((q) => (q.value ? { ...q, value: redactedValues[q.name] } : q)),
-          };
-        }
-        return y;
-      });
-      x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(lastAppliedConfig);
-    }
+    x.metadata.annotations['kubectl.kubernetes.io/last-applied-configuration'] = JSON.stringify(redactDeploymentsSetsAndJobs(lastAppliedConfig));
   }
   return x;
 }
 
 function redact(type, definition) {
-  let redacted = JSON.parse(JSON.stringify(definition));
   if (type === 'configmap') {
-    redacted = redactConfigMaps(redacted);
+    return redactConfigMaps(JSON.parse(JSON.stringify(definition)));
+  } if (type === 'pod') {
+    return redactPods(JSON.parse(JSON.stringify(definition)));
+  } if (type === 'deployment' || type === 'replicaset' || type === 'statefulset' || type === 'daemonset' || type === 'job') {
+    return redactDeploymentsSetsAndJobs(JSON.parse(JSON.stringify(definition)));
   }
-  if (type === 'pod') {
-    redacted = redactPods(redacted);
-  }
-  if (type === 'deployment' || type === 'replicaset' || type === 'statefulset' || type === 'daemonset' || type === 'job') {
-    redacted = redactDeploymentsSetsAndJobs(redacted);
-  }
-  return redacted;
+  return definition;
 }
 
 async function fetch(type, func, args) {
@@ -694,7 +631,6 @@ async function run(pgpool) {
       .map((def) => redact('job', def))
       .map((redef) => crawler.writeObj(pgpool, 'kubernetes', 'job', kubeNode(redef), redef, kubeSpec(redef), kubeStatus(redef), kubeMetadata(redef), { name: redef.metadata.name, namespace: redef.metadata.namespace, context: process.env.KUBERNETES_CONTEXT })))).map((x) => x.rows).flat()); // eslint-disable-line max-len
 
-
   if (process.env.ISTIO === 'true') {
     try {
       debug(`Refreshing virtual services from ${process.env.KUBERNETES_CONTEXT}`);
@@ -761,6 +697,8 @@ async function run(pgpool) {
     writeReplicaSetsToDeployments(pgpool),
     writeDeploymentsToConfigMaps(pgpool),
     writePodsToNodes(pgpool),
+    writePodsToServices(pgpool),
+    writeServicesToVirtualServices(pgpool),
   ]);
   debug('Writing inter-depedency links between kubernetes objects... done');
 }

@@ -140,6 +140,8 @@ begin
   create unique index if not exists nodes_log_cache_node_log on metadata.nodes_log_cache("node_log");
   create index if not exists nodes_log_cache_node on metadata.nodes_log_cache("node");
   create index if not exists nodes_log_cache_observed_on_desc on metadata.nodes_log_cache("observed_on" desc);
+  create index if not exists nodes_log_cache_node_type_asc on metadata.nodes_log_cache(node, type, observed_on asc);
+  create index if not exists nodes_log_cache_node_type_desc on metadata.nodes_log_cache(node, type, observed_on desc);
 
   create materialized view if not exists metadata.nodes_cache as
     select * from metadata.nodes;
@@ -167,7 +169,9 @@ begin
       metadata.nodes_log_cache join
       metadata.node_types on nodes_log_cache.type = node_types.type
     where
-      node_types.name not like 'oracle/constraints' -- unusually large amount of constraint changes, investigate and remove..
+      node_types.name != 'oracle/constraints' -- unusually large amount of constraint changes, investigate and remove..
+      and node_types.name != 'kubernetes/events'
+      and node_types.name != 'aws/rds_events'
     order by nodes_log_cache.observed_on desc;
   
   create unique index if not exists change_log_cache_node_log on metadata.change_log_cache ("node_log");

@@ -206,6 +206,7 @@ function findForeignServer(foreignServers, database, catalog, owner, name, usern
 // TODO: Fix the issue if there's a state flip back to the original state the diff breaks.
 // e.g. drop a column and re-add it (exactly how it was). The system can't handle that.
 // e.g. change the port of a database to 1 from 5432 then back 5432, breaks.
+// TODO: progress of vacuum, potential areas where vacuum may help?
 
 // TODO: Listen for changes via triggers and channels?
 // https://www.postgresql.org/docs/9.1/sql-notify.html

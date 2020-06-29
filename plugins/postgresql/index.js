@@ -280,7 +280,9 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
 
     const views = (await Promise.all((await client.query(`
       select
-        schemaname, viewname, definition
+        schemaname, 
+        viewname,
+        definition
       from pg_catalog.pg_views
       where 
         pg_views.schemaname <> 'information_schema' and 
@@ -529,7 +531,7 @@ async function writeTablesViewsAndColumns(pgpool, bus, database) {
       on conflict (database_log, catalog, owner, name, username, connection, deleted)
       do update set deleted = false
       returning foreign_server_log, foreign_server, database_log, catalog, owner, name, username, connection, deleted
-    `, [foreignServer.db_link + foreignServer.username + foreignServer.connection, database.database_log, database.name, foreignServer.owner, foreignServer.db_link, foreignServer.username, foreignServer.connection, false]))))
+    `, [database.database_log + foreignServer.db_link + foreignServer.username + foreignServer.connection, database.database_log, database.name, foreignServer.owner, foreignServer.db_link, foreignServer.username, foreignServer.connection, false]))))
       .map((x) => x.rows).flat();
 
     // Column Statistics

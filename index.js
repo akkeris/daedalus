@@ -8,6 +8,7 @@ const session = require('express-session');
 const PGSession = require('connect-pg-simple')(session);
 const parser = require('body-parser');
 const debug = require('debug')('daedalus:index');
+const compression = require('compression');
 
 const bus = new EventEmitter();
 const app = express();
@@ -49,6 +50,7 @@ async function init() {
   app.set('trust proxy', 1);
   app.use(session(sessionOptions));
   app.use(parser.json());
+  app.use(compression());
   app.use(parser.urlencoded({ extended: true }));
 
   debug('Initializing plugins...');

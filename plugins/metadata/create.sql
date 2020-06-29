@@ -171,8 +171,7 @@ begin
     where
       node_types.name != 'oracle/constraints' -- unusually large amount of constraint changes, investigate and remove..
       and node_types.name != 'kubernetes/events'
-      and node_types.name != 'aws/rds_events'
-    order by nodes_log_cache.observed_on desc;
+      and node_types.name != 'aws/rds_events';
   
   create unique index if not exists change_log_cache_node_log on metadata.change_log_cache ("node_log");
   create index if not exists change_log_cache_node on metadata.change_log_cache ("node");

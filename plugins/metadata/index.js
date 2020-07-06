@@ -158,18 +158,31 @@ async function run(pgpool) {
     return;
   }
   debug('Running metadata plugin...');
-  debug('Refreshing nodes_log cache...');
-  await pgpool.query('refresh materialized view concurrently metadata.nodes_log_cache');
-  debug('Refreshing nodes cache...');
-  await pgpool.query('refresh materialized view concurrently metadata.nodes_cache');
-  debug('Refreshing change log cache...');
-  await pgpool.query('refresh materialized view concurrently metadata.change_log_cache');
-  debug('Re-indexing parent familial relationships...');
-  await pgpool.query('reindex index concurrently metadata.metadata_families_parent');
-  debug('Re-indexing child familial relationships...');
-  await pgpool.query('reindex index concurrently metadata.metadata_families_child');
-  debug('Re-indexing parent-child familial relationships...');
-  await pgpool.query('reindex index concurrently metadata.families_node_idx');
+  const client = await pgpool.connect();
+  try {
+    await client.query('set work_mem=\'1GB\'');
+    debug('Refreshing nodes_log cache...');
+    await client.query('refresh materialized view metadata.nodes_log_cache');
+    debug('Vacuuming nodes_log cache...');
+    await client.query('vacuum full analyze metadata.nodes_log_cache');
+    debug('Re-indexing nodes_log cache...');
+    await client.query('reindex table metadata.nodes_log_cache');
+    debug('Refreshing nodes cache...');
+    await client.query('refresh materialized view metadata.nodes_cache');
+    debug('Re-indexing nodes cache...');
+    await client.query('reindex table metadata.nodes_cache');
+    debug('Refreshing change log cache...');
+    await client.query('refresh materialized view metadata.change_log_cache');
+    debug('Re-indexing parent familial relationships...');
+    await client.query('reindex index concurrently metadata.metadata_families_parent');
+    debug('Re-indexing child familial relationships...');
+    await client.query('reindex index concurrently metadata.metadata_families_child');
+    debug('Re-indexing parent-child familial relationships...');
+    await client.query('reindex index concurrently metadata.families_node_idx');
+    await client.query('set work_mem to default');
+  } finally {
+    client.release();
+  }
 
   await notify(pgpool);
 }

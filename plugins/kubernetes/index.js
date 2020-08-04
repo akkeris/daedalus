@@ -267,7 +267,7 @@ async function writePostgresqlToNode(pgpool, dbUrl, nodeLog) {
     insert into postgresql.roles_log (role_log, role, database_log, username, password, options, deleted)
     values (uuid_generate_v4(), uuid_generate_v5(uuid_ns_url(), $1), $2, $3, $4, $5, $6)
     on conflict (database_log, username, (password->>'hash'), deleted) 
-    do update set username = $3 
+    do update set username = $3
     returning role_log, role, username`,
   [`${dbUrl.hostname}.${dbUrl.pathname}.${dbUrl.username}`, db.rows[0].database_log, dbUrl.username, secret, dbUrl.search.replace(/\?/, ''), false]);
   assert.ok(role.rows.length > 0, 'Adding a role did not return a role id');

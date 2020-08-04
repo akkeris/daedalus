@@ -67,7 +67,7 @@ begin
       roles_log.observed_on,
       roles_log.deleted as roles_deleted,
       databases_log.deleted as databases_deleted,
-      row_number() over (partition by roles_log.database_log, roles_log.username, (roles_log.password->>'hash') order by roles_log.observed_on desc) as rn
+      row_number() over (partition by roles_log.database_log, roles_log.username order by roles_log.observed_on desc) as rn
     from postgresql.roles_log join postgresql.databases_log on roles_log.database_log = databases_log.database_log)
     select role_log, role, database_log, username, password, options, observed_on from ordered_list where rn=1 and roles_deleted = false and databases_deleted = false;
   comment on view "postgresql"."roles" IS E'@name postgresqlRoles';
